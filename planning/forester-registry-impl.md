@@ -2,6 +2,125 @@
 
 This checklist provides atomic, verifiable steps to implement the registry management feature for forester. Each step builds on the previous ones.
 
+## Module Design
+
+### Project Structure
+
+```
+forester/
+├── Cargo.toml
+├── src/
+│   ├── main.rs          # CLI entry point (thin wrapper)
+│   ├── lib.rs           # Library entry point
+│   ├── config.rs        # Configuration loading (dotenv, env vars)
+│   └── registry/
+│       ├── mod.rs       # Public API for registry operations
+│       ├── types.rs     # Domain types
+│       ├── docker.rs    # Docker interaction
+│       └── health.rs    # Health checking
+└── tests/
+    └── registry_integration.rs
+```
+
+### Domain Types (registry/types.rs)
+
+**RegistryPort** - Newtype for port validation
+- Validates port is in valid range (1024-65535)
+- Prevents using privileged ports
+
+**RegistryUrl** - Complete registry URL
+- Constructed from host + port
+- Provides formatted string for display
+
+**ContainerName** - Registry container identifier
+- Validates name format
+- Default: "forester-registry"
+
+**VolumeName** - Docker volume identifier
+- Validates volume name format
+- Default: "forester-registry-data"
+
+**ImageRef** - OCI image reference
+- Default: "registry:2"
+- Validates format
+
+**RegistryState** - Enum representing container state
+- NotCreated
+- Stopped
+- Running { url: RegistryUrl }
+
+**RegistryConfig** - Configuration for registry
+- port: RegistryPort
+- container_name: ContainerName
+- volume_name: VolumeName
+- image: ImageRef
+
+**RegistryStatus** - Complete status information
+- state: RegistryState
+- volume_exists: bool
+
+### Configuration (config.rs)
+
+**ForesterConfig** - Top-level configuration
+- registry: RegistryConfig
+- Loaded from environment with `envy`
+- Supports `.env` file via `dotenvy`
+
+**Environment Variables:**
+- `FORESTER_REGISTRY_PORT` (default: 5000)
+- `FORESTER_REGISTRY_CONTAINER_NAME` (default: "forester-registry")
+- `FORESTER_REGISTRY_VOLUME_NAME` (default: "forester-registry-data")
+- `FORESTER_REGISTRY_IMAGE` (default: "registry:2")
+
+### Registry Operations (registry/mod.rs)
+
+Public functions (not methods):
+- `start(config: &RegistryConfig) -> Result<RegistryUrl, RegistryError>`
+- `stop(config: &RegistryConfig) -> Result<(), RegistryError>`
+- `status(config: &RegistryConfig) -> Result<RegistryStatus, RegistryError>`
+- `clean(config: &RegistryConfig) -> Result<(), RegistryError>`
+- `logs(config: &RegistryConfig, follow: bool) -> Result<(), RegistryError>`
+
+### Docker Interaction (registry/docker.rs)
+
+Internal functions for Docker CLI operations:
+- Check docker availability
+- Container existence and state checks
+- Container lifecycle (create, start, stop, remove)
+- Volume operations
+- Logs retrieval
+
+### Health Checking (registry/health.rs)
+
+Functions for registry health verification:
+- `check_ready(url: &RegistryUrl) -> Result<(), HealthError>`
+- `wait_until_ready(url: &RegistryUrl, timeout: Duration) -> Result<(), HealthError>`
+
+### Error Types
+
+**RegistryError** - Using snafu (defined in registry/mod.rs)
+- DockerNotFound
+- DockerNotRunning
+- PortInUse { port: RegistryPort }
+- ContainerStartFailed
+- HealthCheckTimeout
+- PermissionDenied
+- VolumeRemovalFailed
+
+**HealthError** - Health check errors (defined in registry/health.rs)
+- Timeout
+- ConnectionFailed
+- UnexpectedStatus
+
+### Key Design Principles
+
+1. **No separate error module** - Errors defined where they're used (per style guide)
+2. **Strong typing** - Port, URL, names all have dedicated types with validation
+3. **Validation at construction** - Invalid states are unrepresentable
+4. **Functional style** - Functions operate on domain types, not methods on structs
+5. **No Manager/Service types** - Avoid generic names, use specific domain functions
+6. **Builder pattern via bon** - For complex types like RegistryConfig
+
 ## Prerequisites
 
 - [ ] Read `planning/forester-overview.md` for context
