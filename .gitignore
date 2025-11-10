@@ -2,10 +2,8 @@
 
 # Bottlerocket component repositories
 /bottlerocket
-/bottlerocket-core-kit
-/bottlerocket-kernel-kit
+/kits
 /twoliter
-/bottlerocket-sdk
-/bottlerocket-admin-container
-/bottlerocket-control-container
+/sdk
+/host-containers
 /bottlerocket-settings-sdk
