@@ -1,1 +1,11 @@
 /planning
+
+# Bottlerocket component repositories
+/bottlerocket
+/bottlerocket-core-kit
+/bottlerocket-kernel-kit
+/twoliter
+/bottlerocket-sdk
+/bottlerocket-admin-container
+/bottlerocket-control-container
+/bottlerocket-settings-sdk
