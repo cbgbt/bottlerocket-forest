@@ -129,76 +129,79 @@ Functions for registry health verification:
 
 ## Phase 1: Project Structure and Configuration
 
-- [ ] **Convert forester to a library with binary**
+- [x] **Convert forester to a library with binary**
   - Create `src/lib.rs` as the main library entry point
   - Move CLI logic from `src/main.rs` to library functions
   - Keep `src/main.rs` as a thin wrapper that calls library functions
   - Verify: `cargo build` succeeds
 
-- [ ] **Add required dependencies to Cargo.toml**
+- [x] **Add required dependencies to Cargo.toml**
   - Add `argh` for CLI parsing
   - Add `snafu` for error handling
   - Add `dotenvy` for .env file support
   - Add `envy` for environment variable deserialization
   - Add `serde` with derive feature
+  - Add `nutype` with serde feature for validated newtypes
+  - Add `bon` for builder pattern
+  - Add `reqwest` with blocking feature for health checks
   - Verify: `cargo build` succeeds
 
-- [ ] **Create configuration module (src/config.rs)**
-  - Define `ForesterConfig` struct with registry configuration fields
-  - Implement loading from environment variables using `envy`
+- [x] **Create configuration module (src/config.rs)**
+  - Implement `load_config()` function using `envy` and `dotenvy`
+  - Use snafu's `ResultExt` and `.context()` for error handling
   - Support `.env` file loading with `dotenvy`
-  - Add default values for all configuration
+  - Deserialize directly into `RegistryConfig` using nutype's serde support
   - Verify: Can instantiate config with defaults
 
 ## Phase 2: Domain Types
 
-- [ ] **Create registry module structure**
+- [x] **Create registry module structure**
   - Create `src/registry/mod.rs`
   - Create `src/registry/types.rs`
   - Export public types from `mod.rs`
   - Verify: Module structure compiles
 
-- [ ] **Implement RegistryPort newtype (in types.rs)**
-  - Create newtype wrapping u16
-  - Implement validation (1024-65535 range)
-  - Implement `new()` constructor that returns Result
-  - Derive necessary traits (Debug, Clone, etc.)
-  - Add snafu error type for invalid port
+- [x] **Implement RegistryPort newtype (in types.rs)**
+  - Use `nutype` with validation (>= 1024)
+  - Derive Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize
+  - Implement Default (5000)
   - Verify: Can create valid ports, rejects invalid ones
 
-- [ ] **Implement ContainerName newtype (in types.rs)**
-  - Create newtype wrapping String
-  - Implement validation for Docker name format
-  - Implement `new()` and `default()` ("forester-registry")
+- [x] **Implement ContainerName newtype (in types.rs)**
+  - Use `nutype` with not_empty validation
+  - Derive Debug, Clone, PartialEq, Eq, Serialize, Deserialize
+  - Implement Default ("forester-registry")
   - Verify: Creates valid container names
 
-- [ ] **Implement VolumeName newtype (in types.rs)**
-  - Create newtype wrapping String
-  - Implement validation for Docker volume name format
-  - Implement `new()` and `default()` ("forester-registry-data")
+- [x] **Implement VolumeName newtype (in types.rs)**
+  - Use `nutype` with not_empty validation
+  - Derive Debug, Clone, PartialEq, Eq, Serialize, Deserialize
+  - Implement Default ("forester-registry-data")
   - Verify: Creates valid volume names
 
-- [ ] **Implement ImageRef newtype (in types.rs)**
-  - Create newtype wrapping String
-  - Implement `new()` and `default()` ("registry:2")
+- [x] **Implement ImageRef newtype (in types.rs)**
+  - Use `nutype` with not_empty validation
+  - Derive Debug, Clone, PartialEq, Eq, Serialize, Deserialize
+  - Implement Default ("registry:2")
   - Verify: Creates valid image references
 
-- [ ] **Implement RegistryUrl type (in types.rs)**
+- [x] **Implement RegistryUrl type (in types.rs)**
   - Create struct with host and port
-  - Implement `new()` constructor
-  - Implement `Display` trait for formatted output
-  - Verify: Formats URLs correctly (e.g., "http://localhost:5000")
+  - Implement bon builder pattern
+  - Implement `Display` trait for formatted output (without scheme)
+  - Verify: Formats URLs correctly (e.g., "localhost:5000")
 
-- [ ] **Implement RegistryState enum (in types.rs)**
+- [x] **Implement RegistryState enum (in types.rs)**
   - Create enum: NotCreated, Stopped, Running { url: RegistryUrl }
-  - Derive Debug, PartialEq
+  - Derive Debug, PartialEq, Eq, Clone
   - Verify: Can represent all states
 
-- [ ] **Implement RegistryConfig struct (in types.rs)**
+- [x] **Implement RegistryConfig struct (in types.rs)**
   - Create struct with port, container_name, volume_name, image fields
-  - Implement builder pattern using `bon` crate
-  - Add `bon` to dependencies
-  - Verify: Can build config with builder
+  - Implement builder pattern using `bon` crate with `#[builder(on(_, into))]`
+  - Derive Default, Serialize, Deserialize
+  - Add `#[serde(default)]` for environment variable deserialization
+  - Verify: Can build config with builder and deserialize from env vars
 
 ## Phase 3: Docker Interaction
 

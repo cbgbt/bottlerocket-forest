@@ -1,5 +1,10 @@
 /planning
 
+# Rust build artifacts
+target/
+Cargo.lock
+.env
+
 # Bottlerocket component repositories
 /bottlerocket
 /kits

@@ -1,6 +1,14 @@
 [package]
-name = "forest"
+name = "forester"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+argh = "0.1"
+bon = "3"
+dotenvy = "0.15"
+envy = "0.4"
+nutype = { version = "0.5", features = ["serde"] }
+reqwest = { version = "0.12", features = ["blocking"] }
+serde = { version = "1", features = ["derive"] }
+snafu = "0.8"

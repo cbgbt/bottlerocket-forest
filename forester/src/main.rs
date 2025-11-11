@@ -2,12 +2,12 @@ use std::process;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         process::exit(1);
     }
-    
+
     match args[1].as_str() {
         "registry" => handle_registry(&args[2..]),
         "status" => handle_status(),
@@ -25,7 +25,7 @@ fn handle_registry(args: &[String]) {
         eprintln!("registry command requires a subcommand: start, stop, status, clean");
         process::exit(1);
     }
-    
+
     match args[0].as_str() {
         "start" => registry_start(),
         "stop" => registry_stop(),

@@ -82,31 +82,43 @@ FORESTER_REGISTRY_IMAGE=registry:2
 
 ### Building
 
-Use `--quiet` flag with cargo commands to reduce noise:
+Build the project:
+
+```bash
+cargo build --quiet
+```
+
+Build for release:
 
 ```bash
 cargo build --quiet --release
-cargo test --quiet
 ```
 
 ### Code Quality
 
-Before committing changes:
+Before committing changes, ensure code passes all quality checks:
 
 1. **Format code:**
    ```bash
    cargo fmt
    ```
 
-2. **Check lints:**
+2. **Verify formatting:**
    ```bash
-   cargo clippy
+   cargo fmt --check
    ```
 
-3. **Run tests:**
+3. **Check lints:**
+   ```bash
+   cargo clippy --quiet
+   ```
+
+4. **Run tests:**
    ```bash
    cargo test --quiet
    ```
+
+The `--quiet` flag minimizes output, which is helpful when working with AI agents to reduce token usage.
 
 ### Integration Tests
 
