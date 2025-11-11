@@ -16,7 +16,7 @@ impl Default for RegistryPort {
 
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)
+    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref)
 )]
 pub struct ContainerName(String);
 
@@ -28,7 +28,7 @@ impl Default for ContainerName {
 
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)
+    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref)
 )]
 pub struct VolumeName(String);
 
@@ -40,7 +40,7 @@ impl Default for VolumeName {
 
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)
+    derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref)
 )]
 pub struct ImageRef(String);
 
