@@ -1,163 +1,312 @@
-use crate::registry::types::{ContainerName, RegistryPort, RegistryState, RegistryUrl};
-use serde::Deserialize;
+//! Docker container management with compile-time state guarantees.
+//!
+//! This module uses the typestate pattern to enforce valid container state transitions
+//! at compile time. Invalid operations (like stopping a non-running container) are
+//! prevented by the type system.
+//!
+//! # State Machine
+//!
+//! ```text
+//!                    ┌─────────────┐
+//!                    │ NotCreated  │
+//!                    └──────┬──────┘
+//!                           │
+//!                  ┌────────┼────────┐
+//!                  │                 │
+//!            discover()          create()
+//!                  │                 │
+//!                  ▼                 ▼
+//!     ┌────────────────────┐  ┌──────────┐
+//!     │ ContainerDiscovered│  │ Running  │◄─┐
+//!     └────────────────────┘  └────┬─────┘  │
+//!              │                   │         │
+//!         (match on)             stop()   start()
+//!              │                   │         │
+//!              ▼                   ▼         │
+//!     ┌─────────────────┐    ┌─────────┐   │
+//!     │ NotCreated      │    │ Stopped │───┘
+//!     │ Stopped         │    └────┬────┘
+//!     │ Running         │         │
+//!     └─────────────────┘      remove()
+//!                               │
+//!                               ▼
+//!                          ┌─────────────┐
+//!                          │ NotCreated  │
+//!                          └─────────────┘
+//! ```
+//!
+//! # Example
+//!
+//! ```no_run
+//! use forester::registry::docker::{Container, ContainerDiscovered};
+//!
+//! // Create a container handle (doesn't touch Docker yet)
+//! let container = Container::new(name, port, volume, image);
+//!
+//! // Discover current state from Docker
+//! match container.discover()? {
+//!     ContainerDiscovered::NotCreated(c) => {
+//!         // Container doesn't exist, create it
+//!         let running = c.create()?;
+//!         println!("Registry available at {}", running.url());
+//!     }
+//!     ContainerDiscovered::Stopped(c) => {
+//!         // Container exists but is stopped, start it
+//!         let running = c.start()?;
+//!         println!("Registry available at {}", running.url());
+//!     }
+//!     ContainerDiscovered::Running(c) => {
+//!         // Already running
+//!         println!("Registry available at {}", c.url());
+//!     }
+//! }
+//! ```
+
+use crate::registry::types::{ContainerName, ImageRef, RegistryPort, RegistryUrl, VolumeName};
 use snafu::{ResultExt, Snafu};
+use std::marker::PhantomData;
 use std::process::Command;
 
-pub fn check_docker_available() -> Result<(), DockerError> {
-    use docker_error::*;
-
-    Command::new("docker")
-        .arg("--version")
-        .output()
-        .map_err(|_| DockerNotFoundSnafu.build())?;
-
-    Ok(())
+mod sealed {
+    pub trait Sealed {}
 }
 
-pub fn check_docker_running() -> Result<(), DockerError> {
-    use docker_error::*;
+/// Container state: not yet created in Docker
+pub struct NotCreated;
 
-    let output = Command::new("docker")
-        .arg("info")
-        .output()
-        .map_err(|_| DockerNotFoundSnafu.build())?;
+/// Container state: exists but is stopped
+pub struct Stopped;
 
-    snafu::ensure!(output.status.success(), DockerNotRunningSnafu);
+/// Container state: exists and is running
+pub struct Running;
 
-    Ok(())
-}
+impl sealed::Sealed for NotCreated {}
+impl sealed::Sealed for Stopped {}
+impl sealed::Sealed for Running {}
 
-pub fn container_exists(name: &ContainerName) -> Result<bool, DockerError> {
-    use docker_error::*;
+/// Sealed trait for container states
+pub trait ContainerState: sealed::Sealed {}
+impl ContainerState for NotCreated {}
+impl ContainerState for Stopped {}
+impl ContainerState for Running {}
 
-    let output = Command::new("docker")
-        .args([
-            "ps",
-            "-a",
-            "--filter",
-            &format!("name=^{}$", name.as_ref()),
-            "--format",
-            "{{.Names}}",
-        ])
-        .output()
-        .context(CommandFailedSnafu)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(stdout.trim() == name.as_ref())
-}
-
-pub fn get_container_state(
-    name: &ContainerName,
+/// Type-safe container handle with compile-time state tracking
+pub struct Container<S: ContainerState> {
+    name: ContainerName,
     port: RegistryPort,
-) -> Result<RegistryState, DockerError> {
-    use docker_error::*;
+    volume: VolumeName,
+    image: ImageRef,
+    _state: PhantomData<S>,
+}
 
-    if !container_exists(name)? {
-        return Ok(RegistryState::NotCreated);
+impl<S: ContainerState> Container<S> {
+    pub fn name(&self) -> &ContainerName {
+        &self.name
     }
 
-    let output = Command::new("docker")
-        .args(["inspect", "--format", "{{.State.Running}}", name.as_ref()])
-        .output()
-        .context(CommandFailedSnafu)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let is_running = stdout.trim() == "true";
-
-    if is_running {
-        let url = RegistryUrl::builder().host("localhost").port(port).build();
-        Ok(RegistryState::Running { url })
-    } else {
-        Ok(RegistryState::Stopped)
+    pub fn port(&self) -> RegistryPort {
+        self.port
     }
 }
 
-pub fn start_container(name: &ContainerName) -> Result<(), DockerError> {
-    use docker_error::*;
+impl Container<NotCreated> {
+    /// Creates a new container handle without touching Docker
+    pub fn new(
+        name: ContainerName,
+        port: RegistryPort,
+        volume: VolumeName,
+        image: ImageRef,
+    ) -> Self {
+        Self {
+            name,
+            port,
+            volume,
+            image,
+            _state: PhantomData,
+        }
+    }
 
-    let output = Command::new("docker")
-        .args(["start", name.as_ref()])
-        .output()
-        .context(CommandFailedSnafu)?;
+    /// Queries Docker to determine the container's current state
+    pub fn discover(self) -> Result<ContainerDiscovered, DockerError> {
+        use docker_error::*;
 
-    snafu::ensure!(output.status.success(), ContainerStartFailedSnafu);
+        check_docker_available()?;
+        check_docker_running()?;
 
-    Ok(())
+        if !container_exists(&self.name)? {
+            return Ok(ContainerDiscovered::NotCreated(self));
+        }
+
+        let output = Command::new("docker")
+            .args([
+                "inspect",
+                "--format",
+                "{{.State.Running}}",
+                self.name.as_ref(),
+            ])
+            .output()
+            .context(CommandFailedSnafu)?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let is_running = stdout.trim() == "true";
+
+        if is_running {
+            Ok(ContainerDiscovered::Running(Container {
+                name: self.name,
+                port: self.port,
+                volume: self.volume,
+                image: self.image,
+                _state: PhantomData,
+            }))
+        } else {
+            Ok(ContainerDiscovered::Stopped(Container {
+                name: self.name,
+                port: self.port,
+                volume: self.volume,
+                image: self.image,
+                _state: PhantomData,
+            }))
+        }
+    }
+
+    /// Creates and starts a new container in Docker
+    pub fn create(self) -> Result<Container<Running>, DockerError> {
+        use docker_error::*;
+
+        check_docker_available()?;
+        check_docker_running()?;
+
+        let port_mapping = format!("{}:5000", self.port.into_inner());
+        let volume_mapping = format!("{}:/var/lib/registry", self.volume.as_ref());
+
+        let output = Command::new("docker")
+            .args([
+                "run",
+                "-d",
+                "--name",
+                self.name.as_ref(),
+                "-p",
+                &port_mapping,
+                "-v",
+                &volume_mapping,
+                "--restart",
+                "unless-stopped",
+                self.image.as_ref(),
+            ])
+            .output()
+            .context(CommandFailedSnafu)?;
+
+        snafu::ensure!(output.status.success(), ContainerStartFailedSnafu);
+
+        Ok(Container {
+            name: self.name,
+            port: self.port,
+            volume: self.volume,
+            image: self.image,
+            _state: PhantomData,
+        })
+    }
 }
 
-pub fn create_and_run_container(
-    name: &ContainerName,
-    port: RegistryPort,
-    volume: &crate::registry::types::VolumeName,
-    image: &crate::registry::types::ImageRef,
-) -> Result<(), DockerError> {
-    use docker_error::*;
+impl Container<Stopped> {
+    /// Starts a stopped container
+    pub fn start(self) -> Result<Container<Running>, DockerError> {
+        use docker_error::*;
 
-    let port_mapping = format!("{}:5000", port.into_inner());
-    let volume_mapping = format!("{}:/var/lib/registry", volume.as_ref());
+        let output = Command::new("docker")
+            .args(["start", self.name.as_ref()])
+            .output()
+            .context(CommandFailedSnafu)?;
 
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "-d",
-            "--name",
-            name.as_ref(),
-            "-p",
-            &port_mapping,
-            "-v",
-            &volume_mapping,
-            "--restart",
-            "unless-stopped",
-            image.as_ref(),
-        ])
-        .output()
-        .context(CommandFailedSnafu)?;
+        snafu::ensure!(output.status.success(), ContainerStartFailedSnafu);
 
-    snafu::ensure!(output.status.success(), ContainerStartFailedSnafu);
+        Ok(Container {
+            name: self.name,
+            port: self.port,
+            volume: self.volume,
+            image: self.image,
+            _state: PhantomData,
+        })
+    }
 
-    Ok(())
+    /// Removes a stopped container from Docker
+    pub fn remove(self) -> Result<Container<NotCreated>, DockerError> {
+        use docker_error::*;
+
+        let output = Command::new("docker")
+            .args(["rm", self.name.as_ref()])
+            .output()
+            .context(CommandFailedSnafu)?;
+
+        snafu::ensure!(output.status.success(), ContainerRemoveFailedSnafu);
+
+        Ok(Container {
+            name: self.name,
+            port: self.port,
+            volume: self.volume,
+            image: self.image,
+            _state: PhantomData,
+        })
+    }
 }
 
-pub fn stop_container(name: &ContainerName) -> Result<(), DockerError> {
-    use docker_error::*;
+impl Container<Running> {
+    /// Returns the URL where the registry is accessible
+    pub fn url(&self) -> RegistryUrl {
+        RegistryUrl::builder()
+            .host("localhost")
+            .port(self.port)
+            .build()
+    }
 
-    let output = Command::new("docker")
-        .args(["stop", name.as_ref()])
-        .output()
-        .context(CommandFailedSnafu)?;
+    /// Stops a running container
+    pub fn stop(self) -> Result<Container<Stopped>, DockerError> {
+        use docker_error::*;
 
-    snafu::ensure!(output.status.success(), ContainerStopFailedSnafu);
+        let output = Command::new("docker")
+            .args(["stop", self.name.as_ref()])
+            .output()
+            .context(CommandFailedSnafu)?;
 
-    Ok(())
+        snafu::ensure!(output.status.success(), ContainerStopFailedSnafu);
+
+        Ok(Container {
+            name: self.name,
+            port: self.port,
+            volume: self.volume,
+            image: self.image,
+            _state: PhantomData,
+        })
+    }
+
+    /// Retrieves container logs
+    pub fn logs(&self, follow: bool) -> Result<(), DockerError> {
+        use docker_error::*;
+
+        let mut cmd = Command::new("docker");
+        cmd.args(["logs", self.name.as_ref()]);
+
+        if follow {
+            cmd.arg("--follow");
+        }
+
+        let status = cmd.status().context(CommandFailedSnafu)?;
+
+        snafu::ensure!(status.success(), LogsFailedSnafu);
+
+        Ok(())
+    }
 }
 
-pub fn remove_container(name: &ContainerName) -> Result<(), DockerError> {
-    use docker_error::*;
-
-    let output = Command::new("docker")
-        .args(["rm", name.as_ref()])
-        .output()
-        .context(CommandFailedSnafu)?;
-
-    snafu::ensure!(output.status.success(), ContainerRemoveFailedSnafu);
-
-    Ok(())
+/// Result of discovering a container's current state in Docker
+pub enum ContainerDiscovered {
+    NotCreated(Container<NotCreated>),
+    Stopped(Container<Stopped>),
+    Running(Container<Running>),
 }
 
-pub fn remove_volume(name: &crate::registry::types::VolumeName) -> Result<(), DockerError> {
-    use docker_error::*;
-
-    let output = Command::new("docker")
-        .args(["volume", "rm", name.as_ref()])
-        .output()
-        .context(CommandFailedSnafu)?;
-
-    snafu::ensure!(output.status.success(), VolumeRemoveFailedSnafu);
-
-    Ok(())
-}
-
-pub fn volume_exists(name: &crate::registry::types::VolumeName) -> Result<bool, DockerError> {
+/// Checks if a Docker volume exists
+pub fn volume_exists(name: &VolumeName) -> Result<bool, DockerError> {
     use docker_error::*;
 
     let output = Command::new("docker")
@@ -176,27 +325,61 @@ pub fn volume_exists(name: &crate::registry::types::VolumeName) -> Result<bool, 
     Ok(stdout.trim() == name.as_ref())
 }
 
-pub fn get_container_logs(name: &ContainerName, follow: bool) -> Result<(), DockerError> {
+/// Removes a Docker volume
+pub fn remove_volume(name: &VolumeName) -> Result<(), DockerError> {
     use docker_error::*;
 
-    let mut cmd = Command::new("docker");
-    cmd.args(["logs", name.as_ref()]);
+    let output = Command::new("docker")
+        .args(["volume", "rm", name.as_ref()])
+        .output()
+        .context(CommandFailedSnafu)?;
 
-    if follow {
-        cmd.arg("--follow");
-    }
-
-    let status = cmd.status().context(CommandFailedSnafu)?;
-
-    snafu::ensure!(status.success(), LogsFailedSnafu);
+    snafu::ensure!(output.status.success(), VolumeRemoveFailedSnafu);
 
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
-struct ContainerInfo {
-    #[serde(rename = "Names")]
-    names: String,
+fn check_docker_available() -> Result<(), DockerError> {
+    use docker_error::*;
+
+    Command::new("docker")
+        .arg("--version")
+        .output()
+        .map_err(|_| DockerNotFoundSnafu.build())?;
+
+    Ok(())
+}
+
+fn check_docker_running() -> Result<(), DockerError> {
+    use docker_error::*;
+
+    let output = Command::new("docker")
+        .arg("info")
+        .output()
+        .map_err(|_| DockerNotFoundSnafu.build())?;
+
+    snafu::ensure!(output.status.success(), DockerNotRunningSnafu);
+
+    Ok(())
+}
+
+fn container_exists(name: &ContainerName) -> Result<bool, DockerError> {
+    use docker_error::*;
+
+    let output = Command::new("docker")
+        .args([
+            "ps",
+            "-a",
+            "--filter",
+            &format!("name=^{}$", name.as_ref()),
+            "--format",
+            "{{.Names}}",
+        ])
+        .output()
+        .context(CommandFailedSnafu)?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout.trim() == name.as_ref())
 }
 
 #[derive(Debug, Snafu)]
@@ -210,9 +393,6 @@ pub enum DockerError {
 
     #[snafu(display("Failed to execute docker command"))]
     CommandFailed { source: std::io::Error },
-
-    #[snafu(display("Failed to parse docker output"))]
-    ParseFailed,
 
     #[snafu(display("Failed to start container"))]
     ContainerStartFailed,
