@@ -22,7 +22,7 @@ pub use search::{SearchQuery, SearchResult, SearchResults};
 ///
 /// Each chunk in the index has a unique UUID to enable efficient lookups
 /// and prevent duplicates.
-#[nutype(derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq))]
+#[nutype(derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq))]
 pub struct ChunkId(Uuid);
 
 /// Name of a repository in the forest
@@ -30,7 +30,7 @@ pub struct ChunkId(Uuid);
 /// Used to identify which repository a chunk belongs to (e.g., "bottlerocket", "twoliter").
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct RepoName(String);
 
@@ -39,7 +39,7 @@ pub struct RepoName(String);
 /// Extracted from Rust source files to provide context for doc comments.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct ItemName(String);
 
@@ -49,7 +49,7 @@ pub struct ItemName(String);
 /// about where in the document structure a chunk appears.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct HeadingText(String);
 
@@ -58,7 +58,7 @@ pub struct HeadingText(String);
 /// The text that will be used for semantic or keyword search against the index.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct QueryText(String);
 
@@ -68,7 +68,7 @@ pub struct QueryText(String);
 /// making the index portable across different machines.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct ForestRelativePath(String);
 
@@ -77,7 +77,7 @@ pub struct ForestRelativePath(String);
 /// Used for file operations during indexing and scanning.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct AbsolutePath(String);
 
@@ -87,7 +87,7 @@ pub struct AbsolutePath(String);
 /// Must be greater than 0.
 #[nutype(
     validate(greater = 0),
-    derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct TokenCount(usize);
 
@@ -97,7 +97,7 @@ pub struct TokenCount(usize);
 /// Must be greater than 0 (1-indexed).
 #[nutype(
     validate(greater = 0),
-    derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct LineNumber(usize);
 
@@ -106,7 +106,7 @@ pub struct LineNumber(usize);
 /// Bounded between 1 and 100 to prevent excessive result sets.
 #[nutype(
     validate(greater = 0, less_or_equal = 100),
-    derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct ResultLimit(usize);
 
@@ -116,7 +116,16 @@ pub struct ResultLimit(usize);
 /// Used for ranking search results.
 #[nutype(
     validate(greater_or_equal = 0.0, less_or_equal = 1.0),
-    derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)
+    derive(
+        Debug,
+        Clone,
+        Copy,
+        Display,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        PartialOrd
+    )
 )]
 pub struct RelevanceScore(f32);
 
@@ -125,7 +134,7 @@ pub struct RelevanceScore(f32);
 /// Used for highlighting matched terms in search results.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct MatchedTerm(String);
 
@@ -135,7 +144,7 @@ pub struct MatchedTerm(String);
 /// signature of the item being documented.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct Signature(String);
 

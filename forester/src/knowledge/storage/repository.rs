@@ -8,7 +8,7 @@ use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
 
 /// Repository for chunk persistence
 #[cfg_attr(test, mockall::automock)]
-pub trait ChunkRepository: Send + Sync {
+pub trait ChunkRepository {
     /// Store a chunk
     fn save(&mut self, chunk: &Chunk) -> Result<(), StorageError>;
 
@@ -39,7 +39,6 @@ pub trait ChunkRepository: Send + Sync {
 
 /// Metadata about the index
 #[derive(Debug, Clone, Builder, Serialize, Deserialize)]
-#[builder(on(_, into))]
 #[non_exhaustive]
 pub struct IndexMetadata {
     pub mode: IndexMode,
@@ -50,13 +49,16 @@ pub struct IndexMetadata {
 
 /// Errors that can occur during storage operations
 #[derive(Debug, Snafu)]
-#[snafu(module)]
+#[snafu(module, visibility(pub))]
 pub enum StorageError {
-    #[snafu(display("Database error: {message}"))]
-    DatabaseError { message: String },
+    #[snafu(display("Database error"))]
+    DatabaseError { source: rusqlite::Error },
 
-    #[snafu(display("Failed to serialize data: {message}"))]
-    SerializationError { message: String },
+    #[snafu(display("Failed to serialize data"))]
+    SerializationError { source: serde_json::Error },
+
+    #[snafu(display("Invalid data: {message}"))]
+    InvalidData { message: String },
 
     #[snafu(display("Chunk not found: {id:?}"))]
     NotFound { id: ChunkId },

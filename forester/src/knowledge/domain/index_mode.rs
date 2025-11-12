@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
+use std::fmt;
 use std::str::FromStr;
 
 /// The indexing and search strategy
@@ -11,6 +12,12 @@ pub enum IndexMode {
     Fast,
     /// Semantic search using embeddings
     Best,
+}
+
+impl fmt::Display for IndexMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
 }
 
 impl IndexMode {
