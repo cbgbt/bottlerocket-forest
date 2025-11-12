@@ -85,8 +85,6 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
     let status = registry::status(config).context(OperationSnafu)?;
 
-    let is_running = matches!(status.state, registry::RegistryState::Running { .. });
-
     match status.state {
         registry::RegistryState::NotCreated => {
             println!("Registry: Not created");
@@ -109,11 +107,7 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
         }
     );
 
-    if is_running {
-        Ok(())
-    } else {
-        NotRunningSnafu.fail()
-    }
+    Ok(())
 }
 
 fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
@@ -138,7 +132,4 @@ pub enum RegistryError {
 
     #[snafu(display("Registry operation failed"))]
     Operation { source: registry::RegistryError },
-
-    #[snafu(display("Registry is not running"))]
-    NotRunning,
 }

@@ -73,7 +73,7 @@ fn test_registry_status_not_created() {
     let (code, stdout, _) = run_forester(&["registry", "status"]);
 
     // Then: Reports not created
-    assert_ne!(code, 0, "Status should return non-zero when not running");
+    assert_eq!(code, 0, "Status should return 0 even when not running");
     assert!(
         stdout.contains("not created") || stdout.contains("not running") || stdout.contains("Not"),
         "Should indicate registry is not created"
@@ -124,7 +124,7 @@ fn test_registry_stop() {
 
     // And: Status shows stopped
     let (status_code, _, _) = run_forester(&["registry", "status"]);
-    assert_ne!(status_code, 0, "Status should return non-zero when stopped");
+    assert_eq!(status_code, 0, "Status should return 0 even when stopped");
 }
 
 #[test]
@@ -165,7 +165,7 @@ fn test_registry_clean() {
 
     // And: Status shows not created
     let (status_code, _, _) = run_forester(&["registry", "status"]);
-    assert_ne!(status_code, 0, "Status should return non-zero after clean");
+    assert_eq!(status_code, 0, "Status should return 0 even after clean");
 }
 
 #[test]
