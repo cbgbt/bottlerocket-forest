@@ -612,15 +612,195 @@ impl ChunkRepository for SqliteChunkRepository {
 
     fn search_bm25(
         &self,
-        _query_terms: &[String],
-        _limit: usize,
+        query_terms: &[String],
+        limit: usize,
     ) -> Result<Vec<(Chunk, f32)>, StorageError> {
         use super::repository::storage_error::*;
 
-        Err(UnsupportedOperationSnafu {
-            operation: "search_bm25 not yet implemented",
+        if query_terms.is_empty() {
+            return Ok(vec![]);
         }
-        .build())
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, file_path, repo_name, line_start, line_end,
+                        context_type, context_data, content, last_modified, bm25_terms
+                 FROM chunks
+                 WHERE bm25_terms IS NOT NULL",
+            )
+            .context(DatabaseSnafu)?;
+
+        let rows: Vec<_> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, i64>(8)?,
+                    row.get::<_, String>(9)?,
+                ))
+            })
+            .context(DatabaseSnafu)?
+            .collect::<Result<Vec<_>, _>>()
+            .context(DatabaseSnafu)?;
+
+        let total_docs = rows.len() as f32;
+        let avg_doc_length = self.calculate_avg_doc_length(&rows)?;
+        let idf_scores = self.calculate_idf(query_terms, &rows, total_docs)?;
+
+        let mut scored_chunks: Vec<(Chunk, f32)> = rows
+            .into_iter()
+            .filter_map(
+                |(
+                    id_str,
+                    file_path,
+                    repo_name,
+                    line_start,
+                    line_end,
+                    context_type,
+                    context_data,
+                    content,
+                    last_modified,
+                    bm25_terms,
+                )| {
+                    let term_freqs: std::collections::HashMap<String, usize> =
+                        serde_json::from_str(&bm25_terms).ok()?;
+
+                    let doc_length = term_freqs.values().sum::<usize>() as f32;
+                    let score = self.calculate_bm25_score(
+                        query_terms,
+                        &term_freqs,
+                        &idf_scores,
+                        doc_length,
+                        avg_doc_length,
+                    );
+
+                    if score > 0.0 {
+                        let chunk = Self::deserialize_chunk(
+                            id_str,
+                            file_path,
+                            repo_name,
+                            line_start,
+                            line_end,
+                            context_type,
+                            context_data,
+                            content,
+                            last_modified,
+                        )
+                        .ok()?;
+                        Some((chunk, score))
+                    } else {
+                        None
+                    }
+                },
+            )
+            .collect();
+
+        scored_chunks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored_chunks.truncate(limit);
+
+        Ok(scored_chunks)
+    }
+}
+
+impl SqliteChunkRepository {
+    fn calculate_avg_doc_length(
+        &self,
+        rows: &[(
+            String,
+            String,
+            String,
+            i64,
+            i64,
+            String,
+            String,
+            String,
+            i64,
+            String,
+        )],
+    ) -> Result<f32, StorageError> {
+        let total_length: usize = rows
+            .iter()
+            .filter_map(|(_, _, _, _, _, _, _, _, _, bm25_terms)| {
+                let term_freqs: std::collections::HashMap<String, usize> =
+                    serde_json::from_str(bm25_terms).ok()?;
+                Some(term_freqs.values().sum::<usize>())
+            })
+            .sum();
+
+        Ok(total_length as f32 / rows.len().max(1) as f32)
+    }
+
+    fn calculate_idf(
+        &self,
+        query_terms: &[String],
+        rows: &[(
+            String,
+            String,
+            String,
+            i64,
+            i64,
+            String,
+            String,
+            String,
+            i64,
+            String,
+        )],
+        total_docs: f32,
+    ) -> Result<std::collections::HashMap<String, f32>, StorageError> {
+        let mut doc_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
+        for (_, _, _, _, _, _, _, _, _, bm25_terms) in rows {
+            if let Ok(term_freqs) =
+                serde_json::from_str::<std::collections::HashMap<String, usize>>(bm25_terms)
+            {
+                for term in query_terms {
+                    if term_freqs.contains_key(term) {
+                        *doc_counts.entry(term.clone()).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        let mut idf_scores = std::collections::HashMap::new();
+        for term in query_terms {
+            let doc_freq = *doc_counts.get(term).unwrap_or(&0) as f32;
+            let idf = ((total_docs - doc_freq + 0.5) / (doc_freq + 0.5) + 1.0).ln();
+            idf_scores.insert(term.clone(), idf);
+        }
+
+        Ok(idf_scores)
+    }
+
+    fn calculate_bm25_score(
+        &self,
+        query_terms: &[String],
+        term_freqs: &std::collections::HashMap<String, usize>,
+        idf_scores: &std::collections::HashMap<String, f32>,
+        doc_length: f32,
+        avg_doc_length: f32,
+    ) -> f32 {
+        const K1: f32 = 1.2;
+        const B: f32 = 0.75;
+
+        let mut score = 0.0;
+        for term in query_terms {
+            if let Some(&tf) = term_freqs.get(term) {
+                let idf = idf_scores.get(term).unwrap_or(&0.0);
+                let tf = tf as f32;
+                let numerator = tf * (K1 + 1.0);
+                let denominator = tf + K1 * (1.0 - B + B * (doc_length / avg_doc_length));
+                score += idf * (numerator / denominator);
+            }
+        }
+        score
     }
 }
 
@@ -1079,5 +1259,70 @@ mod test {
             .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_search_bm25() {
+        // Given A repository with chunks that have BM25 term frequencies
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk1_id = uuid::Uuid::new_v4();
+        let chunk2_id = uuid::Uuid::new_v4();
+
+        let bm25_terms1 = serde_json::json!({"rust": 5, "documentation": 3, "code": 2}).to_string();
+        let bm25_terms2 = serde_json::json!({"rust": 2, "testing": 4, "code": 1}).to_string();
+        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
+
+        repo.conn
+            .execute(
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end,
+                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    chunk1_id.to_string(),
+                    "test1.md",
+                    "test-repo",
+                    1,
+                    10,
+                    "markdown",
+                    context_data,
+                    "rust documentation code",
+                    0,
+                    "fast",
+                    bm25_terms1,
+                ],
+            )
+            .unwrap();
+
+        repo.conn
+            .execute(
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end,
+                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    chunk2_id.to_string(),
+                    "test2.md",
+                    "test-repo",
+                    1,
+                    10,
+                    "markdown",
+                    context_data,
+                    "rust testing code",
+                    0,
+                    "fast",
+                    bm25_terms2,
+                ],
+            )
+            .unwrap();
+
+        // When Searching for "rust documentation"
+        let query_terms = vec!["rust".to_string(), "documentation".to_string()];
+        let results = repo.search_bm25(&query_terms, 10).unwrap();
+
+        // Then Chunk1 should rank higher (has "documentation")
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].0.id.to_string(), chunk1_id.to_string());
+        assert!(results[0].1 > results[1].1);
     }
 }
