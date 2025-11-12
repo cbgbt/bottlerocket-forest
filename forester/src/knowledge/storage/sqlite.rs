@@ -19,6 +19,19 @@ impl SqliteChunkRepository {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
         use super::repository::storage_error::*;
 
+        // Register sqlite-vec extension
+        // SAFETY: This call is safe because:
+        // - We are not opening a database from within the auto-extension handler
+        // - We are not closing the database from within the auto-extension handler
+        // - We are not manipulating the auto-extension list from within an auto-extension
+        // - sqlite3_vec_init is a valid C function pointer provided by the sqlite-vec crate
+        // - The transmute converts the function pointer to the type expected by sqlite3_auto_extension
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+
         let conn = Connection::open(path.as_ref()).context(DatabaseSnafu)?;
 
         schema::create_tables(&conn).map_err(|e| {
@@ -139,8 +152,8 @@ impl SqliteChunkRepository {
                                         .build()
                                     })?,
                             )
-                            .end(
-                                crate::knowledge::domain::LineNumber::try_new(line_end as usize)
+                            .line_count(
+                                crate::knowledge::domain::LineCount::try_new(line_end as usize)
                                     .map_err(|e| {
                                         InvalidDataSnafu {
                                             message: e.to_string(),
@@ -190,7 +203,7 @@ impl ChunkRepository for SqliteChunkRepository {
                     chunk.source.file_path.to_string(),
                     chunk.source.repo_name.to_string(),
                     chunk.source.line_range.start.into_inner() as i64,
-                    chunk.source.line_range.end.into_inner() as i64,
+                    chunk.source.line_range.line_count.into_inner() as i64,
                     context_type,
                     context_data,
                     chunk.content.text,
@@ -221,7 +234,7 @@ impl ChunkRepository for SqliteChunkRepository {
                     chunk.source.file_path.to_string(),
                     chunk.source.repo_name.to_string(),
                     chunk.source.line_range.start.into_inner() as i64,
-                    chunk.source.line_range.end.into_inner() as i64,
+                    chunk.source.line_range.line_count.into_inner() as i64,
                     context_type,
                     context_data,
                     chunk.content.text,
@@ -502,6 +515,32 @@ impl ChunkRepository for SqliteChunkRepository {
 
         Ok(())
     }
+
+    fn search_semantic(
+        &self,
+        _query_embedding: &[f32],
+        _limit: usize,
+    ) -> Result<Vec<(Chunk, f32)>, StorageError> {
+        use super::repository::storage_error::*;
+
+        Err(UnsupportedOperationSnafu {
+            operation: "search_semantic not yet implemented",
+        }
+        .build())
+    }
+
+    fn search_bm25(
+        &self,
+        _query_terms: &[String],
+        _limit: usize,
+    ) -> Result<Vec<(Chunk, f32)>, StorageError> {
+        use super::repository::storage_error::*;
+
+        Err(UnsupportedOperationSnafu {
+            operation: "search_bm25 not yet implemented",
+        }
+        .build())
+    }
 }
 
 #[cfg(test)]
@@ -519,7 +558,7 @@ mod test {
                     .line_range(
                         crate::knowledge::domain::LineRange::builder()
                             .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
-                            .end(crate::knowledge::domain::LineNumber::try_new(10).unwrap())
+                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
@@ -649,5 +688,88 @@ mod test {
         // Then It should be retrievable
         let retrieved = repo.get_metadata().unwrap();
         assert_eq!(retrieved.mode, IndexMode::Best);
+    }
+
+    #[test]
+    fn test_rustdoc_context_roundtrip() {
+        // Given A repository and a chunk with RustDoc context
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                crate::knowledge::domain::ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("src/lib.rs").unwrap())
+                    .repo_name(crate::knowledge::domain::RepoName::try_new("twoliter").unwrap())
+                    .line_range(
+                        crate::knowledge::domain::LineRange::builder()
+                            .start(crate::knowledge::domain::LineNumber::try_new(20).unwrap())
+                            .line_count(crate::knowledge::domain::LineCount::try_new(11).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                crate::knowledge::domain::ChunkContent::builder()
+                    .text("/// Builds a variant")
+                    .token_count(crate::knowledge::domain::TokenCount::try_new(5).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::RustDoc(
+                crate::knowledge::domain::RustDocContext::builder()
+                    .item_type(crate::knowledge::domain::RustItemType::Function)
+                    .item_name(crate::knowledge::domain::ItemName::try_new("build_variant").unwrap())
+                    .visibility(crate::knowledge::domain::Visibility::Public)
+                    .signature(
+                        crate::knowledge::domain::Signature::try_new("pub fn build_variant()").unwrap(),
+                    )
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .build();
+
+        // When Saving and retrieving the chunk
+        repo.save(&chunk).unwrap();
+        let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
+
+        // Then The RustDoc context should be preserved
+        match retrieved.context {
+            ChunkContext::RustDoc(ctx) => {
+                assert_eq!(ctx.item_type, crate::knowledge::domain::RustItemType::Function);
+                assert_eq!(ctx.visibility, crate::knowledge::domain::Visibility::Public);
+                assert!(ctx.signature.is_some());
+            }
+            _ => panic!("Expected RustDoc context"),
+        }
+    }
+
+    #[test]
+    fn test_invalid_context_type_rejected() {
+        // Given An invalid context type string
+        // When Attempting to deserialize
+        let result = SqliteChunkRepository::deserialize_context("invalid_type", "{}");
+
+        // Then It should fail
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sqlite_vec_extension_loaded() {
+        // Given A temporary database
+        let temp_file = NamedTempFile::new().unwrap();
+
+        // When Opening the repository
+        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        // Then The sqlite-vec extension should be available
+        // We can verify this by checking if vec0 module exists
+        let result: Result<i32, _> = repo.conn.query_row(
+            "SELECT 1 FROM pragma_module_list WHERE name = 'vec0'",
+            [],
+            |row| row.get(0),
+        );
+
+        assert!(result.is_ok());
     }
 }

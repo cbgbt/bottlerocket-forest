@@ -35,6 +35,24 @@ pub trait ChunkRepository {
 
     /// Update index metadata
     fn set_metadata(&mut self, metadata: &IndexMetadata) -> Result<(), StorageError>;
+
+    /// Search chunks using semantic similarity
+    ///
+    /// Returns chunks ranked by similarity to the query embedding, with scores.
+    fn search_semantic(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+    ) -> Result<Vec<(Chunk, f32)>, StorageError>;
+
+    /// Search chunks using BM25 keyword matching
+    ///
+    /// Returns chunks ranked by BM25 relevance to the query terms, with scores.
+    fn search_bm25(
+        &self,
+        query_terms: &[String],
+        limit: usize,
+    ) -> Result<Vec<(Chunk, f32)>, StorageError>;
 }
 
 /// Metadata about the index
@@ -62,5 +80,8 @@ pub enum StorageError {
 
     #[snafu(display("Chunk not found: {id:?}"))]
     NotFound { id: ChunkId },
+
+    #[snafu(display("Operation not supported: {operation}"))]
+    UnsupportedOperation { operation: String },
 }
 

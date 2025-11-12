@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 use super::{
-    ChunkId, ForestRelativePath, HeadingText, ItemName, LineNumber, RepoName, Signature, TokenCount,
+    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName,
+    Signature, TokenCount,
 };
 
 /// A searchable chunk of documentation with metadata
@@ -39,7 +40,15 @@ pub struct ChunkSource {
 #[non_exhaustive]
 pub struct LineRange {
     pub start: LineNumber,
-    pub end: LineNumber,
+    pub line_count: LineCount,
+}
+
+impl LineRange {
+    /// Calculate the ending line number (inclusive)
+    pub fn end(&self) -> LineNumber {
+        let end_val = self.start.into_inner() + self.line_count.into_inner() - 1;
+        LineNumber::try_new(end_val).expect("end calculation should always produce valid line number")
+    }
 }
 
 /// The actual content to be indexed
@@ -101,16 +110,28 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_line_range_validates_start_before_end() {
-        // Given A line range where start > end
-        let start = LineNumber::try_new(25).unwrap();
-        let end = LineNumber::try_new(10).unwrap();
+    fn test_line_range_single_line() {
+        // Given A single line range
+        let start = LineNumber::try_new(10).unwrap();
+        let count = LineCount::try_new(1).unwrap();
 
         // When Building the line range
-        let range = LineRange::builder().start(start).end(end).build();
+        let range = LineRange::builder().start(start).line_count(count).build();
 
-        // Then It should allow construction (validation happens at higher level)
-        assert_eq!(range.start, start);
-        assert_eq!(range.end, end);
+        // Then End should equal start
+        assert_eq!(range.end(), start);
+    }
+
+    #[test]
+    fn test_line_range_multiple_lines() {
+        // Given A multi-line range
+        let start = LineNumber::try_new(10).unwrap();
+        let count = LineCount::try_new(5).unwrap();
+
+        // When Building the line range
+        let range = LineRange::builder().start(start).line_count(count).build();
+
+        // Then End should be start + count - 1
+        assert_eq!(range.end(), LineNumber::try_new(14).unwrap());
     }
 }
