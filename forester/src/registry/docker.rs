@@ -381,16 +381,16 @@ fn container_exists(name: &ContainerName) -> Result<bool, DockerError> {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum DockerError {
-    #[snafu(display("Docker is not installed or not in PATH"))]
+    #[snafu(display("Docker is not installed or not in PATH. Install Docker and ensure it's in your PATH"))]
     DockerNotFound,
 
-    #[snafu(display("Docker daemon is not running"))]
+    #[snafu(display("Docker daemon is not running. Start Docker with: sudo systemctl start docker"))]
     DockerNotRunning,
 
     #[snafu(display("Failed to execute docker command"))]
     CommandFailed { source: std::io::Error },
 
-    #[snafu(display("Failed to start container"))]
+    #[snafu(display("Failed to start container. The port may already be in use"))]
     ContainerStartFailed,
 
     #[snafu(display("Failed to stop container"))]
@@ -399,7 +399,7 @@ pub enum DockerError {
     #[snafu(display("Failed to remove container"))]
     ContainerRemoveFailed,
 
-    #[snafu(display("Failed to remove volume"))]
+    #[snafu(display("Failed to remove volume. Ensure the volume is not in use"))]
     VolumeRemoveFailed,
 
     #[snafu(display("Failed to get container logs"))]
