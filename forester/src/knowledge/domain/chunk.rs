@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 use super::{
-    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName,
-    Signature, TokenCount,
+    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName, Signature,
+    TokenCount,
 };
 
 /// A searchable chunk of documentation with metadata
@@ -47,7 +47,8 @@ impl LineRange {
     /// Calculate the ending line number (inclusive)
     pub fn end(&self) -> LineNumber {
         let end_val = self.start.into_inner() + self.line_count.into_inner() - 1;
-        LineNumber::try_new(end_val).expect("end calculation should always produce valid line number")
+        LineNumber::try_new(end_val)
+            .expect("end calculation should always produce valid line number")
     }
 }
 

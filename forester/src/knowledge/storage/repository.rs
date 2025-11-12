@@ -84,4 +84,3 @@ pub enum StorageError {
     #[snafu(display("Operation not supported: {operation}"))]
     UnsupportedOperation { operation: String },
 }
-

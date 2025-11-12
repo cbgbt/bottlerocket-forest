@@ -44,6 +44,10 @@ impl SqliteChunkRepository {
         Ok(Self { conn })
     }
 
+    fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
+        embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
+    }
+
     fn serialize_context(context: &ChunkContext) -> Result<(String, String), StorageError> {
         use super::repository::storage_error::*;
 
@@ -518,15 +522,73 @@ impl ChunkRepository for SqliteChunkRepository {
 
     fn search_semantic(
         &self,
-        _query_embedding: &[f32],
-        _limit: usize,
+        query_embedding: &[f32],
+        limit: usize,
     ) -> Result<Vec<(Chunk, f32)>, StorageError> {
         use super::repository::storage_error::*;
 
-        Err(UnsupportedOperationSnafu {
-            operation: "search_semantic not yet implemented",
-        }
-        .build())
+        let embedding_blob = Self::serialize_embedding(query_embedding);
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_end,
+                        c.context_type, c.context_data, c.content, c.last_modified,
+                        v.distance
+                 FROM vec_chunks v
+                 JOIN chunks c ON v.chunk_id = c.id
+                 WHERE v.embedding MATCH ?1 AND k = ?2
+                 ORDER BY v.distance",
+            )
+            .context(DatabaseSnafu)?;
+
+        let rows = stmt
+            .query_map(params![embedding_blob, limit], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, i64>(8)?,
+                    row.get::<_, f32>(9)?,
+                ))
+            })
+            .context(DatabaseSnafu)?;
+
+        rows.map(|row| {
+            let (
+                id_str,
+                file_path,
+                repo_name,
+                line_start,
+                line_end,
+                context_type,
+                context_data,
+                content,
+                last_modified,
+                distance,
+            ) = row.context(DatabaseSnafu)?;
+
+            let chunk = Self::deserialize_chunk(
+                id_str,
+                file_path,
+                repo_name,
+                line_start,
+                line_end,
+                context_type,
+                context_data,
+                content,
+                last_modified,
+            )?;
+
+            let similarity = 1.0 - distance;
+            Ok((chunk, similarity))
+        })
+        .collect()
     }
 
     fn search_bm25(
@@ -719,10 +781,13 @@ mod test {
             .context(ChunkContext::RustDoc(
                 crate::knowledge::domain::RustDocContext::builder()
                     .item_type(crate::knowledge::domain::RustItemType::Function)
-                    .item_name(crate::knowledge::domain::ItemName::try_new("build_variant").unwrap())
+                    .item_name(
+                        crate::knowledge::domain::ItemName::try_new("build_variant").unwrap(),
+                    )
                     .visibility(crate::knowledge::domain::Visibility::Public)
                     .signature(
-                        crate::knowledge::domain::Signature::try_new("pub fn build_variant()").unwrap(),
+                        crate::knowledge::domain::Signature::try_new("pub fn build_variant()")
+                            .unwrap(),
                     )
                     .build(),
             ))
@@ -736,7 +801,10 @@ mod test {
         // Then The RustDoc context should be preserved
         match retrieved.context {
             ChunkContext::RustDoc(ctx) => {
-                assert_eq!(ctx.item_type, crate::knowledge::domain::RustItemType::Function);
+                assert_eq!(
+                    ctx.item_type,
+                    crate::knowledge::domain::RustItemType::Function
+                );
                 assert_eq!(ctx.visibility, crate::knowledge::domain::Visibility::Public);
                 assert!(ctx.signature.is_some());
             }
@@ -771,5 +839,57 @@ mod test {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_search_semantic_with_embeddings() {
+        // Given A repository with chunks that have embeddings
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk_id = uuid::Uuid::new_v4();
+        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let embedding_blob = SqliteChunkRepository::serialize_embedding(&embedding);
+
+        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
+
+        // Insert a chunk
+        repo.conn
+            .execute(
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end, 
+                 context_type, context_data, content, last_modified, index_mode)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    chunk_id.to_string(),
+                    "test.md",
+                    "test-repo",
+                    1,
+                    10,
+                    "markdown",
+                    context_data,
+                    "test content",
+                    0,
+                    "best",
+                ],
+            )
+            .unwrap();
+
+        // Insert embedding into vec_chunks
+        repo.conn
+            .execute(
+                "INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
+                params![chunk_id.to_string(), embedding_blob],
+            )
+            .unwrap();
+
+        // When Searching with a similar embedding
+        let query_embedding: Vec<f32> = (0..384).map(|i| (i as f32 + 0.1) / 384.0).collect();
+        let results = repo.search_semantic(&query_embedding, 10).unwrap();
+
+        // Then The chunk should be found with a similarity score
+        assert_eq!(results.len(), 1);
+        let (chunk, score) = &results[0];
+        assert_eq!(chunk.id.to_string(), chunk_id.to_string());
+        assert!(score > &0.0 && score <= &1.0);
     }
 }
