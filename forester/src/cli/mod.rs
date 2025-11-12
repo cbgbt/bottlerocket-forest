@@ -1,5 +1,4 @@
 mod registry;
-mod status;
 
 use argh::FromArgs;
 use snafu::{ResultExt, Snafu};
@@ -15,7 +14,6 @@ pub struct Args {
 #[argh(subcommand)]
 enum Command {
     Registry(registry::RegistryCommand),
-    Status(status::StatusCommand),
 }
 
 pub fn run() -> Result<(), CliError> {
@@ -25,7 +23,6 @@ pub fn run() -> Result<(), CliError> {
 
     match args.command {
         Command::Registry(cmd) => registry::run(cmd).context(RegistrySnafu)?,
-        Command::Status(cmd) => status::run(cmd).context(StatusSnafu)?,
     }
 
     Ok(())
@@ -36,7 +33,4 @@ pub fn run() -> Result<(), CliError> {
 pub enum CliError {
     #[snafu(display("Registry command failed"))]
     Registry { source: registry::RegistryError },
-
-    #[snafu(display("Status command failed"))]
-    Status { source: status::StatusError },
 }
