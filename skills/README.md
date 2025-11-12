@@ -5,6 +5,7 @@ Skills are documented workflows for AI agents to perform common development task
 ## Available Skills
 
 - **local-registry** - Start and manage a local OCI registry for development
+- **update-twoliter** - Update all repositories to a new Twoliter version
 
 ## Skill Structure
 
