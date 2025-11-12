@@ -60,18 +60,14 @@ forester registry clean
 Forester uses environment variables for configuration. Create a `.env` file in the forester directory or set environment variables:
 
 ```bash
-# Registry port (default: 5000)
+# Registry port (default: 5000, minimum: 1024)
 FORESTER_REGISTRY_PORT=5000
-
-# Container name (default: forester-registry)
-FORESTER_REGISTRY_CONTAINER_NAME=forester-registry
-
-# Volume name (default: forester-registry-data)
-FORESTER_REGISTRY_VOLUME_NAME=forester-registry-data
 
 # Registry image (default: registry:2)
 FORESTER_REGISTRY_IMAGE=registry:2
 ```
+
+Note: Container and volume names are automatically derived from the port as `forester-registry-{port}` and `forester-registry-data-{port}`.
 
 ## Requirements
 

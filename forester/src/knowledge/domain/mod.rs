@@ -5,6 +5,7 @@
 pub mod chunk;
 pub mod file_type;
 pub mod index_mode;
+pub mod search;
 
 use nutype::nutype;
 use uuid::Uuid;
@@ -15,6 +16,7 @@ pub use chunk::{
 };
 pub use file_type::FileType;
 pub use index_mode::{IndexMode, InvalidIndexMode};
+pub use search::{SearchQuery, SearchResult, SearchResults};
 
 /// Unique identifier for a documentation chunk
 ///

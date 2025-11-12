@@ -18,7 +18,7 @@ Start and manage a local OCI registry for development. This allows building and 
 ## Prerequisites
 
 - Docker installed and running
-- Forester tool built (`cd forester && make release-build`)
+- Forester tool built (`cd forester && cargo build --release`)
 
 ## Procedure
 
@@ -71,21 +71,17 @@ This removes both the container and the data volume.
 
 ## Configuration
 
-Forester uses environment variables for configuration. Create a `.env` file in the forester directory:
+Forester uses environment variables for configuration. Create a `.env` file in the forester directory or set environment variables:
 
 ```bash
-# Custom port (default: 5000)
+# Custom port (default: 5000, minimum: 1024)
 FORESTER_REGISTRY_PORT=5001
-
-# Custom container name (default: forester-registry-{port})
-FORESTER_REGISTRY_CONTAINER_NAME=my-registry
-
-# Custom volume name (default: forester-registry-data-{port})
-FORESTER_REGISTRY_VOLUME_NAME=my-registry-data
 
 # Custom image (default: registry:2)
 FORESTER_REGISTRY_IMAGE=registry:2.8
 ```
+
+Note: Container and volume names are automatically derived from the port as `forester-registry-{port}` and `forester-registry-data-{port}`.
 
 ## Validation
 

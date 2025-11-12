@@ -1,10 +1,11 @@
 //! Index mode selection for search strategy
 
+use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use std::str::FromStr;
 
 /// The indexing and search strategy
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexMode {
     /// Fast keyword-based search using BM25
     Fast,

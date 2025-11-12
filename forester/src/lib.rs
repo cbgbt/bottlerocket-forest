@@ -5,4 +5,5 @@
 
 pub mod cli;
 pub mod config;
+pub mod knowledge;
 pub mod registry;

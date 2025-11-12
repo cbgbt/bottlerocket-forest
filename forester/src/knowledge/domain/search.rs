@@ -1,0 +1,40 @@
+//! Search domain types
+//!
+//! Types for representing search queries and results.
+
+use bon::Builder;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+
+use super::{Chunk, IndexMode, MatchedTerm, QueryText, RelevanceScore, ResultLimit};
+
+/// A search query with parameters
+#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct SearchQuery {
+    pub text: QueryText,
+    pub mode: IndexMode,
+    pub limit: ResultLimit,
+}
+
+/// A single search result
+#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct SearchResult {
+    pub chunk: Chunk,
+    pub score: RelevanceScore,
+    pub matched_terms: Vec<MatchedTerm>,
+}
+
+/// Results from a search operation
+#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct SearchResults {
+    pub query: SearchQuery,
+    pub results: Vec<SearchResult>,
+    pub total_chunks_searched: usize,
+    pub search_duration: Duration,
+}

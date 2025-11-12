@@ -381,10 +381,14 @@ fn container_exists(name: &ContainerName) -> Result<bool, DockerError> {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum DockerError {
-    #[snafu(display("Docker is not installed or not in PATH. Install Docker and ensure it's in your PATH"))]
+    #[snafu(display(
+        "Docker is not installed or not in PATH. Install Docker and ensure it's in your PATH"
+    ))]
     DockerNotFound,
 
-    #[snafu(display("Docker daemon is not running. Start Docker with: sudo systemctl start docker"))]
+    #[snafu(display(
+        "Docker daemon is not running. Start Docker with: sudo systemctl start docker"
+    ))]
     DockerNotRunning,
 
     #[snafu(display("Failed to execute docker command"))]
