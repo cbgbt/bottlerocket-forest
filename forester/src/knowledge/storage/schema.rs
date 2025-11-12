@@ -40,6 +40,13 @@ const CREATE_INDEX_FILE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_file ON c
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
 const CREATE_INDEX_MODE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_mode ON chunks(index_mode)";
 
+const CREATE_VEC_CHUNKS: &str = r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
+    chunk_id TEXT PRIMARY KEY,
+    embedding FLOAT[384]
+)
+"#;
+
 /// Creates all tables and indexes in the database
 pub fn create_tables(conn: &Connection) -> Result<()> {
     use schema_error::*;
@@ -52,6 +59,8 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
     conn.execute(CREATE_INDEX_REPO, [])
         .context(SqlExecutionSnafu)?;
     conn.execute(CREATE_INDEX_MODE, [])
+        .context(SqlExecutionSnafu)?;
+    conn.execute(CREATE_VEC_CHUNKS, [])
         .context(SqlExecutionSnafu)?;
 
     Ok(())
@@ -66,10 +75,21 @@ pub fn migrate(_conn: &Connection) -> Result<()> {
 mod test {
     use super::*;
 
+    fn setup_connection() -> Connection {
+        // Register sqlite-vec extension
+        // SAFETY: See safety comment in sqlite.rs - same constraints apply
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+        Connection::open_in_memory().unwrap()
+    }
+
     #[test]
     fn test_schema_constraints() {
         // Given a database with tables
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = setup_connection();
         create_tables(&conn).unwrap();
 
         // When inserting a chunk with invalid context_type
@@ -93,5 +113,24 @@ mod test {
 
         // Then it should fail due to CHECK constraint
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_vec_chunks_virtual_table_created() {
+        // Given A database with tables
+        let conn = setup_connection();
+
+        // When Creating tables (including vec_chunks virtual table)
+        create_tables(&conn).unwrap();
+
+        // Then The vec_chunks virtual table should exist
+        let result: rusqlite::Result<String> = conn.query_row(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
+            [],
+            |row| row.get(0),
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "vec_chunks");
     }
 }
