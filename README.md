@@ -37,6 +37,19 @@ bottlerocket-forest/
 2. **Build forester**: `cd forester && cargo build --release`
 3. **Explore skills**: See `skills/` directory for available workflows
 
+## Using the Forest
+
+**IMPORTANT: Before starting work or answering questions**, read `@./docs/architecture.md` to understand:
+- How kits, variants, and the build system work together
+- The development workflow and dependencies between components
+- Where to find key configuration files
+
+**When investigating system internals** (partitions, disk layout, boot process, encryption, etc.), check:
+1. `docs/architecture.md` for high-level system design
+2. Component-specific documentation in relevant repositories
+
+This context is essential for understanding the Bottlerocket ecosystem before making changes or answering questions about system behavior.
+
 ## Component Dependencies
 
 When developing features:
