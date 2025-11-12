@@ -82,12 +82,47 @@ pub struct RegistryStatus {
     pub volume_exists: bool,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize, bon::Builder)]
+#[derive(Debug, Clone, Deserialize, Serialize, bon::Builder)]
 #[serde(default)]
 #[builder(on(_, into))]
 pub struct RegistryConfig {
     pub port: RegistryPort,
+    #[serde(skip)]
+    #[builder(skip)]
     pub container_name: ContainerName,
+    #[serde(skip)]
+    #[builder(skip)]
     pub volume_name: VolumeName,
     pub image: ImageRef,
+}
+
+impl Default for RegistryConfig {
+    fn default() -> Self {
+        let port = RegistryPort::default();
+        Self {
+            container_name: ContainerName::try_new(format!(
+                "forester-registry-{}",
+                port.into_inner()
+            ))
+            .unwrap(),
+            volume_name: VolumeName::try_new(format!(
+                "forester-registry-data-{}",
+                port.into_inner()
+            ))
+            .unwrap(),
+            port,
+            image: ImageRef::default(),
+        }
+    }
+}
+
+impl RegistryConfig {
+    pub fn with_port(mut self, port: RegistryPort) -> Self {
+        self.port = port;
+        self.container_name =
+            ContainerName::try_new(format!("forester-registry-{}", port.into_inner())).unwrap();
+        self.volume_name =
+            VolumeName::try_new(format!("forester-registry-data-{}", port.into_inner())).unwrap();
+        self
+    }
 }

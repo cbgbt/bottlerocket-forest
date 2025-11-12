@@ -1,36 +1,57 @@
 # Bottlerocket Forest Skills
 
-Skills are documented workflows for AI agents to perform common development tasks.
+Claude Code skills for common Bottlerocket development workflows.
 
 ## Available Skills
 
 - **local-registry** - Start and manage a local OCI registry for development
 - **update-twoliter** - Update all repositories to a new Twoliter version
 
-## Skill Structure
+## Using Skills
 
-Each skill is a directory containing:
-- `SKILL.md` - Main documentation with procedures and examples
-- Optional helper scripts or configuration files
-- Examples and test cases where applicable
+Skills are automatically discovered by Claude Code when placed in this directory. Invoke them by name in conversation:
+
+```
+"Use the local-registry skill to start a registry"
+"Apply the update-twoliter skill to bump to version 0.13.0"
+```
 
 ## Skill Format
 
-Skills follow this structure:
+Each skill is a directory containing a `SKILL.md` file with:
 
-1. **Purpose** - What the skill does and why it exists
-2. **When to Use** - Scenarios where this skill applies
-3. **Prerequisites** - Required tools, permissions, or prior setup
-4. **Procedure** - Step-by-step instructions
-5. **Validation** - How to verify success
-6. **Common Issues** - Known problems and solutions
-7. **Related Skills** - Other skills that complement this one
+1. **YAML frontmatter** - Metadata (name, description)
+2. **Instructions** - Step-by-step procedures
+3. **Optional helpers** - Scripts, templates, or resources
+
+### SKILL.md Structure
+
+```markdown
+---
+name: skill-name
+description: Brief description of what the skill does
+---
+
+# Detailed instructions here
+```
+
+The frontmatter requires:
+- `name`: lowercase letters, numbers, hyphens only (max 64 chars)
+- `description`: concise summary (max 256 chars)
+
+### Content Sections
+
+- **Purpose** - What the skill does and why
+- **When to Use** - Applicable scenarios
+- **Prerequisites** - Required setup
+- **Procedure** - Step-by-step instructions
+- **Validation** - Success verification
+- **Common Issues** - Known problems and solutions
 
 ## Creating New Skills
 
-When creating a skill:
-- Focus on a single, well-defined workflow
-- Include concrete commands, not just descriptions
-- Provide validation steps so agents can verify success
-- Document failure modes you've encountered
-- Link to related skills to help agents chain workflows
+1. Create a directory with a descriptive name
+2. Add `SKILL.md` with YAML frontmatter
+3. Include concrete commands and examples
+4. Add validation steps
+5. Document common failure modes

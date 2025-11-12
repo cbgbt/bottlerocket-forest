@@ -1,3 +1,8 @@
+---
+name: local-registry
+description: Start and manage a local OCI registry for Bottlerocket kit development
+---
+
 # Skill: Local OCI Registry
 
 ## Purpose

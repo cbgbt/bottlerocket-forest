@@ -1,3 +1,8 @@
+---
+name: update-twoliter
+description: Update all Bottlerocket repositories to a new Twoliter version
+---
+
 # Skill: Update Twoliter Version
 
 ## Purpose

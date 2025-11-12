@@ -1,7 +1,6 @@
 use crate::{config, registry};
 use argh::FromArgs;
 use snafu::{ResultExt, Snafu};
-use std::process;
 
 /// Manage local OCI registry
 #[derive(FromArgs)]
@@ -86,44 +85,34 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
     let status = registry::status(config).context(OperationSnafu)?;
 
+    let is_running = matches!(status.state, registry::RegistryState::Running { .. });
+
     match status.state {
         registry::RegistryState::NotCreated => {
             println!("Registry: Not created");
-            println!(
-                "Volume: {}",
-                if status.volume_exists {
-                    "exists"
-                } else {
-                    "not found"
-                }
-            );
-            process::exit(1);
         }
         registry::RegistryState::Stopped => {
             println!("Registry: Stopped");
-            println!(
-                "Volume: {}",
-                if status.volume_exists {
-                    "exists"
-                } else {
-                    "not found"
-                }
-            );
-            process::exit(1);
         }
         registry::RegistryState::Running { url } => {
             println!("Registry: Running");
             println!("URL: {}", url);
-            println!(
-                "Volume: {}",
-                if status.volume_exists {
-                    "exists"
-                } else {
-                    "not found"
-                }
-            );
-            Ok(())
         }
+    }
+
+    println!(
+        "Volume: {}",
+        if status.volume_exists {
+            "exists"
+        } else {
+            "not found"
+        }
+    );
+
+    if is_running {
+        Ok(())
+    } else {
+        NotRunningSnafu.fail()
     }
 }
 
@@ -149,4 +138,7 @@ pub enum RegistryError {
 
     #[snafu(display("Registry operation failed"))]
     Operation { source: registry::RegistryError },
+
+    #[snafu(display("Registry is not running"))]
+    NotRunning,
 }

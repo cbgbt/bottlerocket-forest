@@ -6,9 +6,12 @@ pub fn load_config() -> Result<RegistryConfig, ConfigError> {
 
     dotenvy::dotenv().ok();
 
-    envy::prefixed("FORESTER_REGISTRY_")
+    let config: RegistryConfig = envy::prefixed("FORESTER_REGISTRY_")
         .from_env()
-        .context(LoadFailedSnafu)
+        .context(LoadFailedSnafu)?;
+
+    let port = config.port;
+    Ok(config.with_port(port))
 }
 
 #[derive(Debug, Snafu)]

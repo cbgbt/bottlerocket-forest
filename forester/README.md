@@ -82,53 +82,39 @@ FORESTER_REGISTRY_IMAGE=registry:2
 
 ### Building
 
-Build the project:
+Build for development:
 
 ```bash
-cargo build --quiet
+make build
 ```
 
 Build for release:
 
 ```bash
-cargo build --quiet --release
+make release-build
 ```
+
+The binary will be at `target/debug/forester` or `target/release/forester` respectively.
 
 ### Code Quality
 
-Before committing changes, ensure code passes all quality checks:
-
-1. **Format code:**
-   ```bash
-   cargo fmt
-   ```
-
-2. **Verify formatting:**
-   ```bash
-   cargo fmt --check
-   ```
-
-3. **Check lints:**
-   ```bash
-   cargo clippy --quiet
-   ```
-
-4. **Run tests:**
-   ```bash
-   cargo test --quiet
-   ```
-
-The `--quiet` flag minimizes output, which is helpful when working with AI agents to reduce token usage.
-
-### Integration Tests
-
-Integration tests require Docker to be running:
+Run all quality checks:
 
 ```bash
-cargo test --quiet --test registry_integration
+make check
 ```
 
-These tests will start/stop actual Docker containers, so they may take a few seconds.
+This runs formatting checks, lints, and all tests (unit and integration).
+
+Individual checks:
+
+```bash
+make fmt      # Check code formatting
+make clippy   # Run lints
+make test     # Run all tests
+```
+
+Integration tests use the `serial_test` crate with `#[serial(registry)]` to ensure tests that manipulate the Docker registry run one at a time. Tests use a dedicated test port (5555), and each test starts with a clean state and cleans up after itself.
 
 ### Project Structure
 

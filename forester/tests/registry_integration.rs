@@ -1,8 +1,17 @@
+//! Integration tests for registry management.
+//!
+//! These tests use a dedicated test port (5555) and run serially with #[serial(registry)].
+//! Each test cleans up at the start to ensure a fresh environment.
+
+use serial_test::serial;
 use std::process::Command;
 
-/// Helper to run forester CLI and capture output
+const TEST_PORT: &str = "5555";
+
+/// Helper to run forester CLI with test port and capture output
 fn run_forester(args: &[&str]) -> (i32, String, String) {
     let output = Command::new("./target/release/forester")
+        .env("FORESTER_REGISTRY_PORT", TEST_PORT)
         .args(args)
         .output()
         .expect("Failed to execute forester");
@@ -19,7 +28,13 @@ fn docker_available() -> bool {
     Command::new("docker").arg("--version").output().is_ok()
 }
 
+/// Clean up any existing test registry before starting a test
+fn clean_test_registry() {
+    let _ = run_forester(&["registry", "clean"]);
+}
+
 #[test]
+#[serial(registry)]
 fn test_registry_start_idempotent() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -27,7 +42,7 @@ fn test_registry_start_idempotent() {
     }
 
     // Given: Clean state
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 
     // When: Start registry twice
     let (code1, stdout1, _) = run_forester(&["registry", "start"]);
@@ -36,14 +51,15 @@ fn test_registry_start_idempotent() {
     // Then: Both succeed
     assert_eq!(code1, 0, "First start should succeed");
     assert_eq!(code2, 0, "Second start should succeed (idempotent)");
-    assert!(stdout1.contains("localhost:5000") || stdout1.contains("5000"));
-    assert!(stdout2.contains("localhost:5000") || stdout2.contains("5000"));
+    assert!(stdout1.contains("localhost:5555") || stdout1.contains("5555"));
+    assert!(stdout2.contains("localhost:5555") || stdout2.contains("5555"));
 
     // Cleanup
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_status_not_created() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -51,7 +67,7 @@ fn test_registry_status_not_created() {
     }
 
     // Given: Clean state
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 
     // When: Check status
     let (code, stdout, _) = run_forester(&["registry", "status"]);
@@ -65,6 +81,7 @@ fn test_registry_status_not_created() {
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_status_running() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -72,7 +89,7 @@ fn test_registry_status_running() {
     }
 
     // Given: Registry is running
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
     let _ = run_forester(&["registry", "start"]);
 
     // When: Check status
@@ -81,13 +98,14 @@ fn test_registry_status_running() {
     // Then: Reports running with URL
     assert_eq!(code, 0, "Status should return 0 when running");
     assert!(stdout.contains("running") || stdout.contains("Running"));
-    assert!(stdout.contains("localhost:5000") || stdout.contains("5000"));
+    assert!(stdout.contains("localhost:5555") || stdout.contains("5555"));
 
     // Cleanup
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_stop() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -95,7 +113,7 @@ fn test_registry_stop() {
     }
 
     // Given: Registry is running
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
     let _ = run_forester(&["registry", "start"]);
 
     // When: Stop registry
@@ -107,12 +125,10 @@ fn test_registry_stop() {
     // And: Status shows stopped
     let (status_code, _, _) = run_forester(&["registry", "status"]);
     assert_ne!(status_code, 0, "Status should return non-zero when stopped");
-
-    // Cleanup
-    let _ = run_forester(&["registry", "clean"]);
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_stop_idempotent() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -120,7 +136,7 @@ fn test_registry_stop_idempotent() {
     }
 
     // Given: Clean state
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 
     // When: Stop when not running
     let (code, _, _) = run_forester(&["registry", "stop"]);
@@ -130,6 +146,7 @@ fn test_registry_stop_idempotent() {
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_clean() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -137,6 +154,7 @@ fn test_registry_clean() {
     }
 
     // Given: Registry is running
+    clean_test_registry();
     let _ = run_forester(&["registry", "start"]);
 
     // When: Clean registry
@@ -151,6 +169,7 @@ fn test_registry_clean() {
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_logs() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -158,7 +177,7 @@ fn test_registry_logs() {
     }
 
     // Given: Registry is running
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
     let _ = run_forester(&["registry", "start"]);
 
     // When: Get logs
@@ -169,10 +188,11 @@ fn test_registry_logs() {
     assert!(!stdout.is_empty(), "Should output logs");
 
     // Cleanup
-    let _ = run_forester(&["registry", "clean"]);
+    clean_test_registry();
 }
 
 #[test]
+#[serial(registry)]
 fn test_registry_custom_port() {
     if !docker_available() {
         eprintln!("Skipping test: Docker not available");
@@ -180,7 +200,10 @@ fn test_registry_custom_port() {
     }
 
     // Given: Custom port via environment
-    let _ = run_forester(&["registry", "clean"]);
+    let _ = Command::new("./target/release/forester")
+        .env("FORESTER_REGISTRY_PORT", "5001")
+        .args(&["registry", "clean"])
+        .output();
 
     let output = Command::new("./target/release/forester")
         .env("FORESTER_REGISTRY_PORT", "5001")

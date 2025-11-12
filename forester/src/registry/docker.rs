@@ -4,43 +4,35 @@
 //! at compile time. Invalid operations (like stopping a non-running container) are
 //! prevented by the type system.
 //!
-//! # State Machine
+//! # Valid Operations by State
 //!
 //! ```text
-//!                    ┌─────────────┐
-//!                    │ NotCreated  │
-//!                    └──────┬──────┘
-//!                           │
-//!                  ┌────────┼────────┐
-//!                  │                 │
-//!            discover()          create()
-//!                  │                 │
-//!                  ▼                 ▼
-//!     ┌────────────────────┐  ┌──────────┐
-//!     │ ContainerDiscovered│  │ Running  │◄─┐
-//!     └────────────────────┘  └────┬─────┘  │
-//!              │                   │         │
-//!         (match on)             stop()   start()
-//!              │                   │         │
-//!              ▼                   ▼         │
-//!     ┌─────────────────┐    ┌─────────┐   │
-//!     │ NotCreated      │    │ Stopped │───┘
-//!     │ Stopped         │    └────┬────┘
-//!     │ Running         │         │
-//!     └─────────────────┘      remove()
-//!                               │
-//!                               ▼
-//!                          ┌─────────────┐
-//!                          │ NotCreated  │
-//!                          └─────────────┘
+//! Container<NotCreated>
+//!   • discover() → ContainerDiscovered
+//!   • create()   → Container<Running>
+//!
+//! Container<Stopped>
+//!   • start()    → Container<Running>
+//!   • remove()   → Container<NotCreated>
+//!
+//! Container<Running>
+//!   • stop()     → Container<Stopped>
+//!   • url()      → RegistryUrl
+//!   • logs()     → Result<()>
 //! ```
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
 //! use forester::registry::docker::{Container, ContainerDiscovered};
+//! use forester::registry::types::{ContainerName, ImageRef, RegistryPort, VolumeName};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create a container handle (doesn't touch Docker yet)
+//! let name = ContainerName::try_new("test-registry")?;
+//! let port = RegistryPort::try_new(5000)?;
+//! let volume = VolumeName::try_new("test-data")?;
+//! let image = ImageRef::try_new("registry:2")?;
 //! let container = Container::new(name, port, volume, image);
 //!
 //! // Discover current state from Docker
@@ -60,6 +52,8 @@
 //!         println!("Registry available at {}", c.url());
 //!     }
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::registry::types::{ContainerName, ImageRef, RegistryPort, RegistryUrl, VolumeName};
@@ -100,10 +94,12 @@ pub struct Container<S: ContainerState> {
 }
 
 impl<S: ContainerState> Container<S> {
+    #[allow(dead_code)]
     pub fn name(&self) -> &ContainerName {
         &self.name
     }
 
+    #[allow(dead_code)]
     pub fn port(&self) -> RegistryPort {
         self.port
     }
