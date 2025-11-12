@@ -22,6 +22,7 @@ pub struct Chunk {
     pub content: ChunkContent,
     pub context: ChunkContext,
     pub indexed_at: SystemTime,
+    pub embedding: Option<Vec<f32>>,
 }
 
 /// Source location of the chunk

@@ -217,6 +217,16 @@ impl ChunkRepository for SqliteChunkRepository {
             )
             .context(DatabaseSnafu)?;
 
+        if let Some(embedding) = &chunk.embedding {
+            let embedding_blob = Self::serialize_embedding(embedding);
+            self.conn
+                .execute(
+                    "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
+                    params![chunk.id.to_string(), embedding_blob],
+                )
+                .context(DatabaseSnafu)?;
+        }
+
         Ok(())
     }
 
@@ -247,6 +257,15 @@ impl ChunkRepository for SqliteChunkRepository {
                 ],
             )
             .context(DatabaseSnafu)?;
+
+            if let Some(embedding) = &chunk.embedding {
+                let embedding_blob = Self::serialize_embedding(embedding);
+                tx.execute(
+                    "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
+                    params![chunk.id.to_string(), embedding_blob],
+                )
+                .context(DatabaseSnafu)?;
+            }
         }
 
         tx.commit().context(DatabaseSnafu)?;
@@ -891,5 +910,174 @@ mod test {
         let (chunk, score) = &results[0];
         assert_eq!(chunk.id.to_string(), chunk_id.to_string());
         assert!(score > &0.0 && score <= &1.0);
+    }
+
+    #[test]
+    fn test_save_with_embedding_stores_in_both_tables() {
+        // Given A repository and a chunk with an embedding
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                crate::knowledge::domain::ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        crate::knowledge::domain::LineRange::builder()
+                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
+                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                crate::knowledge::domain::ChunkContent::builder()
+                    .text("test content")
+                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                crate::knowledge::domain::MarkdownContext::builder()
+                    .heading_hierarchy(vec![])
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .embedding(embedding)
+            .build();
+
+        // When Saving the chunk
+        repo.save(&chunk).unwrap();
+
+        // Then It should be in both chunks and vec_chunks tables
+        let chunk_exists: bool = repo
+            .conn
+            .query_row(
+                "SELECT 1 FROM chunks WHERE id = ?1",
+                params![chunk.id.to_string()],
+                |_| Ok(true),
+            )
+            .unwrap();
+        assert!(chunk_exists);
+
+        let vec_chunk_exists: bool = repo
+            .conn
+            .query_row(
+                "SELECT 1 FROM vec_chunks WHERE chunk_id = ?1",
+                params![chunk.id.to_string()],
+                |_| Ok(true),
+            )
+            .unwrap();
+        assert!(vec_chunk_exists);
+    }
+
+    #[test]
+    fn test_save_without_embedding_skips_vec_chunks() {
+        // Given A repository and a chunk without an embedding
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk = create_test_chunk();
+
+        // When Saving the chunk
+        repo.save(&chunk).unwrap();
+
+        // Then It should be in chunks but not vec_chunks
+        let chunk_exists: bool = repo
+            .conn
+            .query_row(
+                "SELECT 1 FROM chunks WHERE id = ?1",
+                params![chunk.id.to_string()],
+                |_| Ok(true),
+            )
+            .unwrap();
+        assert!(chunk_exists);
+
+        let vec_chunk_result: Result<bool, _> = repo.conn.query_row(
+            "SELECT 1 FROM vec_chunks WHERE chunk_id = ?1",
+            params![chunk.id.to_string()],
+            |_| Ok(true),
+        );
+        assert!(vec_chunk_result.is_err());
+    }
+
+    #[test]
+    fn test_save_batch_with_embeddings() {
+        // Given A repository and chunks with embeddings
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let embedding1: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let embedding2: Vec<f32> = (0..384).map(|i| (i as f32 + 0.5) / 384.0).collect();
+
+        let chunk1 = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                crate::knowledge::domain::ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test1.md").unwrap())
+                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        crate::knowledge::domain::LineRange::builder()
+                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
+                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                crate::knowledge::domain::ChunkContent::builder()
+                    .text("test content 1")
+                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                crate::knowledge::domain::MarkdownContext::builder()
+                    .heading_hierarchy(vec![])
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .embedding(embedding1)
+            .build();
+
+        let chunk2 = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                crate::knowledge::domain::ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test2.md").unwrap())
+                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        crate::knowledge::domain::LineRange::builder()
+                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
+                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                crate::knowledge::domain::ChunkContent::builder()
+                    .text("test content 2")
+                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                crate::knowledge::domain::MarkdownContext::builder()
+                    .heading_hierarchy(vec![])
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .embedding(embedding2)
+            .build();
+
+        // When Saving in batch
+        repo.save_batch(&[chunk1.clone(), chunk2.clone()]).unwrap();
+
+        // Then Both should be in vec_chunks
+        let count: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
     }
 }
