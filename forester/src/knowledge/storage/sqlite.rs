@@ -44,10 +44,16 @@ impl SqliteChunkRepository {
         Ok(Self { conn })
     }
 
+    /// Convert f32 embedding vector to bytes for sqlite-vec storage
+    ///
+    /// sqlite-vec expects embeddings as little-endian f32 bytes.
     fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
         embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
     }
 
+    /// Convert ChunkContext enum to database-storable format
+    ///
+    /// Returns (context_type, context_data_json) tuple for storage in chunks table.
     fn serialize_context(context: &ChunkContext) -> Result<(String, String), StorageError> {
         use super::repository::storage_error::*;
 
@@ -75,6 +81,9 @@ impl SqliteChunkRepository {
         Ok((context_type.to_string(), context_data))
     }
 
+    /// Reconstruct ChunkContext from database fields
+    ///
+    /// Parses context_data JSON based on context_type discriminator.
     fn deserialize_context(
         context_type: &str,
         context_data: &str,
@@ -97,16 +106,22 @@ impl SqliteChunkRepository {
         }
     }
 
+    /// Convert SystemTime to Unix timestamp for database storage
     fn system_time_to_unix(time: SystemTime) -> i64 {
         time.duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64
     }
 
+    /// Convert Unix timestamp from database to SystemTime
     fn unix_to_system_time(unix: i64) -> SystemTime {
         UNIX_EPOCH + std::time::Duration::from_secs(unix as u64)
     }
 
+    /// Reconstruct Chunk from database row fields
+    ///
+    /// Handles all type conversions and validations needed to build a Chunk
+    /// from the raw database values.
     fn deserialize_chunk(
         id_str: String,
         file_path: String,
@@ -710,6 +725,10 @@ impl ChunkRepository for SqliteChunkRepository {
 }
 
 impl SqliteChunkRepository {
+    /// Calculate average document length across all chunks
+    ///
+    /// Used in BM25 scoring to normalize for document length.
+    /// Document length is the sum of all term frequencies.
     fn calculate_avg_doc_length(
         &self,
         rows: &[(
@@ -737,6 +756,10 @@ impl SqliteChunkRepository {
         Ok(total_length as f32 / rows.len().max(1) as f32)
     }
 
+    /// Calculate IDF (Inverse Document Frequency) for query terms
+    ///
+    /// IDF measures how rare a term is across the corpus. Rare terms get higher scores.
+    /// Formula: ln((N - df + 0.5) / (df + 0.5) + 1) where N is total docs, df is doc frequency.
     fn calculate_idf(
         &self,
         query_terms: &[String],
@@ -779,6 +802,12 @@ impl SqliteChunkRepository {
         Ok(idf_scores)
     }
 
+    /// Calculate BM25 score for a document given query terms
+    ///
+    /// BM25 combines term frequency (how often term appears in doc) with IDF
+    /// (how rare the term is) and normalizes by document length.
+    ///
+    /// Uses standard parameters: k1=1.2 (term frequency saturation), b=0.75 (length normalization).
     fn calculate_bm25_score(
         &self,
         query_terms: &[String],
