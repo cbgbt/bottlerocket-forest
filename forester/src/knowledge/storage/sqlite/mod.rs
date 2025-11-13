@@ -24,12 +24,17 @@ pub struct SqliteChunkRepository {
 impl SqliteChunkRepository {
     /// Open or create a database at the given path
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
-        // SAFETY: This call is safe because:
-        // - We are not opening a database from within the auto-extension handler
-        // - We are not closing the database from within the auto-extension handler
-        // - We are not manipulating the auto-extension list from within an auto-extension
-        // - sqlite3_vec_init is a valid C function pointer provided by the sqlite-vec crate
-        // - The transmute converts the function pointer to the type expected by sqlite3_auto_extension
+        // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
+        // 1. We are not calling this from within an auto-extension handler (would cause recursion)
+        // 2. We will not close any database connection from within the auto-extension
+        // 3. We will not manipulate the auto-extension list from within an auto-extension
+        // 4. sqlite3_vec_init is a valid C function pointer with the correct signature
+        //    provided by the sqlite-vec crate's extern "C" block
+        // 5. The transmute is valid because:
+        //    - Both types are function pointers with the same size
+        //    - sqlite3_vec_init has the correct signature expected by sqlite3_auto_extension
+        //    - The function pointer is statically linked and will remain valid
+        #[allow(clippy::missing_transmute_annotations)]
         unsafe {
             rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
                 sqlite_vec::sqlite3_vec_init as *const (),

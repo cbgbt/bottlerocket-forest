@@ -76,8 +76,14 @@ mod test {
     use super::*;
 
     fn setup_connection() -> Connection {
-        // Register sqlite-vec extension
-        // SAFETY: See safety comment in sqlite.rs - same constraints apply
+        // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
+        // 1. We are not calling this from within an auto-extension handler
+        // 2. We will not close any database connection from within the auto-extension
+        // 3. We will not manipulate the auto-extension list from within an auto-extension
+        // 4. sqlite3_vec_init is a valid C function pointer provided by the sqlite-vec crate
+        // 5. The transmute is valid because both types are function pointers with the same size
+        //    and sqlite3_vec_init has the correct signature expected by sqlite3_auto_extension
+        #[allow(clippy::missing_transmute_annotations)]
         unsafe {
             rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
                 sqlite_vec::sqlite3_vec_init as *const (),
