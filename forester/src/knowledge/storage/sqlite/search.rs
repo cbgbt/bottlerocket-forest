@@ -1,11 +1,11 @@
 //! Search implementations for semantic and BM25 search
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use snafu::ResultExt;
 
 use super::serialization::{chunk_from_row, serialize_embedding};
 use crate::knowledge::domain::Chunk;
-use crate::knowledge::storage::repository::{storage_error::*, StorageError};
+use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Perform semantic search using sqlite-vec
 pub fn search_semantic(

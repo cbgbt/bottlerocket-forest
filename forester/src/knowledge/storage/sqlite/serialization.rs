@@ -3,10 +3,8 @@
 use snafu::ResultExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::knowledge::domain::{
-    ChunkContext, MarkdownContext, RustDocContext,
-};
-use crate::knowledge::storage::repository::{storage_error::*, StorageError};
+use crate::knowledge::domain::{ChunkContext, MarkdownContext, RustDocContext};
+use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Macro to parse a Chunk directly from a rusqlite::Row
 ///
@@ -37,8 +35,11 @@ macro_rules! chunk_from_row {
                 })
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
-            let context = crate::knowledge::storage::sqlite::serialization::deserialize_context(&context_type, &context_data)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let context = crate::knowledge::storage::sqlite::serialization::deserialize_context(
+                &context_type,
+                &context_data,
+            )
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
             Ok(crate::knowledge::domain::Chunk::builder()
                 .id(crate::knowledge::domain::ChunkId::new(uuid))
@@ -47,43 +48,53 @@ macro_rules! chunk_from_row {
                         .file_path(
                             crate::knowledge::domain::ForestRelativePath::try_new(file_path)
                                 .map_err(|e| {
-                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                    Box::new(e)
+                                        as Box<dyn std::error::Error + Send + Sync + 'static>
                                 })
                                 .context(InvalidFieldSnafu {
                                     field: "file_path".to_string(),
                                 })
-                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                                .map_err(|e| {
+                                    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                })?,
                         )
                         .repo_name(
                             crate::knowledge::domain::RepoName::try_new(repo_name)
                                 .map_err(|e| {
-                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                    Box::new(e)
+                                        as Box<dyn std::error::Error + Send + Sync + 'static>
                                 })
                                 .context(InvalidFieldSnafu {
                                     field: "repo_name".to_string(),
                                 })
-                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                                .map_err(|e| {
+                                    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                })?,
                         )
                         .line_range(
                             crate::knowledge::domain::LineRange::builder()
                                 .start(
-                                    crate::knowledge::domain::LineNumber::try_new(line_start as usize)
-                                        .map_err(|e| {
-                                            Box::new(e)
-                                                as Box<dyn std::error::Error + Send + Sync + 'static>
-                                        })
-                                        .context(InvalidFieldSnafu {
-                                            field: "line_start".to_string(),
-                                        })
-                                        .map_err(|e| {
-                                            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
-                                        })?,
+                                    crate::knowledge::domain::LineNumber::try_new(
+                                        line_start as usize,
+                                    )
+                                    .map_err(|e| {
+                                        Box::new(e)
+                                            as Box<dyn std::error::Error + Send + Sync + 'static>
+                                    })
+                                    .context(InvalidFieldSnafu {
+                                        field: "line_start".to_string(),
+                                    })
+                                    .map_err(|e| {
+                                        rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                    })?,
                                 )
                                 .line_count(
                                     crate::knowledge::domain::LineCount::try_new(line_end as usize)
                                         .map_err(|e| {
                                             Box::new(e)
-                                                as Box<dyn std::error::Error + Send + Sync + 'static>
+                                                as Box<
+                                                    dyn std::error::Error + Send + Sync + 'static,
+                                                >
                                         })
                                         .context(InvalidFieldSnafu {
                                             field: "line_count".to_string(),
@@ -102,17 +113,24 @@ macro_rules! chunk_from_row {
                         .token_count(
                             crate::knowledge::domain::TokenCount::try_new(content.len())
                                 .map_err(|e| {
-                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                    Box::new(e)
+                                        as Box<dyn std::error::Error + Send + Sync + 'static>
                                 })
                                 .context(InvalidFieldSnafu {
                                     field: "token_count".to_string(),
                                 })
-                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                                .map_err(|e| {
+                                    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                })?,
                         )
                         .build(),
                 )
                 .context(context)
-                .indexed_at(crate::knowledge::storage::sqlite::serialization::unix_to_system_time(last_modified))
+                .indexed_at(
+                    crate::knowledge::storage::sqlite::serialization::unix_to_system_time(
+                        last_modified,
+                    ),
+                )
                 .build())
         })()
     }};
@@ -158,11 +176,13 @@ pub fn deserialize_context(
 ) -> Result<ChunkContext, StorageError> {
     match context_type {
         "markdown" => {
-            let ctx: MarkdownContext = serde_json::from_str(context_data).context(SerializationSnafu)?;
+            let ctx: MarkdownContext =
+                serde_json::from_str(context_data).context(SerializationSnafu)?;
             Ok(ChunkContext::Markdown(ctx))
         }
         "rust_doc" => {
-            let ctx: RustDocContext = serde_json::from_str(context_data).context(SerializationSnafu)?;
+            let ctx: RustDocContext =
+                serde_json::from_str(context_data).context(SerializationSnafu)?;
             Ok(ChunkContext::RustDoc(ctx))
         }
         _ => Err(InvalidDataSnafu {

@@ -14,7 +14,7 @@ use std::path::Path;
 
 use super::repository::{ChunkRepository, IndexMetadata, StorageError, storage_error::*};
 use super::schema;
-use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath};
+use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
 
 /// SQLite-backed chunk repository
 pub struct SqliteChunkRepository {
@@ -67,12 +67,12 @@ impl SqliteChunkRepository {
 }
 
 impl ChunkRepository for SqliteChunkRepository {
-    fn save(&mut self, chunk: &Chunk) -> Result<(), StorageError> {
-        queries::save(&mut self.conn, chunk)
+    fn save(&mut self, chunk: &Chunk, mode: IndexMode) -> Result<(), StorageError> {
+        queries::save(&mut self.conn, chunk, mode)
     }
 
-    fn save_batch(&mut self, chunks: &[Chunk]) -> Result<(), StorageError> {
-        queries::save_batch(&mut self.conn, chunks)
+    fn save_batch(&mut self, chunks: &[Chunk], mode: IndexMode) -> Result<(), StorageError> {
+        queries::save_batch(&mut self.conn, chunks, mode)
     }
 
     fn find_by_id(&self, id: &ChunkId) -> Result<Option<Chunk>, StorageError> {
@@ -168,7 +168,7 @@ mod test {
         let chunk = create_test_chunk();
 
         // When Saving the chunk
-        repo.save(&chunk).unwrap();
+        repo.save(&chunk, IndexMode::Fast).unwrap();
 
         // Then It should be retrievable
         let retrieved = repo.find_by_id(&chunk.id).unwrap();
@@ -186,7 +186,7 @@ mod test {
         let chunks = vec![create_test_chunk(), create_test_chunk()];
 
         // When Saving in batch
-        repo.save_batch(&chunks).unwrap();
+        repo.save_batch(&chunks, IndexMode::Fast).unwrap();
 
         // Then All chunks should be retrievable
         let all = repo.find_all().unwrap();
@@ -202,8 +202,8 @@ mod test {
         let mut chunk2 = create_test_chunk();
         chunk2.source.file_path = ForestRelativePath::try_new("other.md").unwrap();
 
-        repo.save(&chunk1).unwrap();
-        repo.save(&chunk2).unwrap();
+        repo.save(&chunk1, IndexMode::Fast).unwrap();
+        repo.save(&chunk2, IndexMode::Fast).unwrap();
 
         // When Finding by file
         let results = repo
@@ -221,7 +221,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
         let chunk = create_test_chunk();
-        repo.save(&chunk).unwrap();
+        repo.save(&chunk, IndexMode::Fast).unwrap();
 
         // When Deleting by file
         let count = repo
@@ -239,8 +239,8 @@ mod test {
         // Given A repository with chunks
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
-        repo.save(&create_test_chunk()).unwrap();
-        repo.save(&create_test_chunk()).unwrap();
+        repo.save(&create_test_chunk(), IndexMode::Fast).unwrap();
+        repo.save(&create_test_chunk(), IndexMode::Fast).unwrap();
 
         // When Clearing
         let count = repo.clear().unwrap();
@@ -338,7 +338,7 @@ mod test {
             .build();
 
         // When Saving and retrieving the chunk
-        repo.save(&chunk).unwrap();
+        repo.save(&chunk, IndexMode::Fast).unwrap();
         let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
 
         // Then The context should be preserved with correct type
@@ -440,7 +440,7 @@ mod test {
             .build();
 
         // When Saving the chunk
-        repo.save(&chunk).unwrap();
+        repo.save(&chunk, IndexMode::Best).unwrap();
 
         // Then It should be in both chunks and vec_chunks tables
         let chunk_exists: bool = repo
@@ -473,7 +473,7 @@ mod test {
         let chunk = create_test_chunk();
 
         // When Saving the chunk
-        repo.save(&chunk).unwrap();
+        repo.save(&chunk, IndexMode::Fast).unwrap();
 
         // Then It should be in chunks but not vec_chunks
         let chunk_exists: bool = repo
@@ -558,7 +558,8 @@ mod test {
             .build();
 
         // When Saving in batch
-        repo.save_batch(&[chunk1.clone(), chunk2.clone()]).unwrap();
+        repo.save_batch(&[chunk1.clone(), chunk2.clone()], IndexMode::Best)
+            .unwrap();
 
         // Then Both should be in vec_chunks
         let count: i64 = repo

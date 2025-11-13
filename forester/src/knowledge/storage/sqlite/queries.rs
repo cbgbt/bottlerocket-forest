@@ -1,14 +1,17 @@
 //! CRUD operations for chunk storage
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use snafu::ResultExt;
 
-use super::serialization::{chunk_from_row, serialize_context, serialize_embedding, system_time_to_unix, unix_to_system_time};
+use super::serialization::{
+    chunk_from_row, serialize_context, serialize_embedding, system_time_to_unix,
+    unix_to_system_time,
+};
 use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
-use crate::knowledge::storage::repository::{storage_error::*, IndexMetadata, StorageError};
+use crate::knowledge::storage::repository::{IndexMetadata, StorageError, storage_error::*};
 
 /// Save a single chunk to the database
-pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
+pub fn save(conn: &mut Connection, chunk: &Chunk, mode: IndexMode) -> Result<(), StorageError> {
     let (context_type, context_data) = serialize_context(&chunk.context)?;
 
     conn.execute(
@@ -26,7 +29,7 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
             context_data,
             chunk.content.text,
             system_time_to_unix(chunk.indexed_at),
-            "fast",
+            mode.to_string(),
         ],
     )
     .context(DatabaseSnafu)?;
@@ -44,7 +47,11 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
 }
 
 /// Save multiple chunks in a transaction
-pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), StorageError> {
+pub fn save_batch(
+    conn: &mut Connection,
+    chunks: &[Chunk],
+    mode: IndexMode,
+) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
     for chunk in chunks {
@@ -65,7 +72,7 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
                 context_data,
                 chunk.content.text,
                 system_time_to_unix(chunk.indexed_at),
-                "fast",
+                mode.to_string(),
             ],
         )
         .context(DatabaseSnafu)?;
@@ -101,7 +108,10 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, Stor
 }
 
 /// Find all chunks from a specific file
-pub fn find_by_file(conn: &Connection, path: &ForestRelativePath) -> Result<Vec<Chunk>, StorageError> {
+pub fn find_by_file(
+    conn: &Connection,
+    path: &ForestRelativePath,
+) -> Result<Vec<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, file_path, repo_name, line_start, line_end, 
@@ -133,7 +143,10 @@ pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
 }
 
 /// Delete all chunks from a specific file
-pub fn delete_by_file(conn: &mut Connection, path: &ForestRelativePath) -> Result<usize, StorageError> {
+pub fn delete_by_file(
+    conn: &mut Connection,
+    path: &ForestRelativePath,
+) -> Result<usize, StorageError> {
     let count = conn
         .execute(
             "DELETE FROM chunks WHERE file_path = ?1",
