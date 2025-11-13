@@ -9,7 +9,7 @@ use std::time::Duration;
 use super::{Chunk, IndexMode, MatchedTerm, QueryText, RelevanceScore, ResultLimit};
 
 /// A search query with parameters
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct SearchQuery {
@@ -19,7 +19,7 @@ pub struct SearchQuery {
 }
 
 /// A single search result
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct SearchResult {
@@ -29,7 +29,7 @@ pub struct SearchResult {
 }
 
 /// Results from a search operation
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct SearchResults {

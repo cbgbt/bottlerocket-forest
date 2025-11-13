@@ -56,7 +56,7 @@ pub trait ChunkRepository {
 }
 
 /// Metadata about the index
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IndexMetadata {
     pub mode: IndexMode,

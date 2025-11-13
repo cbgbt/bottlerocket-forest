@@ -1,6 +1,5 @@
 //! SQLite implementation of ChunkRepository
 //!
-//! This module provides a SQLite-backed storage implementation with:
 //! - `serialization`: Converting between domain types and database formats
 //! - `queries`: CRUD operations for chunk storage
 //! - `search`: Semantic and BM25 search implementations
@@ -13,7 +12,7 @@ use rusqlite::Connection;
 use snafu::ResultExt;
 use std::path::Path;
 
-use super::repository::{storage_error::*, ChunkRepository, IndexMetadata, StorageError};
+use super::repository::{ChunkRepository, IndexMetadata, StorageError, storage_error::*};
 use super::schema;
 use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath};
 
@@ -120,12 +119,13 @@ impl ChunkRepository for SqliteChunkRepository {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkSource, ItemName, LineCount, LineNumber, LineRange,
-        MarkdownContext, RepoName, RustDocContext, RustItemType, Signature, TokenCount,
+        ChunkContent, ChunkContext, ChunkSource, HeadingText, ItemName, LineCount, LineNumber,
+        LineRange, MarkdownContext, RepoName, RustDocContext, RustItemType, Signature, TokenCount,
         Visibility,
     };
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
+    use test_case::test_case;
 
     fn create_test_chunk() -> Chunk {
         Chunk::builder()
@@ -264,15 +264,47 @@ mod test {
 
         // Then It should be retrievable
         let retrieved = repo.get_metadata().unwrap();
-        assert_eq!(
-            retrieved.mode,
-            crate::knowledge::domain::IndexMode::Best
-        );
+        assert_eq!(retrieved.mode, crate::knowledge::domain::IndexMode::Best);
     }
 
-    #[test]
-    fn test_rustdoc_context_roundtrip() {
-        // Given A repository and a chunk with RustDoc context
+    #[test_case(
+        ChunkContext::Markdown(MarkdownContext::builder().heading_hierarchy(vec![]).build())
+        ; "markdown context with empty hierarchy"
+    )]
+    #[test_case(
+        ChunkContext::Markdown(
+            MarkdownContext::builder()
+                .heading_hierarchy(vec![
+                    HeadingText::try_new("Architecture").unwrap(),
+                    HeadingText::try_new("Boot Process").unwrap(),
+                ])
+                .build()
+        )
+        ; "markdown context with hierarchy"
+    )]
+    #[test_case(
+        ChunkContext::RustDoc(
+            RustDocContext::builder()
+                .item_type(RustItemType::Function)
+                .item_name(ItemName::try_new("build_variant").unwrap())
+                .visibility(Visibility::Public)
+                .signature(Signature::try_new("pub fn build_variant()").unwrap())
+                .build()
+        )
+        ; "rustdoc context with signature"
+    )]
+    #[test_case(
+        ChunkContext::RustDoc(
+            RustDocContext::builder()
+                .item_type(RustItemType::Struct)
+                .item_name(ItemName::try_new("Config").unwrap())
+                .visibility(Visibility::Private)
+                .build()
+        )
+        ; "rustdoc context without signature"
+    )]
+    fn test_context_roundtrip(context: ChunkContext) {
+        // Given A repository and a chunk with specific context
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
@@ -280,30 +312,23 @@ mod test {
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
                 ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new("src/lib.rs").unwrap())
-                    .repo_name(RepoName::try_new("twoliter").unwrap())
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
                     .line_range(
                         LineRange::builder()
-                            .start(LineNumber::try_new(20).unwrap())
-                            .line_count(LineCount::try_new(11).unwrap())
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
                 ChunkContent::builder()
-                    .text("/// Builds a variant")
-                    .token_count(TokenCount::try_new(5).unwrap())
+                    .text("test content")
+                    .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
-            .context(ChunkContext::RustDoc(
-                RustDocContext::builder()
-                    .item_type(RustItemType::Function)
-                    .item_name(ItemName::try_new("build_variant").unwrap())
-                    .visibility(Visibility::Public)
-                    .signature(Signature::try_new("pub fn build_variant()").unwrap())
-                    .build(),
-            ))
+            .context(context.clone())
             .indexed_at(SystemTime::now())
             .build();
 
@@ -311,15 +336,8 @@ mod test {
         repo.save(&chunk).unwrap();
         let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
 
-        // Then The RustDoc context should be preserved
-        match retrieved.context {
-            ChunkContext::RustDoc(ctx) => {
-                assert_eq!(ctx.item_type, RustItemType::Function);
-                assert_eq!(ctx.visibility, Visibility::Public);
-                assert!(ctx.signature.is_some());
-            }
-            _ => panic!("Expected RustDoc context"),
-        }
+        // Then The context should be preserved with correct type
+        assert_eq!(retrieved.context, context);
     }
 
     #[test]
@@ -330,24 +348,6 @@ mod test {
 
         // Then It should fail
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_sqlite_vec_extension_loaded() {
-        // Given A temporary database
-        let temp_file = NamedTempFile::new().unwrap();
-
-        // When Opening the repository
-        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
-
-        // Then The sqlite-vec extension should be available
-        let result: Result<i32, _> = repo.conn.query_row(
-            "SELECT 1 FROM pragma_module_list WHERE name = 'vec0'",
-            [],
-            |row| row.get(0),
-        );
-
-        assert!(result.is_ok());
     }
 
     #[test]

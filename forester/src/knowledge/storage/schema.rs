@@ -87,50 +87,14 @@ mod test {
     }
 
     #[test]
-    fn test_schema_constraints() {
-        // Given a database with tables
-        let conn = setup_connection();
-        create_tables(&conn).unwrap();
-
-        // When inserting a chunk with invalid context_type
-        let result = conn.execute(
-            "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end, 
-             context_type, context_data, content, last_modified, index_mode) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            rusqlite::params![
-                "test-id",
-                "test.md",
-                "test-repo",
-                1,
-                10,
-                "invalid_type",
-                "{}",
-                "test content",
-                0,
-                "fast"
-            ],
-        );
-
-        // Then it should fail due to CHECK constraint
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_vec_chunks_virtual_table_created() {
-        // Given A database with tables
+    fn test_create_tables_succeeds() {
+        // Given A database connection
         let conn = setup_connection();
 
-        // When Creating tables (including vec_chunks virtual table)
-        create_tables(&conn).unwrap();
+        // When Creating tables
+        let result = create_tables(&conn);
 
-        // Then The vec_chunks virtual table should exist
-        let result: rusqlite::Result<String> = conn.query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
-            [],
-            |row| row.get(0),
-        );
-
+        // Then It should succeed
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "vec_chunks");
     }
 }

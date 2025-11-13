@@ -13,7 +13,7 @@ use super::{
 };
 
 /// A searchable chunk of documentation with metadata
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct Chunk {
@@ -26,7 +26,7 @@ pub struct Chunk {
 }
 
 /// Source location of the chunk
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct ChunkSource {
@@ -36,7 +36,7 @@ pub struct ChunkSource {
 }
 
 /// Line range in a file
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct LineRange {
@@ -54,7 +54,7 @@ impl LineRange {
 }
 
 /// The actual content to be indexed
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct ChunkContent {
@@ -63,14 +63,14 @@ pub struct ChunkContent {
 }
 
 /// Type-specific metadata about the chunk
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ChunkContext {
     Markdown(MarkdownContext),
     RustDoc(RustDocContext),
 }
 
 /// Context for markdown chunks
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct MarkdownContext {
@@ -78,7 +78,7 @@ pub struct MarkdownContext {
 }
 
 /// Context for Rust doc comment chunks
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct RustDocContext {

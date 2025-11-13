@@ -4,8 +4,7 @@ use snafu::ResultExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::knowledge::domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, LineCount,
-    LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, TokenCount,
+    ChunkContext, MarkdownContext, RustDocContext,
 };
 use crate::knowledge::storage::repository::{storage_error::*, StorageError};
 
