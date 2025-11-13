@@ -135,51 +135,40 @@ impl SqliteChunkRepository {
     ) -> Result<Chunk, StorageError> {
         use super::repository::storage_error::*;
 
-        let uuid = uuid::Uuid::parse_str(&id_str).map_err(|e| {
-            InvalidDataSnafu {
-                message: e.to_string(),
-            }
-            .build()
-        })?;
+        macro_rules! try_field {
+            ($field:expr, $expr:expr) => {
+                $expr
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                    .context(InvalidFieldSnafu {
+                        field: $field.to_string(),
+                    })?
+            };
+        }
 
-        Ok(Chunk::builder()
+        let uuid = try_field!("chunk_id", uuid::Uuid::parse_str(&id_str));
+
+        let chunk = Chunk::builder()
             .id(ChunkId::new(uuid))
             .source(
                 crate::knowledge::domain::ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new(file_path).map_err(|e| {
-                        InvalidDataSnafu {
-                            message: e.to_string(),
-                        }
-                        .build()
-                    })?)
-                    .repo_name(
-                        crate::knowledge::domain::RepoName::try_new(repo_name).map_err(|e| {
-                            InvalidDataSnafu {
-                                message: e.to_string(),
-                            }
-                            .build()
-                        })?,
-                    )
+                    .file_path(try_field!(
+                        "file_path",
+                        ForestRelativePath::try_new(file_path)
+                    ))
+                    .repo_name(try_field!(
+                        "repo_name",
+                        crate::knowledge::domain::RepoName::try_new(repo_name)
+                    ))
                     .line_range(
                         crate::knowledge::domain::LineRange::builder()
-                            .start(
+                            .start(try_field!(
+                                "line_start",
                                 crate::knowledge::domain::LineNumber::try_new(line_start as usize)
-                                    .map_err(|e| {
-                                        InvalidDataSnafu {
-                                            message: e.to_string(),
-                                        }
-                                        .build()
-                                    })?,
-                            )
-                            .line_count(
+                            ))
+                            .line_count(try_field!(
+                                "line_count",
                                 crate::knowledge::domain::LineCount::try_new(line_end as usize)
-                                    .map_err(|e| {
-                                        InvalidDataSnafu {
-                                            message: e.to_string(),
-                                        }
-                                        .build()
-                                    })?,
-                            )
+                            ))
                             .build(),
                     )
                     .build(),
@@ -187,21 +176,17 @@ impl SqliteChunkRepository {
             .content(
                 crate::knowledge::domain::ChunkContent::builder()
                     .text(content.clone())
-                    .token_count(
-                        crate::knowledge::domain::TokenCount::try_new(content.len()).map_err(
-                            |e| {
-                                InvalidDataSnafu {
-                                    message: e.to_string(),
-                                }
-                                .build()
-                            },
-                        )?,
-                    )
+                    .token_count(try_field!(
+                        "token_count",
+                        crate::knowledge::domain::TokenCount::try_new(content.len())
+                    ))
                     .build(),
             )
             .context(Self::deserialize_context(&context_type, &context_data)?)
             .indexed_at(Self::unix_to_system_time(last_modified))
-            .build())
+            .build();
+
+        Ok(chunk)
     }
 }
 

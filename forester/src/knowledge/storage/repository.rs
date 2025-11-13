@@ -78,6 +78,12 @@ pub enum StorageError {
     #[snafu(display("Invalid data: {message}"))]
     InvalidData { message: String },
 
+    #[snafu(display("Invalid field '{field}'"))]
+    InvalidField {
+        field: String,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
     #[snafu(display("Chunk not found: {id:?}"))]
     NotFound { id: ChunkId },
 
