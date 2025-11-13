@@ -7,11 +7,126 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::repository::{ChunkRepository, IndexMetadata, StorageError};
 use super::schema;
-use crate::knowledge::domain::{Chunk, ChunkContext, ChunkId, ForestRelativePath, IndexMode};
+use crate::knowledge::domain::{
+    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, IndexMode, LineCount, LineNumber, LineRange, RepoName, TokenCount,
+};
+
+#[cfg(test)]
+use crate::knowledge::domain::{ItemName, MarkdownContext, RustDocContext, RustItemType, Signature, Visibility};
 
 /// SQLite-backed chunk repository
 pub struct SqliteChunkRepository {
     conn: Connection,
+}
+
+/// Macro to parse a Chunk directly from a rusqlite::Row
+///
+/// Expects columns in order: id, file_path, repo_name, line_start, line_end,
+/// context_type, context_data, content, last_modified
+///
+/// Returns Result<Chunk, rusqlite::Error> for use in query_map closures
+macro_rules! chunk_from_row {
+    ($row:expr) => {{
+        (|| -> Result<Chunk, rusqlite::Error> {
+            use super::repository::storage_error::*;
+            use snafu::ResultExt;
+
+            let id_str: String = $row.get(0)?;
+            let file_path: String = $row.get(1)?;
+            let repo_name: String = $row.get(2)?;
+            let line_start: i64 = $row.get(3)?;
+            let line_end: i64 = $row.get(4)?;
+            let context_type: String = $row.get(5)?;
+            let context_data: String = $row.get(6)?;
+            let content: String = $row.get(7)?;
+            let last_modified: i64 = $row.get(8)?;
+
+            let uuid = uuid::Uuid::parse_str(&id_str)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                .context(InvalidFieldSnafu {
+                    field: "chunk_id".to_string(),
+                })
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+            let context = SqliteChunkRepository::deserialize_context(&context_type, &context_data)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+            Ok(Chunk::builder()
+                .id(ChunkId::new(uuid))
+                .source(
+                    ChunkSource::builder()
+                        .file_path(
+                            ForestRelativePath::try_new(file_path)
+                                .map_err(|e| {
+                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                })
+                                .context(InvalidFieldSnafu {
+                                    field: "file_path".to_string(),
+                                })
+                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                        )
+                        .repo_name(
+                            RepoName::try_new(repo_name)
+                                .map_err(|e| {
+                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                })
+                                .context(InvalidFieldSnafu {
+                                    field: "repo_name".to_string(),
+                                })
+                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                        )
+                        .line_range(
+                            LineRange::builder()
+                                .start(
+                                    LineNumber::try_new(line_start as usize)
+                                        .map_err(|e| {
+                                            Box::new(e)
+                                                as Box<dyn std::error::Error + Send + Sync + 'static>
+                                        })
+                                        .context(InvalidFieldSnafu {
+                                            field: "line_start".to_string(),
+                                        })
+                                        .map_err(|e| {
+                                            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                        })?,
+                                )
+                                .line_count(
+                                    LineCount::try_new(line_end as usize)
+                                        .map_err(|e| {
+                                            Box::new(e)
+                                                as Box<dyn std::error::Error + Send + Sync + 'static>
+                                        })
+                                        .context(InvalidFieldSnafu {
+                                            field: "line_count".to_string(),
+                                        })
+                                        .map_err(|e| {
+                                            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                        })?,
+                                )
+                                .build(),
+                        )
+                        .build(),
+                )
+                .content(
+                    ChunkContent::builder()
+                        .text(content.clone())
+                        .token_count(
+                            TokenCount::try_new(content.len())
+                                .map_err(|e| {
+                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                                })
+                                .context(InvalidFieldSnafu {
+                                    field: "token_count".to_string(),
+                                })
+                                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                        )
+                        .build(),
+                )
+                .context(context)
+                .indexed_at(SqliteChunkRepository::unix_to_system_time(last_modified))
+                .build())
+        })()
+    }};
 }
 
 impl SqliteChunkRepository {
@@ -33,6 +148,19 @@ impl SqliteChunkRepository {
         }
 
         let conn = Connection::open(path.as_ref()).context(DatabaseSnafu)?;
+
+        // Register custom LN function (natural logarithm)
+        conn.create_scalar_function(
+            "LN",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8
+                | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                let value = ctx.get::<f64>(0)?;
+                Ok(value.ln())
+            },
+        )
+        .context(DatabaseSnafu)?;
 
         schema::create_tables(&conn).map_err(|e| {
             InvalidDataSnafu {
@@ -116,77 +244,6 @@ impl SqliteChunkRepository {
     /// Convert Unix timestamp from database to SystemTime
     fn unix_to_system_time(unix: i64) -> SystemTime {
         UNIX_EPOCH + std::time::Duration::from_secs(unix as u64)
-    }
-
-    /// Reconstruct Chunk from database row fields
-    ///
-    /// Handles all type conversions and validations needed to build a Chunk
-    /// from the raw database values.
-    fn deserialize_chunk(
-        id_str: String,
-        file_path: String,
-        repo_name: String,
-        line_start: i64,
-        line_end: i64,
-        context_type: String,
-        context_data: String,
-        content: String,
-        last_modified: i64,
-    ) -> Result<Chunk, StorageError> {
-        use super::repository::storage_error::*;
-
-        macro_rules! try_field {
-            ($field:expr, $expr:expr) => {
-                $expr
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
-                    .context(InvalidFieldSnafu {
-                        field: $field.to_string(),
-                    })?
-            };
-        }
-
-        let uuid = try_field!("chunk_id", uuid::Uuid::parse_str(&id_str));
-
-        let chunk = Chunk::builder()
-            .id(ChunkId::new(uuid))
-            .source(
-                crate::knowledge::domain::ChunkSource::builder()
-                    .file_path(try_field!(
-                        "file_path",
-                        ForestRelativePath::try_new(file_path)
-                    ))
-                    .repo_name(try_field!(
-                        "repo_name",
-                        crate::knowledge::domain::RepoName::try_new(repo_name)
-                    ))
-                    .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(try_field!(
-                                "line_start",
-                                crate::knowledge::domain::LineNumber::try_new(line_start as usize)
-                            ))
-                            .line_count(try_field!(
-                                "line_count",
-                                crate::knowledge::domain::LineCount::try_new(line_end as usize)
-                            ))
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                crate::knowledge::domain::ChunkContent::builder()
-                    .text(content.clone())
-                    .token_count(try_field!(
-                        "token_count",
-                        crate::knowledge::domain::TokenCount::try_new(content.len())
-                    ))
-                    .build(),
-            )
-            .context(Self::deserialize_context(&context_type, &context_data)?)
-            .indexed_at(Self::unix_to_system_time(last_modified))
-            .build();
-
-        Ok(chunk)
     }
 }
 
@@ -285,50 +342,9 @@ impl ChunkRepository for SqliteChunkRepository {
             )
             .context(DatabaseSnafu)?;
 
-        let chunk = stmt
-            .query_row(params![id.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, i64>(8)?,
-                ))
-            })
+        stmt.query_row(params![id.to_string()], |row| chunk_from_row!(row))
             .optional()
-            .context(DatabaseSnafu)?;
-
-        chunk
-            .map(
-                |(
-                    id_str,
-                    file_path,
-                    repo_name,
-                    line_start,
-                    line_end,
-                    context_type,
-                    context_data,
-                    content,
-                    last_modified,
-                )| {
-                    Self::deserialize_chunk(
-                        id_str,
-                        file_path,
-                        repo_name,
-                        line_start,
-                        line_end,
-                        context_type,
-                        context_data,
-                        content,
-                        last_modified,
-                    )
-                },
-            )
-            .transpose()
+            .context(DatabaseSnafu)
     }
 
     fn find_by_file(&self, path: &ForestRelativePath) -> Result<Vec<Chunk>, StorageError> {
@@ -343,47 +359,11 @@ impl ChunkRepository for SqliteChunkRepository {
             )
             .context(DatabaseSnafu)?;
 
-        let rows = stmt
-            .query_map(params![path.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, i64>(8)?,
-                ))
-            })
-            .context(DatabaseSnafu)?;
-
-        rows.map(|row| {
-            let (
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-            ) = row.context(DatabaseSnafu)?;
-            Self::deserialize_chunk(
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-            )
-        })
-        .collect()
+        stmt
+            .query_map(params![path.to_string()], |row| chunk_from_row!(row))
+            .context(DatabaseSnafu)?
+            .collect::<Result<Vec<_>, _>>()
+            .context(DatabaseSnafu)
     }
 
     fn find_all(&self) -> Result<Vec<Chunk>, StorageError> {
@@ -398,47 +378,11 @@ impl ChunkRepository for SqliteChunkRepository {
             )
             .context(DatabaseSnafu)?;
 
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, i64>(8)?,
-                ))
-            })
-            .context(DatabaseSnafu)?;
-
-        rows.map(|row| {
-            let (
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-            ) = row.context(DatabaseSnafu)?;
-            Self::deserialize_chunk(
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-            )
-        })
-        .collect()
+        stmt
+            .query_map([], |row| chunk_from_row!(row))
+            .context(DatabaseSnafu)?
+            .collect::<Result<Vec<_>, _>>()
+            .context(DatabaseSnafu)
     }
 
     fn delete_by_file(&mut self, path: &ForestRelativePath) -> Result<usize, StorageError> {
@@ -561,53 +505,16 @@ impl ChunkRepository for SqliteChunkRepository {
             )
             .context(DatabaseSnafu)?;
 
-        let rows = stmt
+        stmt
             .query_map(params![embedding_blob, limit], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, i64>(8)?,
-                    row.get::<_, f32>(9)?,
-                ))
+                let chunk = chunk_from_row!(row)?;
+                let distance: f32 = row.get(9)?;
+                let similarity = 1.0 - distance;
+                Ok((chunk, similarity))
             })
-            .context(DatabaseSnafu)?;
-
-        rows.map(|row| {
-            let (
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-                distance,
-            ) = row.context(DatabaseSnafu)?;
-
-            let chunk = Self::deserialize_chunk(
-                id_str,
-                file_path,
-                repo_name,
-                line_start,
-                line_end,
-                context_type,
-                context_data,
-                content,
-                last_modified,
-            )?;
-
-            let similarity = 1.0 - distance;
-            Ok((chunk, similarity))
-        })
-        .collect()
+            .context(DatabaseSnafu)?
+            .collect::<Result<Vec<_>, _>>()
+            .context(DatabaseSnafu)
     }
 
     fn search_bm25(
@@ -621,231 +528,116 @@ impl ChunkRepository for SqliteChunkRepository {
             return Ok(vec![]);
         }
 
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, file_path, repo_name, line_start, line_end,
-                        context_type, context_data, content, last_modified, bm25_terms
-                 FROM chunks
-                 WHERE bm25_terms IS NOT NULL",
+        // Build SQL query with BM25 calculation
+        // Uses CTEs to compute corpus statistics and per-document scores
+        let query = format!(
+            r#"
+            WITH corpus_stats AS (
+                SELECT 
+                    COUNT(*) as total_docs,
+                    AVG((SELECT SUM(value) FROM json_each(bm25_terms))) as avg_doc_length
+                FROM chunks
+                WHERE bm25_terms IS NOT NULL
+            ),
+            term_stats AS (
+                SELECT 
+                    key as term,
+                    COUNT(*) as doc_freq
+                FROM chunks, json_each(bm25_terms)
+                WHERE bm25_terms IS NOT NULL
+                    AND key IN ({})
+                GROUP BY key
+            ),
+            scored_docs AS (
+                SELECT 
+                    c.id,
+                    c.file_path,
+                    c.repo_name,
+                    c.line_start,
+                    c.line_end,
+                    c.context_type,
+                    c.context_data,
+                    c.content,
+                    c.last_modified,
+                    SUM(
+                        -- IDF component
+                        LN((cs.total_docs - COALESCE(ts.doc_freq, 0) + 0.5) / (COALESCE(ts.doc_freq, 0) + 0.5) + 1.0) *
+                        -- TF component with BM25 normalization (k1=1.2, b=0.75)
+                        (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) * 2.2) /
+                        (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) + 
+                         1.2 * (0.25 + 0.75 * ((SELECT SUM(value) FROM json_each(c.bm25_terms)) / cs.avg_doc_length)))
+                    ) as score
+                FROM chunks c
+                CROSS JOIN corpus_stats cs
+                LEFT JOIN term_stats ts ON json_extract(c.bm25_terms, '$.' || ts.term) IS NOT NULL
+                WHERE c.bm25_terms IS NOT NULL
+                    AND ts.term IS NOT NULL
+                GROUP BY c.id
+                HAVING score > 0
+                ORDER BY score DESC
+                LIMIT ?
             )
-            .context(DatabaseSnafu)?;
+            SELECT * FROM scored_docs
+            "#,
+            query_terms
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(",")
+        );
 
-        let rows: Vec<_> = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, i64>(8)?,
-                    row.get::<_, String>(9)?,
-                ))
+        let mut stmt = self.conn.prepare(&query).context(DatabaseSnafu)?;
+
+        // Bind query terms twice: once for IN clause, once for limit
+        let mut params: Vec<&dyn rusqlite::ToSql> = query_terms
+            .iter()
+            .map(|t| t as &dyn rusqlite::ToSql)
+            .collect();
+        params.push(&limit);
+
+        let results = stmt
+            .query_map(params.as_slice(), |row| {
+                let chunk = chunk_from_row!(row)?;
+                let score: f32 = row.get(9)?;
+                Ok((chunk, score))
             })
             .context(DatabaseSnafu)?
             .collect::<Result<Vec<_>, _>>()
             .context(DatabaseSnafu)?;
 
-        let total_docs = rows.len() as f32;
-        let avg_doc_length = self.calculate_avg_doc_length(&rows)?;
-        let idf_scores = self.calculate_idf(query_terms, &rows, total_docs)?;
-
-        let mut scored_chunks: Vec<(Chunk, f32)> = rows
-            .into_iter()
-            .filter_map(
-                |(
-                    id_str,
-                    file_path,
-                    repo_name,
-                    line_start,
-                    line_end,
-                    context_type,
-                    context_data,
-                    content,
-                    last_modified,
-                    bm25_terms,
-                )| {
-                    let term_freqs: std::collections::HashMap<String, usize> =
-                        serde_json::from_str(&bm25_terms).ok()?;
-
-                    let doc_length = term_freqs.values().sum::<usize>() as f32;
-                    let score = self.calculate_bm25_score(
-                        query_terms,
-                        &term_freqs,
-                        &idf_scores,
-                        doc_length,
-                        avg_doc_length,
-                    );
-
-                    if score > 0.0 {
-                        let chunk = Self::deserialize_chunk(
-                            id_str,
-                            file_path,
-                            repo_name,
-                            line_start,
-                            line_end,
-                            context_type,
-                            context_data,
-                            content,
-                            last_modified,
-                        )
-                        .ok()?;
-                        Some((chunk, score))
-                    } else {
-                        None
-                    }
-                },
-            )
-            .collect();
-
-        scored_chunks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        scored_chunks.truncate(limit);
-
-        Ok(scored_chunks)
-    }
-}
-
-impl SqliteChunkRepository {
-    /// Calculate average document length across all chunks
-    ///
-    /// Used in BM25 scoring to normalize for document length.
-    /// Document length is the sum of all term frequencies.
-    fn calculate_avg_doc_length(
-        &self,
-        rows: &[(
-            String,
-            String,
-            String,
-            i64,
-            i64,
-            String,
-            String,
-            String,
-            i64,
-            String,
-        )],
-    ) -> Result<f32, StorageError> {
-        let total_length: usize = rows
-            .iter()
-            .filter_map(|(_, _, _, _, _, _, _, _, _, bm25_terms)| {
-                let term_freqs: std::collections::HashMap<String, usize> =
-                    serde_json::from_str(bm25_terms).ok()?;
-                Some(term_freqs.values().sum::<usize>())
-            })
-            .sum();
-
-        Ok(total_length as f32 / rows.len().max(1) as f32)
-    }
-
-    /// Calculate IDF (Inverse Document Frequency) for query terms
-    ///
-    /// IDF measures how rare a term is across the corpus. Rare terms get higher scores.
-    /// Formula: ln((N - df + 0.5) / (df + 0.5) + 1) where N is total docs, df is doc frequency.
-    fn calculate_idf(
-        &self,
-        query_terms: &[String],
-        rows: &[(
-            String,
-            String,
-            String,
-            i64,
-            i64,
-            String,
-            String,
-            String,
-            i64,
-            String,
-        )],
-        total_docs: f32,
-    ) -> Result<std::collections::HashMap<String, f32>, StorageError> {
-        let mut doc_counts: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
-
-        for (_, _, _, _, _, _, _, _, _, bm25_terms) in rows {
-            if let Ok(term_freqs) =
-                serde_json::from_str::<std::collections::HashMap<String, usize>>(bm25_terms)
-            {
-                for term in query_terms {
-                    if term_freqs.contains_key(term) {
-                        *doc_counts.entry(term.clone()).or_insert(0) += 1;
-                    }
-                }
-            }
-        }
-
-        let mut idf_scores = std::collections::HashMap::new();
-        for term in query_terms {
-            let doc_freq = *doc_counts.get(term).unwrap_or(&0) as f32;
-            let idf = ((total_docs - doc_freq + 0.5) / (doc_freq + 0.5) + 1.0).ln();
-            idf_scores.insert(term.clone(), idf);
-        }
-
-        Ok(idf_scores)
-    }
-
-    /// Calculate BM25 score for a document given query terms
-    ///
-    /// BM25 combines term frequency (how often term appears in doc) with IDF
-    /// (how rare the term is) and normalizes by document length.
-    ///
-    /// Uses standard parameters: k1=1.2 (term frequency saturation), b=0.75 (length normalization).
-    fn calculate_bm25_score(
-        &self,
-        query_terms: &[String],
-        term_freqs: &std::collections::HashMap<String, usize>,
-        idf_scores: &std::collections::HashMap<String, f32>,
-        doc_length: f32,
-        avg_doc_length: f32,
-    ) -> f32 {
-        const K1: f32 = 1.2;
-        const B: f32 = 0.75;
-
-        let mut score = 0.0;
-        for term in query_terms {
-            if let Some(&tf) = term_freqs.get(term) {
-                let idf = idf_scores.get(term).unwrap_or(&0.0);
-                let tf = tf as f32;
-                let numerator = tf * (K1 + 1.0);
-                let denominator = tf + K1 * (1.0 - B + B * (doc_length / avg_doc_length));
-                score += idf * (numerator / denominator);
-            }
-        }
-        score
+        Ok(results)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::domain::{ItemName, MarkdownContext, RustDocContext, RustItemType, Signature, Visibility};
     use tempfile::NamedTempFile;
 
     fn create_test_chunk() -> Chunk {
         Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
-                crate::knowledge::domain::ChunkSource::builder()
+                ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
                     .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
-                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
-                crate::knowledge::domain::ChunkContent::builder()
+                ChunkContent::builder()
                     .text("test content")
-                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
             .context(ChunkContext::Markdown(
-                crate::knowledge::domain::MarkdownContext::builder()
+                MarkdownContext::builder()
                     .heading_hierarchy(vec![])
                     .build(),
             ))
@@ -974,32 +766,32 @@ mod test {
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
-                crate::knowledge::domain::ChunkSource::builder()
+                ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("src/lib.rs").unwrap())
-                    .repo_name(crate::knowledge::domain::RepoName::try_new("twoliter").unwrap())
+                    .repo_name(RepoName::try_new("twoliter").unwrap())
                     .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(crate::knowledge::domain::LineNumber::try_new(20).unwrap())
-                            .line_count(crate::knowledge::domain::LineCount::try_new(11).unwrap())
+                        LineRange::builder()
+                            .start(LineNumber::try_new(20).unwrap())
+                            .line_count(LineCount::try_new(11).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
-                crate::knowledge::domain::ChunkContent::builder()
+                ChunkContent::builder()
                     .text("/// Builds a variant")
-                    .token_count(crate::knowledge::domain::TokenCount::try_new(5).unwrap())
+                    .token_count(TokenCount::try_new(5).unwrap())
                     .build(),
             )
             .context(ChunkContext::RustDoc(
-                crate::knowledge::domain::RustDocContext::builder()
-                    .item_type(crate::knowledge::domain::RustItemType::Function)
+                RustDocContext::builder()
+                    .item_type(RustItemType::Function)
                     .item_name(
-                        crate::knowledge::domain::ItemName::try_new("build_variant").unwrap(),
+                        ItemName::try_new("build_variant").unwrap(),
                     )
-                    .visibility(crate::knowledge::domain::Visibility::Public)
+                    .visibility(Visibility::Public)
                     .signature(
-                        crate::knowledge::domain::Signature::try_new("pub fn build_variant()")
+                        Signature::try_new("pub fn build_variant()")
                             .unwrap(),
                     )
                     .build(),
@@ -1016,9 +808,9 @@ mod test {
             ChunkContext::RustDoc(ctx) => {
                 assert_eq!(
                     ctx.item_type,
-                    crate::knowledge::domain::RustItemType::Function
+                    RustItemType::Function
                 );
-                assert_eq!(ctx.visibility, crate::knowledge::domain::Visibility::Public);
+                assert_eq!(ctx.visibility, Visibility::Public);
                 assert!(ctx.signature.is_some());
             }
             _ => panic!("Expected RustDoc context"),
@@ -1116,25 +908,25 @@ mod test {
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
-                crate::knowledge::domain::ChunkSource::builder()
+                ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
                     .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
-                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
-                crate::knowledge::domain::ChunkContent::builder()
+                ChunkContent::builder()
                     .text("test content")
-                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
             .context(ChunkContext::Markdown(
-                crate::knowledge::domain::MarkdownContext::builder()
+                MarkdownContext::builder()
                     .heading_hierarchy(vec![])
                     .build(),
             ))
@@ -1209,25 +1001,25 @@ mod test {
         let chunk1 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
-                crate::knowledge::domain::ChunkSource::builder()
+                ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test1.md").unwrap())
-                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
                     .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
-                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
-                crate::knowledge::domain::ChunkContent::builder()
+                ChunkContent::builder()
                     .text("test content 1")
-                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
             .context(ChunkContext::Markdown(
-                crate::knowledge::domain::MarkdownContext::builder()
+                MarkdownContext::builder()
                     .heading_hierarchy(vec![])
                     .build(),
             ))
@@ -1238,25 +1030,25 @@ mod test {
         let chunk2 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
-                crate::knowledge::domain::ChunkSource::builder()
+                ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test2.md").unwrap())
-                    .repo_name(crate::knowledge::domain::RepoName::try_new("test-repo").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
                     .line_range(
-                        crate::knowledge::domain::LineRange::builder()
-                            .start(crate::knowledge::domain::LineNumber::try_new(1).unwrap())
-                            .line_count(crate::knowledge::domain::LineCount::try_new(10).unwrap())
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
                             .build(),
                     )
                     .build(),
             )
             .content(
-                crate::knowledge::domain::ChunkContent::builder()
+                ChunkContent::builder()
                     .text("test content 2")
-                    .token_count(crate::knowledge::domain::TokenCount::try_new(10).unwrap())
+                    .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
             .context(ChunkContext::Markdown(
-                crate::knowledge::domain::MarkdownContext::builder()
+                MarkdownContext::builder()
                     .heading_hierarchy(vec![])
                     .build(),
             ))
