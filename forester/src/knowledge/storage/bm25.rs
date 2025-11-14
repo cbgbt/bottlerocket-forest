@@ -1,5 +1,19 @@
+//! BM25 term frequency calculation for keyword-based search.
+//!
+//! BM25 (Best Matching 25) is a ranking function used for keyword-based search.
+//! It scores documents based on term frequency (how often query terms appear)
+//! and inverse document frequency (how rare terms are across the corpus).
+//!
+//! This module handles the first step: tokenizing text and counting term frequencies
+//! while filtering out common words that don't help distinguish documents.
+
 use std::collections::BTreeMap;
 
+/// Common English words filtered out during indexing.
+///
+/// Stopwords are high-frequency words (articles, prepositions, etc.) that appear
+/// in most documents and don't help distinguish relevant results. Removing them
+/// reduces index size and improves search quality.
 const STOPWORDS: &[&str] = &[
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is", "it",
     "its", "of", "on", "that", "the", "to", "was", "will", "with",
