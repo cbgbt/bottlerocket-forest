@@ -3,18 +3,18 @@
 use snafu::ResultExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::knowledge::domain::{ChunkContext, MarkdownContext, RustDocContext};
+use crate::knowledge::domain::{
+    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
+    IndexData, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
+    TokenCount,
+};
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Parse a Chunk from a rusqlite::Row
 ///
 /// Expects columns in order: id, file_path, repo_name, line_start, line_count,
 /// context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode, embedding
-pub fn chunk_from_row(
-    row: &rusqlite::Row,
-) -> Result<crate::knowledge::domain::Chunk, StorageError> {
-    use crate::knowledge::storage::repository::storage_error::*;
-
+pub fn chunk_from_row(row: &rusqlite::Row) -> Result<Chunk, StorageError> {
     let id_str: String = row.get(0).context(DatabaseSnafu)?;
     let file_path: String = row.get(1).context(DatabaseSnafu)?;
     let repo_name: String = row.get(2).context(DatabaseSnafu)?;
@@ -46,7 +46,7 @@ pub fn chunk_from_row(
                 .build()
             })?;
             let terms = deserialize_bm25_terms(&terms_json)?;
-            crate::knowledge::domain::IndexData::Fast { bm25_terms: terms }
+            IndexData::Fast { bm25_terms: terms }
         }
         "best" => {
             let blob = embedding_blob.ok_or_else(|| {
@@ -56,7 +56,7 @@ pub fn chunk_from_row(
                 .build()
             })?;
             let embedding = deserialize_embedding(&blob)?;
-            crate::knowledge::domain::IndexData::Best { embedding }
+            IndexData::Best { embedding }
         }
         _ => {
             return Err(InvalidDataSnafu {
@@ -66,12 +66,12 @@ pub fn chunk_from_row(
         }
     };
 
-    Ok(crate::knowledge::domain::Chunk::builder()
-        .id(crate::knowledge::domain::ChunkId::new(uuid))
+    Ok(Chunk::builder()
+        .id(ChunkId::new(uuid))
         .source(
-            crate::knowledge::domain::ChunkSource::builder()
+            ChunkSource::builder()
                 .file_path(
-                    crate::knowledge::domain::ForestRelativePath::try_new(file_path)
+                    ForestRelativePath::try_new(file_path)
                         .map_err(|e| {
                             Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
                         })
@@ -80,7 +80,7 @@ pub fn chunk_from_row(
                         })?,
                 )
                 .repo_name(
-                    crate::knowledge::domain::RepoName::try_new(repo_name)
+                    RepoName::try_new(repo_name)
                         .map_err(|e| {
                             Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
                         })
@@ -89,9 +89,9 @@ pub fn chunk_from_row(
                         })?,
                 )
                 .line_range(
-                    crate::knowledge::domain::LineRange::builder()
+                    LineRange::builder()
                         .start(
-                            crate::knowledge::domain::LineNumber::try_new(line_start as usize)
+                            LineNumber::try_new(line_start as usize)
                                 .map_err(|e| {
                                     Box::new(e)
                                         as Box<dyn std::error::Error + Send + Sync + 'static>
@@ -101,7 +101,7 @@ pub fn chunk_from_row(
                                 })?,
                         )
                         .line_count(
-                            crate::knowledge::domain::LineCount::try_new(line_count as usize)
+                            LineCount::try_new(line_count as usize)
                                 .map_err(|e| {
                                     Box::new(e)
                                         as Box<dyn std::error::Error + Send + Sync + 'static>
@@ -115,10 +115,10 @@ pub fn chunk_from_row(
                 .build(),
         )
         .content(
-            crate::knowledge::domain::ChunkContent::builder()
+            ChunkContent::builder()
                 .text(content)
                 .token_count(
-                    crate::knowledge::domain::TokenCount::try_new(token_count as usize)
+                    TokenCount::try_new(token_count as usize)
                         .map_err(|e| {
                             Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
                         })
@@ -140,9 +140,7 @@ pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
 }
 
 /// Convert bytes from sqlite-vec storage back to f32 embedding vector
-pub fn deserialize_embedding(
-    bytes: &[u8],
-) -> Result<crate::knowledge::domain::Embedding, StorageError> {
+pub fn deserialize_embedding(bytes: &[u8]) -> Result<Embedding, StorageError> {
     use crate::knowledge::constants::EMBEDDING_DIM;
 
     if !bytes.len().is_multiple_of(4) {
@@ -171,7 +169,7 @@ pub fn deserialize_embedding(
         .build());
     }
 
-    crate::knowledge::domain::Embedding::try_new(vec)
+    Embedding::try_new(vec)
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         .context(InvalidFieldSnafu {
             field: "embedding".to_string(),
@@ -265,7 +263,7 @@ mod test {
         let original = (0..EMBEDDING_DIM)
             .map(|i| i as f32 / 100.0)
             .collect::<Vec<_>>();
-        let embedding = crate::knowledge::domain::Embedding::try_new(original.clone()).unwrap();
+        let embedding = Embedding::try_new(original.clone()).unwrap();
 
         // When Serializing and deserializing
         let bytes = serialize_embedding(embedding.as_ref());

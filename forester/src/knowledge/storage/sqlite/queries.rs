@@ -138,10 +138,9 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, Stor
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_row(
-        rusqlite::named_params! { ":id": id.to_string() },
-        |row| chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
-    )
+    stmt.query_row(rusqlite::named_params! { ":id": id.to_string() }, |row| {
+        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+    })
     .optional()
     .context(DatabaseSnafu)
 }
