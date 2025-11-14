@@ -14,6 +14,7 @@ use std::path::Path;
 
 use super::repository::{ChunkRepository, IndexMetadata, StorageError, storage_error::*};
 use super::schema;
+use crate::knowledge::constants::EMBEDDING_DIM;
 use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath};
 
 /// SQLite-backed chunk repository
@@ -193,7 +194,7 @@ mod test {
             ))
             .indexed_at(SystemTime::now())
             .index_data(IndexData::Best {
-                embedding: Embedding::try_new(vec![0.1; 384]).unwrap(),
+                embedding: Embedding::try_new(vec![0.1; EMBEDDING_DIM]).unwrap(),
             })
             .build()
     }
@@ -403,7 +404,7 @@ mod test {
         let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
         let chunk_id = uuid::Uuid::new_v4();
-        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
+        let embedding = Embedding::try_new((0..EMBEDDING_DIM).map(|i| i as f32 / EMBEDDING_DIM as f32).collect()).unwrap();
         let embedding_blob = serialization::serialize_embedding(&embedding);
 
         let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
@@ -437,7 +438,7 @@ mod test {
             .unwrap();
 
         // When Searching with a similar embedding
-        let query_embedding: Vec<f32> = (0..384).map(|i| (i as f32 + 0.1) / 384.0).collect();
+        let query_embedding: Vec<f32> = (0..EMBEDDING_DIM).map(|i| (i as f32 + 0.1) / EMBEDDING_DIM as f32).collect();
         let results = repo.search_semantic(&query_embedding, 10).unwrap();
 
         // Then The chunk should be found with a similarity score
@@ -453,7 +454,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
+        let embedding = Embedding::try_new((0..EMBEDDING_DIM).map(|i| i as f32 / EMBEDDING_DIM as f32).collect()).unwrap();
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
@@ -542,9 +543,9 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding1 = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
+        let embedding1 = Embedding::try_new((0..EMBEDDING_DIM).map(|i| i as f32 / EMBEDDING_DIM as f32).collect()).unwrap();
         let embedding2 =
-            Embedding::try_new((0..384).map(|i| (i as f32 + 0.5) / 384.0).collect()).unwrap();
+            Embedding::try_new((0..EMBEDDING_DIM).map(|i| (i as f32 + 0.5) / EMBEDDING_DIM as f32).collect()).unwrap();
 
         let chunk1 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
@@ -743,7 +744,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
+        let embedding = Embedding::try_new((0..EMBEDDING_DIM).map(|i| i as f32 / EMBEDDING_DIM as f32).collect()).unwrap();
 
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
