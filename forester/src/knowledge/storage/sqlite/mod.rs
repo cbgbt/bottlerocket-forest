@@ -14,7 +14,7 @@ use std::path::Path;
 
 use super::repository::{ChunkRepository, IndexMetadata, StorageError, storage_error::*};
 use super::schema;
-use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
+use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath};
 
 /// SQLite-backed chunk repository
 pub struct SqliteChunkRepository {
@@ -67,12 +67,12 @@ impl SqliteChunkRepository {
 }
 
 impl ChunkRepository for SqliteChunkRepository {
-    fn save(&mut self, chunk: &Chunk, mode: IndexMode) -> Result<(), StorageError> {
-        queries::save(&mut self.conn, chunk, mode)
+    fn save(&mut self, chunk: &Chunk) -> Result<(), StorageError> {
+        queries::save(&mut self.conn, chunk)
     }
 
-    fn save_batch(&mut self, chunks: &[Chunk], mode: IndexMode) -> Result<(), StorageError> {
-        queries::save_batch(&mut self.conn, chunks, mode)
+    fn save_batch(&mut self, chunks: &[Chunk]) -> Result<(), StorageError> {
+        queries::save_batch(&mut self.conn, chunks)
     }
 
     fn find_by_id(&self, id: &ChunkId) -> Result<Option<Chunk>, StorageError> {
@@ -124,9 +124,9 @@ impl ChunkRepository for SqliteChunkRepository {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkSource, HeadingText, ItemName, LineCount, LineNumber,
-        LineRange, MarkdownContext, RepoName, RustDocContext, RustItemType, Signature, TokenCount,
-        Visibility,
+        ChunkContent, ChunkContext, ChunkSource, HeadingText, IndexData, IndexMode, ItemName,
+        LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, RustItemType,
+        Signature, TokenCount, Visibility,
     };
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
@@ -157,6 +157,9 @@ mod test {
                 MarkdownContext::builder().heading_hierarchy(vec![]).build(),
             ))
             .indexed_at(SystemTime::now())
+            .index_data(IndexData::Fast {
+                bm25_terms: std::collections::BTreeMap::new(),
+            })
             .build()
     }
 
@@ -168,7 +171,7 @@ mod test {
         let chunk = create_test_chunk();
 
         // When Saving the chunk
-        repo.save(&chunk, IndexMode::Fast).unwrap();
+        repo.save(&chunk).unwrap();
 
         // Then It should be retrievable
         let retrieved = repo.find_by_id(&chunk.id).unwrap();
@@ -186,7 +189,7 @@ mod test {
         let chunks = vec![create_test_chunk(), create_test_chunk()];
 
         // When Saving in batch
-        repo.save_batch(&chunks, IndexMode::Fast).unwrap();
+        repo.save_batch(&chunks).unwrap();
 
         // Then All chunks should be retrievable
         let all = repo.find_all().unwrap();
@@ -202,8 +205,8 @@ mod test {
         let mut chunk2 = create_test_chunk();
         chunk2.source.file_path = ForestRelativePath::try_new("other.md").unwrap();
 
-        repo.save(&chunk1, IndexMode::Fast).unwrap();
-        repo.save(&chunk2, IndexMode::Fast).unwrap();
+        repo.save(&chunk1).unwrap();
+        repo.save(&chunk2).unwrap();
 
         // When Finding by file
         let results = repo
@@ -221,7 +224,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
         let chunk = create_test_chunk();
-        repo.save(&chunk, IndexMode::Fast).unwrap();
+        repo.save(&chunk).unwrap();
 
         // When Deleting by file
         let count = repo
@@ -239,8 +242,8 @@ mod test {
         // Given A repository with chunks
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
-        repo.save(&create_test_chunk(), IndexMode::Fast).unwrap();
-        repo.save(&create_test_chunk(), IndexMode::Fast).unwrap();
+        repo.save(&create_test_chunk()).unwrap();
+        repo.save(&create_test_chunk()).unwrap();
 
         // When Clearing
         let count = repo.clear().unwrap();
@@ -335,10 +338,13 @@ mod test {
             )
             .context(context.clone())
             .indexed_at(SystemTime::now())
+            .index_data(IndexData::Fast {
+                bm25_terms: std::collections::BTreeMap::new(),
+            })
             .build();
 
         // When Saving and retrieving the chunk
-        repo.save(&chunk, IndexMode::Fast).unwrap();
+        repo.save(&chunk).unwrap();
         let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
 
         // Then The context should be preserved with correct type
@@ -369,7 +375,7 @@ mod test {
 
         repo.conn
             .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end, 
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count, 
                  context_type, context_data, content, last_modified, index_mode)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 rusqlite::params![
@@ -436,11 +442,11 @@ mod test {
                 MarkdownContext::builder().heading_hierarchy(vec![]).build(),
             ))
             .indexed_at(SystemTime::now())
-            .embedding(embedding)
+            .index_data(IndexData::Best { embedding })
             .build();
 
         // When Saving the chunk
-        repo.save(&chunk, IndexMode::Best).unwrap();
+        repo.save(&chunk).unwrap();
 
         // Then It should be in both chunks and vec_chunks tables
         let chunk_exists: bool = repo
@@ -473,7 +479,7 @@ mod test {
         let chunk = create_test_chunk();
 
         // When Saving the chunk
-        repo.save(&chunk, IndexMode::Fast).unwrap();
+        repo.save(&chunk).unwrap();
 
         // Then It should be in chunks but not vec_chunks
         let chunk_exists: bool = repo
@@ -527,7 +533,9 @@ mod test {
                 MarkdownContext::builder().heading_hierarchy(vec![]).build(),
             ))
             .indexed_at(SystemTime::now())
-            .embedding(embedding1)
+            .index_data(IndexData::Best {
+                embedding: embedding1,
+            })
             .build();
 
         let chunk2 = Chunk::builder()
@@ -554,12 +562,13 @@ mod test {
                 MarkdownContext::builder().heading_hierarchy(vec![]).build(),
             ))
             .indexed_at(SystemTime::now())
-            .embedding(embedding2)
+            .index_data(IndexData::Best {
+                embedding: embedding2,
+            })
             .build();
 
         // When Saving in batch
-        repo.save_batch(&[chunk1.clone(), chunk2.clone()], IndexMode::Best)
-            .unwrap();
+        repo.save_batch(&[chunk1.clone(), chunk2.clone()]).unwrap();
 
         // Then Both should be in vec_chunks
         let count: i64 = repo
@@ -584,7 +593,7 @@ mod test {
 
         repo.conn
             .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end,
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
                  context_type, context_data, content, last_modified, index_mode, bm25_terms)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 rusqlite::params![
@@ -605,7 +614,7 @@ mod test {
 
         repo.conn
             .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_end,
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
                  context_type, context_data, content, last_modified, index_mode, bm25_terms)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 rusqlite::params![
@@ -632,5 +641,234 @@ mod test {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0.id.to_string(), chunk1_id.to_string());
         assert!(results[0].1 > results[1].1);
+    }
+
+    #[test]
+    fn test_fast_mode_roundtrip() {
+        // Given A repository and a Fast mode chunk with BM25 terms
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let mut bm25_terms = std::collections::BTreeMap::new();
+        bm25_terms.insert("rust".to_string(), 5);
+        bm25_terms.insert("programming".to_string(), 3);
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("rust programming language")
+                    .token_count(TokenCount::try_new(25).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Fast {
+                bm25_terms: bm25_terms.clone(),
+            })
+            .build();
+
+        // When Saving and retrieving
+        repo.save(&chunk).unwrap();
+        let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
+
+        // Then BM25 terms are preserved and mode is correct
+        assert_eq!(retrieved.index_data.mode(), IndexMode::Fast);
+        match retrieved.index_data {
+            IndexData::Fast {
+                bm25_terms: retrieved_terms,
+            } => {
+                assert_eq!(retrieved_terms, bm25_terms);
+            }
+            _ => panic!("Expected Fast mode"),
+        }
+    }
+
+    #[test]
+    fn test_best_mode_roundtrip() {
+        // Given A repository and a Best mode chunk with embedding
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("semantic search content")
+                    .token_count(TokenCount::try_new(23).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Best {
+                embedding: embedding.clone(),
+            })
+            .build();
+
+        // When Saving and retrieving
+        repo.save(&chunk).unwrap();
+        let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
+
+        // Then Mode is correct (embedding not retrieved in regular queries)
+        assert_eq!(retrieved.index_data.mode(), IndexMode::Best);
+        match retrieved.index_data {
+            IndexData::Best { embedding: _ } => {}
+            _ => panic!("Expected Best mode"),
+        }
+    }
+
+    #[test]
+    fn test_fast_mode_empty_terms() {
+        // Given A Fast mode chunk with empty BM25 terms
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("the a an")
+                    .token_count(TokenCount::try_new(8).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Fast {
+                bm25_terms: std::collections::BTreeMap::new(),
+            })
+            .build();
+
+        // When Saving and retrieving
+        repo.save(&chunk).unwrap();
+        let retrieved = repo.find_by_id(&chunk.id).unwrap().unwrap();
+
+        // Then Empty terms are preserved
+        match retrieved.index_data {
+            IndexData::Fast { bm25_terms } => {
+                assert!(bm25_terms.is_empty());
+            }
+            _ => panic!("Expected Fast mode"),
+        }
+    }
+
+    #[test]
+    fn test_best_mode_zero_embedding() {
+        // Given A Best mode chunk with zero-length embedding
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("test")
+                    .token_count(TokenCount::try_new(4).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Best { embedding: vec![] })
+            .build();
+
+        // When Saving (should fail because sqlite-vec doesn't support zero-length vectors)
+        let result = repo.save(&chunk);
+
+        // Then It should fail
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_fast_mode_missing_terms() {
+        // Given A database with Fast mode chunk but NULL bm25_terms
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk_id = uuid::Uuid::new_v4();
+        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
+
+        repo.conn
+            .execute(
+                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
+                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                rusqlite::params![
+                    chunk_id.to_string(),
+                    "test.md",
+                    "test-repo",
+                    1,
+                    10,
+                    "markdown",
+                    context_data,
+                    "test",
+                    0,
+                    "fast",
+                    None::<String>,
+                ],
+            )
+            .unwrap();
+
+        // When Attempting to retrieve
+        let result = repo.find_by_id(&ChunkId::new(chunk_id));
+
+        // Then It should fail with InvalidData error
+        assert!(result.is_err());
     }
 }

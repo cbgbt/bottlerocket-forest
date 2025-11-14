@@ -10,10 +10,10 @@ use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
 #[cfg_attr(test, mockall::automock)]
 pub trait ChunkRepository {
     /// Store a chunk
-    fn save(&mut self, chunk: &Chunk, mode: IndexMode) -> Result<(), StorageError>;
+    fn save(&mut self, chunk: &Chunk) -> Result<(), StorageError>;
 
     /// Store multiple chunks (transaction)
-    fn save_batch(&mut self, chunks: &[Chunk], mode: IndexMode) -> Result<(), StorageError>;
+    fn save_batch(&mut self, chunks: &[Chunk]) -> Result<(), StorageError>;
 
     /// Retrieve a chunk by ID
     fn find_by_id(&self, id: &ChunkId) -> Result<Option<Chunk>, StorageError>;

@@ -8,8 +8,8 @@ use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Macro to parse a Chunk directly from a rusqlite::Row
 ///
-/// Expects columns in order: id, file_path, repo_name, line_start, line_end,
-/// context_type, context_data, content, last_modified
+/// Expects columns in order: id, file_path, repo_name, line_start, line_count,
+/// context_type, context_data, content, last_modified, bm25_terms, index_mode
 ///
 /// Returns Result<Chunk, rusqlite::Error> for use in query_map closures
 macro_rules! chunk_from_row {
@@ -22,11 +22,13 @@ macro_rules! chunk_from_row {
             let file_path: String = $row.get(1)?;
             let repo_name: String = $row.get(2)?;
             let line_start: i64 = $row.get(3)?;
-            let line_end: i64 = $row.get(4)?;
+            let line_count: i64 = $row.get(4)?;
             let context_type: String = $row.get(5)?;
             let context_data: String = $row.get(6)?;
             let content: String = $row.get(7)?;
             let last_modified: i64 = $row.get(8)?;
+            let bm25_terms: Option<String> = $row.get(9)?;
+            let index_mode: String = $row.get(10)?;
 
             let uuid = uuid::Uuid::parse_str(&id_str)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
@@ -40,6 +42,34 @@ macro_rules! chunk_from_row {
                 &context_data,
             )
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+            let index_data = match index_mode.as_str() {
+                "fast" => {
+                    let terms_json = bm25_terms.ok_or_else(|| {
+                        rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            InvalidDataSnafu {
+                                message: "Fast mode chunk missing bm25_terms".to_string(),
+                            }
+                            .build(),
+                        ))
+                    })?;
+                    let terms =
+                        crate::knowledge::storage::sqlite::serialization::deserialize_bm25_terms(
+                            &terms_json,
+                        )
+                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                    crate::knowledge::domain::IndexData::Fast { bm25_terms: terms }
+                }
+                "best" => crate::knowledge::domain::IndexData::Best { embedding: vec![] },
+                _ => {
+                    return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                        InvalidDataSnafu {
+                            message: format!("unknown index mode: {}", index_mode),
+                        }
+                        .build(),
+                    )));
+                }
+            };
 
             Ok(crate::knowledge::domain::Chunk::builder()
                 .id(crate::knowledge::domain::ChunkId::new(uuid))
@@ -89,19 +119,19 @@ macro_rules! chunk_from_row {
                                     })?,
                                 )
                                 .line_count(
-                                    crate::knowledge::domain::LineCount::try_new(line_end as usize)
-                                        .map_err(|e| {
-                                            Box::new(e)
-                                                as Box<
-                                                    dyn std::error::Error + Send + Sync + 'static,
-                                                >
-                                        })
-                                        .context(InvalidFieldSnafu {
-                                            field: "line_count".to_string(),
-                                        })
-                                        .map_err(|e| {
-                                            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
-                                        })?,
+                                    crate::knowledge::domain::LineCount::try_new(
+                                        line_count as usize,
+                                    )
+                                    .map_err(|e| {
+                                        Box::new(e)
+                                            as Box<dyn std::error::Error + Send + Sync + 'static>
+                                    })
+                                    .context(InvalidFieldSnafu {
+                                        field: "line_count".to_string(),
+                                    })
+                                    .map_err(|e| {
+                                        rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+                                    })?,
                                 )
                                 .build(),
                         )
@@ -131,6 +161,7 @@ macro_rules! chunk_from_row {
                         last_modified,
                     ),
                 )
+                .index_data(index_data)
                 .build())
         })()
     }};
@@ -141,6 +172,20 @@ pub(super) use chunk_from_row;
 /// Convert f32 embedding vector to bytes for sqlite-vec storage
 pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
     embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
+}
+
+/// Serialize BM25 terms to JSON string
+pub fn serialize_bm25_terms(
+    terms: &std::collections::BTreeMap<String, u32>,
+) -> Result<String, StorageError> {
+    serde_json::to_string(terms).context(SerializationSnafu)
+}
+
+/// Deserialize BM25 terms from JSON string
+pub fn deserialize_bm25_terms(
+    json: &str,
+) -> Result<std::collections::BTreeMap<String, u32>, StorageError> {
+    serde_json::from_str(json).context(SerializationSnafu)
 }
 
 /// Convert ChunkContext enum to database-storable format

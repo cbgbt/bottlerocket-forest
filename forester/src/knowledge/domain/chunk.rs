@@ -5,11 +5,12 @@
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::time::SystemTime;
 
 use super::{
-    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName, Signature,
-    TokenCount,
+    ChunkId, ForestRelativePath, HeadingText, IndexMode, ItemName, LineCount, LineNumber, RepoName,
+    Signature, TokenCount,
 };
 
 /// A searchable chunk of documentation with metadata
@@ -22,7 +23,29 @@ pub struct Chunk {
     pub content: ChunkContent,
     pub context: ChunkContext,
     pub indexed_at: SystemTime,
-    pub embedding: Option<Vec<f32>>,
+    pub index_data: IndexData,
+}
+
+/// Index-specific data for a chunk
+///
+/// This enum ensures type safety by making it impossible to create chunks
+/// with mismatched index modes and data.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum IndexData {
+    /// Fast mode using BM25 keyword search
+    Fast { bm25_terms: BTreeMap<String, u32> },
+    /// Best mode using semantic embeddings
+    Best { embedding: Vec<f32> },
+}
+
+impl IndexData {
+    /// Returns the index mode for this data
+    pub fn mode(&self) -> IndexMode {
+        match self {
+            IndexData::Fast { .. } => IndexMode::Fast,
+            IndexData::Best { .. } => IndexMode::Best,
+        }
+    }
 }
 
 /// Source location of the chunk
@@ -135,5 +158,131 @@ mod test {
 
         // Then End should be start + count - 1
         assert_eq!(range.end(), LineNumber::try_new(14).unwrap());
+    }
+
+    #[test]
+    fn test_index_data_fast_mode() {
+        // Given Fast mode index data
+        let mut terms = BTreeMap::new();
+        terms.insert("test".to_string(), 3);
+        terms.insert("example".to_string(), 1);
+        let index_data = IndexData::Fast {
+            bm25_terms: terms.clone(),
+        };
+
+        // When Getting the mode
+        let mode = index_data.mode();
+
+        // Then It should be Fast
+        assert_eq!(mode, IndexMode::Fast);
+
+        // And The terms should be accessible
+        if let IndexData::Fast { bm25_terms } = index_data {
+            assert_eq!(bm25_terms.get("test"), Some(&3));
+            assert_eq!(bm25_terms.get("example"), Some(&1));
+        } else {
+            panic!("Expected Fast variant");
+        }
+    }
+
+    #[test]
+    fn test_index_data_best_mode() {
+        // Given Best mode index data
+        let embedding = vec![0.1, 0.2, 0.3];
+        let index_data = IndexData::Best {
+            embedding: embedding.clone(),
+        };
+
+        // When Getting the mode
+        let mode = index_data.mode();
+
+        // Then It should be Best
+        assert_eq!(mode, IndexMode::Best);
+
+        // And The embedding should be accessible
+        if let IndexData::Best { embedding: emb } = index_data {
+            assert_eq!(emb, embedding);
+        } else {
+            panic!("Expected Best variant");
+        }
+    }
+
+    #[test]
+    fn test_chunk_with_fast_index_data() {
+        // Given A chunk with Fast mode data
+        let mut terms = BTreeMap::new();
+        terms.insert("rust".to_string(), 2);
+
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("test content")
+                    .token_count(TokenCount::try_new(2).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder()
+                    .heading_hierarchy(vec![HeadingText::try_new("Test").unwrap()])
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Fast { bm25_terms: terms })
+            .build();
+
+        // Then The chunk should have Fast mode
+        assert_eq!(chunk.index_data.mode(), IndexMode::Fast);
+    }
+
+    #[test]
+    fn test_chunk_with_best_index_data() {
+        // Given A chunk with Best mode data
+        let chunk = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("test.rs").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("test content")
+                    .token_count(TokenCount::try_new(2).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::RustDoc(
+                RustDocContext::builder()
+                    .item_type(RustItemType::Function)
+                    .item_name(ItemName::try_new("test_fn").unwrap())
+                    .visibility(Visibility::Public)
+                    .build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Best {
+                embedding: vec![0.1, 0.2, 0.3],
+            })
+            .build();
+
+        // Then The chunk should have Best mode
+        assert_eq!(chunk.index_data.mode(), IndexMode::Best);
     }
 }

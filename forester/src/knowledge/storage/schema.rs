@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     file_path TEXT NOT NULL,
     repo_name TEXT NOT NULL,
     line_start INTEGER NOT NULL,
-    line_end INTEGER NOT NULL,  -- Actually stores line_count (number of lines in chunk)
+    line_count INTEGER NOT NULL,
     context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc')),
     context_data TEXT NOT NULL,
     content TEXT NOT NULL,

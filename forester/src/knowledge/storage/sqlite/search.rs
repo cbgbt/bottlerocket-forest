@@ -17,9 +17,9 @@ pub fn search_semantic(
 
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_end,
+            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count,
                     c.context_type, c.context_data, c.content, c.last_modified,
-                    v.distance
+                    c.bm25_terms, c.index_mode, v.distance
              FROM vec_chunks v
              JOIN chunks c ON v.chunk_id = c.id
              WHERE v.embedding MATCH ?1 AND k = ?2
@@ -29,7 +29,7 @@ pub fn search_semantic(
 
     stmt.query_map(params![embedding_blob, limit], |row| {
         let chunk = chunk_from_row!(row)?;
-        let distance: f32 = row.get(9)?;
+        let distance: f32 = row.get(11)?;
         let similarity = 1.0 - distance;
         Ok((chunk, similarity))
     })
@@ -72,11 +72,13 @@ pub fn search_bm25(
                 c.file_path,
                 c.repo_name,
                 c.line_start,
-                c.line_end,
+                c.line_count,
                 c.context_type,
                 c.context_data,
                 c.content,
                 c.last_modified,
+                c.bm25_terms,
+                c.index_mode,
                 SUM(
                     -- IDF component
                     LN((cs.total_docs - COALESCE(ts.doc_freq, 0) + 0.5) / (COALESCE(ts.doc_freq, 0) + 0.5) + 1.0) *
@@ -114,7 +116,7 @@ pub fn search_bm25(
 
     stmt.query_map(params.as_slice(), |row| {
         let chunk = chunk_from_row!(row)?;
-        let score: f32 = row.get(9)?;
+        let score: f32 = row.get(11)?;
         Ok((chunk, score))
     })
     .context(DatabaseSnafu)?

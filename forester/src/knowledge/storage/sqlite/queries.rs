@@ -4,21 +4,33 @@ use rusqlite::{Connection, OptionalExtension, params};
 use snafu::ResultExt;
 
 use super::serialization::{
-    chunk_from_row, serialize_context, serialize_embedding, system_time_to_unix,
-    unix_to_system_time,
+    chunk_from_row, serialize_bm25_terms, serialize_context, serialize_embedding,
+    system_time_to_unix, unix_to_system_time,
 };
-use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
+use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexData, IndexMode};
 use crate::knowledge::storage::repository::{IndexMetadata, StorageError, storage_error::*};
 
 /// Save a single chunk to the database
-pub fn save(conn: &mut Connection, chunk: &Chunk, mode: IndexMode) -> Result<(), StorageError> {
+pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
     let (context_type, context_data) = serialize_context(&chunk.context)?;
+    let mode = chunk.index_data.mode();
+
+    let (bm25_terms, embedding_blob) = match &chunk.index_data {
+        IndexData::Fast { bm25_terms } => {
+            let terms_json = serialize_bm25_terms(bm25_terms)?;
+            (Some(terms_json), None)
+        }
+        IndexData::Best { embedding } => {
+            let blob = serialize_embedding(embedding);
+            (None, Some(blob))
+        }
+    };
 
     conn.execute(
         "INSERT OR REPLACE INTO chunks 
-        (id, file_path, repo_name, line_start, line_end, 
-         context_type, context_data, content, last_modified, index_mode)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        (id, file_path, repo_name, line_start, line_count, 
+         context_type, context_data, content, last_modified, bm25_terms, index_mode)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             chunk.id.to_string(),
             chunk.source.file_path.to_string(),
@@ -29,16 +41,16 @@ pub fn save(conn: &mut Connection, chunk: &Chunk, mode: IndexMode) -> Result<(),
             context_data,
             chunk.content.text,
             system_time_to_unix(chunk.indexed_at),
+            bm25_terms,
             mode.to_string(),
         ],
     )
     .context(DatabaseSnafu)?;
 
-    if let Some(embedding) = &chunk.embedding {
-        let embedding_blob = serialize_embedding(embedding);
+    if let Some(blob) = embedding_blob {
         conn.execute(
             "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
-            params![chunk.id.to_string(), embedding_blob],
+            params![chunk.id.to_string(), blob],
         )
         .context(DatabaseSnafu)?;
     }
@@ -47,21 +59,29 @@ pub fn save(conn: &mut Connection, chunk: &Chunk, mode: IndexMode) -> Result<(),
 }
 
 /// Save multiple chunks in a transaction
-pub fn save_batch(
-    conn: &mut Connection,
-    chunks: &[Chunk],
-    mode: IndexMode,
-) -> Result<(), StorageError> {
+pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
     for chunk in chunks {
         let (context_type, context_data) = serialize_context(&chunk.context)?;
+        let mode = chunk.index_data.mode();
+
+        let (bm25_terms, embedding_blob) = match &chunk.index_data {
+            IndexData::Fast { bm25_terms } => {
+                let terms_json = serialize_bm25_terms(bm25_terms)?;
+                (Some(terms_json), None)
+            }
+            IndexData::Best { embedding } => {
+                let blob = serialize_embedding(embedding);
+                (None, Some(blob))
+            }
+        };
 
         tx.execute(
             "INSERT OR REPLACE INTO chunks 
-            (id, file_path, repo_name, line_start, line_end, 
-             context_type, context_data, content, last_modified, index_mode)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            (id, file_path, repo_name, line_start, line_count, 
+             context_type, context_data, content, last_modified, bm25_terms, index_mode)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 chunk.id.to_string(),
                 chunk.source.file_path.to_string(),
@@ -72,16 +92,16 @@ pub fn save_batch(
                 context_data,
                 chunk.content.text,
                 system_time_to_unix(chunk.indexed_at),
+                bm25_terms,
                 mode.to_string(),
             ],
         )
         .context(DatabaseSnafu)?;
 
-        if let Some(embedding) = &chunk.embedding {
-            let embedding_blob = serialize_embedding(embedding);
+        if let Some(blob) = embedding_blob {
             tx.execute(
                 "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
-                params![chunk.id.to_string(), embedding_blob],
+                params![chunk.id.to_string(), blob],
             )
             .context(DatabaseSnafu)?;
         }
@@ -96,8 +116,8 @@ pub fn save_batch(
 pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_end, 
-                    context_type, context_data, content, last_modified
+            "SELECT id, file_path, repo_name, line_start, line_count, 
+                    context_type, context_data, content, last_modified, bm25_terms, index_mode
              FROM chunks WHERE id = ?1",
         )
         .context(DatabaseSnafu)?;
@@ -114,8 +134,8 @@ pub fn find_by_file(
 ) -> Result<Vec<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_end, 
-                    context_type, context_data, content, last_modified
+            "SELECT id, file_path, repo_name, line_start, line_count, 
+                    context_type, context_data, content, last_modified, bm25_terms, index_mode
              FROM chunks WHERE file_path = ?1",
         )
         .context(DatabaseSnafu)?;
@@ -130,8 +150,8 @@ pub fn find_by_file(
 pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_end, 
-                    context_type, context_data, content, last_modified
+            "SELECT id, file_path, repo_name, line_start, line_count, 
+                    context_type, context_data, content, last_modified, bm25_terms, index_mode
              FROM chunks",
         )
         .context(DatabaseSnafu)?;
