@@ -20,6 +20,13 @@ const BM25_K1: f64 = 1.2;
 const BM25_B: f64 = 0.75;
 
 /// Perform semantic search using sqlite-vec
+///
+/// Uses cosine distance for similarity measurement. sqlite-vec computes cosine distance
+/// as `1 - cosine_similarity`, so lower distances indicate higher similarity.
+/// We convert distance to similarity score via `1.0 - distance` for intuitive ranking.
+///
+/// The MATCH clause with `k = :limit` performs k-nearest-neighbor search, returning
+/// the top k most similar vectors. See: https://github.com/asg017/sqlite-vec
 pub fn search_semantic(
     conn: &Connection,
     query_embedding: &[f32],
