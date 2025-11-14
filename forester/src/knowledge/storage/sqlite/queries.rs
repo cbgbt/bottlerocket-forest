@@ -29,8 +29,8 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
     conn.execute(
         "INSERT OR REPLACE INTO chunks 
         (id, file_path, repo_name, line_start, line_count, 
-         context_type, context_data, content, last_modified, bm25_terms, index_mode)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+         context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             chunk.id.to_string(),
             chunk.source.file_path.to_string(),
@@ -40,6 +40,7 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
             context_type,
             context_data,
             chunk.content.text,
+            chunk.content.token_count.into_inner() as i64,
             system_time_to_unix(chunk.indexed_at),
             bm25_terms,
             mode.to_string(),
@@ -80,8 +81,8 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
         tx.execute(
             "INSERT OR REPLACE INTO chunks 
             (id, file_path, repo_name, line_start, line_count, 
-             context_type, context_data, content, last_modified, bm25_terms, index_mode)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 chunk.id.to_string(),
                 chunk.source.file_path.to_string(),
@@ -91,6 +92,7 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
                 context_type,
                 context_data,
                 chunk.content.text,
+                chunk.content.token_count.into_inner() as i64,
                 system_time_to_unix(chunk.indexed_at),
                 bm25_terms,
                 mode.to_string(),
@@ -116,9 +118,12 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
 pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_count, 
-                    context_type, context_data, content, last_modified, bm25_terms, index_mode
-             FROM chunks WHERE id = ?1",
+            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
+                    c.bm25_terms, c.index_mode, v.embedding
+             FROM chunks c
+             LEFT JOIN vec_chunks v ON c.id = v.chunk_id
+             WHERE c.id = ?1",
         )
         .context(DatabaseSnafu)?;
 
@@ -134,9 +139,12 @@ pub fn find_by_file(
 ) -> Result<Vec<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_count, 
-                    context_type, context_data, content, last_modified, bm25_terms, index_mode
-             FROM chunks WHERE file_path = ?1",
+            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
+                    c.bm25_terms, c.index_mode, v.embedding
+             FROM chunks c
+             LEFT JOIN vec_chunks v ON c.id = v.chunk_id
+             WHERE c.file_path = ?1",
         )
         .context(DatabaseSnafu)?;
 
@@ -150,9 +158,11 @@ pub fn find_by_file(
 pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, file_path, repo_name, line_start, line_count, 
-                    context_type, context_data, content, last_modified, bm25_terms, index_mode
-             FROM chunks",
+            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
+                    c.bm25_terms, c.index_mode, v.embedding
+             FROM chunks c
+             LEFT JOIN vec_chunks v ON c.id = v.chunk_id",
         )
         .context(DatabaseSnafu)?;
 

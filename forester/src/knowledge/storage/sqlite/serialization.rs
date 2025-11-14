@@ -9,7 +9,7 @@ use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 /// Macro to parse a Chunk directly from a rusqlite::Row
 ///
 /// Expects columns in order: id, file_path, repo_name, line_start, line_count,
-/// context_type, context_data, content, last_modified, bm25_terms, index_mode
+/// context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode, embedding
 ///
 /// Returns Result<Chunk, rusqlite::Error> for use in query_map closures
 macro_rules! chunk_from_row {
@@ -26,9 +26,11 @@ macro_rules! chunk_from_row {
             let context_type: String = $row.get(5)?;
             let context_data: String = $row.get(6)?;
             let content: String = $row.get(7)?;
-            let last_modified: i64 = $row.get(8)?;
-            let bm25_terms: Option<String> = $row.get(9)?;
-            let index_mode: String = $row.get(10)?;
+            let token_count: i64 = $row.get(8)?;
+            let last_modified: i64 = $row.get(9)?;
+            let bm25_terms: Option<String> = $row.get(10)?;
+            let index_mode: String = $row.get(11)?;
+            let embedding_blob: Option<Vec<u8>> = $row.get(12)?;
 
             let uuid = uuid::Uuid::parse_str(&id_str)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
@@ -61,19 +63,20 @@ macro_rules! chunk_from_row {
                     crate::knowledge::domain::IndexData::Fast { bm25_terms: terms }
                 }
                 "best" => {
-                    // For Best mode, we use a placeholder embedding since embeddings
-                    // are stored separately in vec_chunks table and not retrieved in regular queries
-                    let placeholder = crate::knowledge::domain::Embedding::try_new(vec![0.0])
-                        .map_err(|e| {
-                            Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
-                        })
-                        .context(InvalidFieldSnafu {
-                            field: "embedding".to_string(),
-                        })
+                    let blob = embedding_blob.ok_or_else(|| {
+                        rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            InvalidDataSnafu {
+                                message: "Best mode chunk missing embedding".to_string(),
+                            }
+                            .build(),
+                        ))
+                    })?;
+                    let embedding =
+                        crate::knowledge::storage::sqlite::serialization::deserialize_embedding(
+                            &blob,
+                        )
                         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-                    crate::knowledge::domain::IndexData::Best {
-                        embedding: placeholder,
-                    }
+                    crate::knowledge::domain::IndexData::Best { embedding }
                 }
                 _ => {
                     return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
@@ -155,7 +158,7 @@ macro_rules! chunk_from_row {
                     crate::knowledge::domain::ChunkContent::builder()
                         .text(content.clone())
                         .token_count(
-                            crate::knowledge::domain::TokenCount::try_new(content.len())
+                            crate::knowledge::domain::TokenCount::try_new(token_count as usize)
                                 .map_err(|e| {
                                     Box::new(e)
                                         as Box<dyn std::error::Error + Send + Sync + 'static>
@@ -186,6 +189,33 @@ pub(super) use chunk_from_row;
 /// Convert f32 embedding vector to bytes for sqlite-vec storage
 pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
     embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
+}
+
+/// Convert bytes from sqlite-vec storage back to f32 embedding vector
+pub fn deserialize_embedding(
+    bytes: &[u8],
+) -> Result<crate::knowledge::domain::Embedding, StorageError> {
+    if bytes.len() % 4 != 0 {
+        return Err(InvalidDataSnafu {
+            message: format!("Invalid embedding blob length: {}", bytes.len()),
+        }
+        .build());
+    }
+
+    let vec: Vec<f32> = bytes
+        .chunks_exact(4)
+        .map(|chunk| {
+            let arr: [u8; 4] = chunk.try_into().expect("chunks_exact guarantees 4 bytes");
+            f32::from_le_bytes(arr)
+        })
+        .collect();
+
+    crate::knowledge::domain::Embedding::try_new(vec)
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+        .context(InvalidDataSnafu {
+            message: "Deserialized embedding is empty".to_string(),
+        })
+}
 }
 
 /// Serialize BM25 terms to JSON string

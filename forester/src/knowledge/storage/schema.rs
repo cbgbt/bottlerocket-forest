@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc')),
     context_data TEXT NOT NULL,
     content TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
     last_modified INTEGER NOT NULL,
     embedding BLOB,
     bm25_terms TEXT,

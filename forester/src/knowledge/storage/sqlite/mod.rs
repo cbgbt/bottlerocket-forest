@@ -376,8 +376,8 @@ mod test {
         repo.conn
             .execute(
                 "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count, 
-                 context_type, context_data, content, last_modified, index_mode)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                 context_type, context_data, content, token_count, last_modified, index_mode)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 rusqlite::params![
                     chunk_id.to_string(),
                     "test.md",
@@ -387,6 +387,7 @@ mod test {
                     "markdown",
                     context_data,
                     "test content",
+                    12,
                     0,
                     "best",
                 ],
@@ -595,8 +596,8 @@ mod test {
         repo.conn
             .execute(
                 "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     chunk1_id.to_string(),
                     "test1.md",
@@ -606,6 +607,7 @@ mod test {
                     "markdown",
                     context_data,
                     "rust documentation code",
+                    24,
                     0,
                     "fast",
                     bm25_terms1,
@@ -616,8 +618,8 @@ mod test {
         repo.conn
             .execute(
                 "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     chunk2_id.to_string(),
                     "test2.md",
@@ -627,6 +629,7 @@ mod test {
                     "markdown",
                     context_data,
                     "rust testing code",
+                    18,
                     0,
                     "fast",
                     bm25_terms2,
@@ -818,8 +821,8 @@ mod test {
         repo.conn
             .execute(
                 "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     chunk_id.to_string(),
                     "test.md",
@@ -829,6 +832,7 @@ mod test {
                     "markdown",
                     context_data,
                     "test",
+                    4,
                     0,
                     "fast",
                     None::<String>,
