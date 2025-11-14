@@ -168,6 +168,13 @@ pub struct Signature(String);
 )]
 pub struct Embedding(Vec<f32>);
 
+/// Raw content to be chunked
+///
+/// Represents the text content that will be split into searchable chunks.
+/// No validation is applied as any text content is valid for chunking.
+#[nutype(derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq))]
+pub struct ChunkableContent(String);
+
 #[cfg(test)]
 mod test {
     use super::*;
