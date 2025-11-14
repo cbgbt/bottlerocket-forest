@@ -1,6 +1,6 @@
 //! CRUD operations for chunk storage
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension};
 use snafu::ResultExt;
 
 use super::serialization::{
@@ -30,28 +30,32 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
         "INSERT OR REPLACE INTO chunks 
         (id, file_path, repo_name, line_start, line_count, 
          context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-        params![
-            chunk.id.to_string(),
-            chunk.source.file_path.to_string(),
-            chunk.source.repo_name.to_string(),
-            chunk.source.line_range.start.into_inner() as i64,
-            chunk.source.line_range.line_count.into_inner() as i64,
-            context_type,
-            context_data,
-            chunk.content.text,
-            chunk.content.token_count.into_inner() as i64,
-            system_time_to_unix(chunk.indexed_at),
-            bm25_terms,
-            mode.to_string(),
-        ],
+        VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
+                :context_type, :context_data, :content, :token_count, :last_modified, :bm25_terms, :index_mode)",
+        rusqlite::named_params! {
+            ":id": chunk.id.to_string(),
+            ":file_path": chunk.source.file_path.to_string(),
+            ":repo_name": chunk.source.repo_name.to_string(),
+            ":line_start": chunk.source.line_range.start.into_inner() as i64,
+            ":line_count": chunk.source.line_range.line_count.into_inner() as i64,
+            ":context_type": context_type,
+            ":context_data": context_data,
+            ":content": chunk.content.text,
+            ":token_count": chunk.content.token_count.into_inner() as i64,
+            ":last_modified": system_time_to_unix(chunk.indexed_at),
+            ":bm25_terms": bm25_terms,
+            ":index_mode": mode.to_string(),
+        },
     )
     .context(DatabaseSnafu)?;
 
     if let Some(blob) = embedding_blob {
         conn.execute(
-            "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
-            params![chunk.id.to_string(), blob],
+            "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
+            rusqlite::named_params! {
+                ":chunk_id": chunk.id.to_string(),
+                ":embedding": blob,
+            },
         )
         .context(DatabaseSnafu)?;
     }
@@ -82,28 +86,32 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
             "INSERT OR REPLACE INTO chunks 
             (id, file_path, repo_name, line_start, line_count, 
              context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![
-                chunk.id.to_string(),
-                chunk.source.file_path.to_string(),
-                chunk.source.repo_name.to_string(),
-                chunk.source.line_range.start.into_inner() as i64,
-                chunk.source.line_range.line_count.into_inner() as i64,
-                context_type,
-                context_data,
-                chunk.content.text,
-                chunk.content.token_count.into_inner() as i64,
-                system_time_to_unix(chunk.indexed_at),
-                bm25_terms,
-                mode.to_string(),
-            ],
+            VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
+                    :context_type, :context_data, :content, :token_count, :last_modified, :bm25_terms, :index_mode)",
+            rusqlite::named_params! {
+                ":id": chunk.id.to_string(),
+                ":file_path": chunk.source.file_path.to_string(),
+                ":repo_name": chunk.source.repo_name.to_string(),
+                ":line_start": chunk.source.line_range.start.into_inner() as i64,
+                ":line_count": chunk.source.line_range.line_count.into_inner() as i64,
+                ":context_type": context_type,
+                ":context_data": context_data,
+                ":content": chunk.content.text,
+                ":token_count": chunk.content.token_count.into_inner() as i64,
+                ":last_modified": system_time_to_unix(chunk.indexed_at),
+                ":bm25_terms": bm25_terms,
+                ":index_mode": mode.to_string(),
+            },
         )
         .context(DatabaseSnafu)?;
 
         if let Some(blob) = embedding_blob {
             tx.execute(
-                "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
-                params![chunk.id.to_string(), blob],
+                "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
+                rusqlite::named_params! {
+                    ":chunk_id": chunk.id.to_string(),
+                    ":embedding": blob,
+                },
             )
             .context(DatabaseSnafu)?;
         }
@@ -123,13 +131,14 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, Stor
                     c.bm25_terms, c.index_mode, v.embedding
              FROM chunks c
              LEFT JOIN vec_chunks v ON c.id = v.chunk_id
-             WHERE c.id = ?1",
+             WHERE c.id = :id",
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_row(params![id.to_string()], |row| {
-        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
-    })
+    stmt.query_row(
+        rusqlite::named_params! { ":id": id.to_string() },
+        |row| chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
+    )
     .optional()
     .context(DatabaseSnafu)
 }
@@ -146,13 +155,14 @@ pub fn find_by_file(
                     c.bm25_terms, c.index_mode, v.embedding
              FROM chunks c
              LEFT JOIN vec_chunks v ON c.id = v.chunk_id
-             WHERE c.file_path = ?1",
+             WHERE c.file_path = :file_path",
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_map(params![path.to_string()], |row| {
-        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
-    })
+    stmt.query_map(
+        rusqlite::named_params! { ":file_path": path.to_string() },
+        |row| chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
+    )
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
     .context(DatabaseSnafu)
@@ -184,15 +194,15 @@ pub fn delete_by_file(
     path: &ForestRelativePath,
 ) -> Result<usize, StorageError> {
     conn.execute(
-        "DELETE FROM vec_chunks WHERE chunk_id IN (SELECT id FROM chunks WHERE file_path = ?1)",
-        params![path.to_string()],
+        "DELETE FROM vec_chunks WHERE chunk_id IN (SELECT id FROM chunks WHERE file_path = :file_path)",
+        rusqlite::named_params! { ":file_path": path.to_string() },
     )
     .context(DatabaseSnafu)?;
 
     let count = conn
         .execute(
-            "DELETE FROM chunks WHERE file_path = ?1",
-            params![path.to_string()],
+            "DELETE FROM chunks WHERE file_path = :file_path",
+            rusqlite::named_params! { ":file_path": path.to_string() },
         )
         .context(DatabaseSnafu)?;
 
@@ -262,14 +272,14 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
 /// Set index metadata
 pub fn set_metadata(conn: &mut Connection, metadata: &IndexMetadata) -> Result<(), StorageError> {
     conn.execute(
-        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('mode', ?1)",
-        params![metadata.mode.to_string()],
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('mode', :mode)",
+        rusqlite::named_params! { ":mode": metadata.mode.to_string() },
     )
     .context(DatabaseSnafu)?;
 
     conn.execute(
-        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('last_build', ?1)",
-        params![system_time_to_unix(metadata.last_build).to_string()],
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('last_build', :last_build)",
+        rusqlite::named_params! { ":last_build": system_time_to_unix(metadata.last_build).to_string() },
     )
     .context(DatabaseSnafu)?;
 

@@ -1,6 +1,6 @@
 //! Search implementations for semantic and BM25 search
 
-use rusqlite::{Connection, params};
+use rusqlite::Connection;
 use snafu::ResultExt;
 
 use super::serialization::{chunk_from_row, serialize_embedding};
@@ -34,18 +34,24 @@ pub fn search_semantic(
                     c.bm25_terms, c.index_mode, v.embedding, v.distance
              FROM vec_chunks v
              JOIN chunks c ON v.chunk_id = c.id
-             WHERE v.embedding MATCH ?1 AND k = ?2
+             WHERE v.embedding MATCH :embedding AND k = :limit
              ORDER BY v.distance",
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_map(params![embedding_blob, limit], |row| {
-        let chunk = chunk_from_row(row)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        let distance: f32 = row.get(13)?;
-        let similarity = 1.0 - distance;
-        Ok((chunk, similarity))
-    })
+    stmt.query_map(
+        rusqlite::named_params! {
+            ":embedding": embedding_blob,
+            ":limit": limit,
+        },
+        |row| {
+            let chunk = chunk_from_row(row)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let distance: f32 = row.get(13)?;
+            let similarity = 1.0 - distance;
+            Ok((chunk, similarity))
+        },
+    )
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
     .context(DatabaseSnafu)

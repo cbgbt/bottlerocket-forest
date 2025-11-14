@@ -14,7 +14,6 @@ use std::path::Path;
 
 use super::repository::{ChunkRepository, IndexMetadata, StorageError, storage_error::*};
 use super::schema;
-use crate::knowledge::constants::EMBEDDING_DIM;
 use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath};
 
 /// SQLite-backed chunk repository
@@ -124,6 +123,7 @@ impl ChunkRepository for SqliteChunkRepository {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::constants::EMBEDDING_DIM;
     use crate::knowledge::domain::{
         ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, IndexData, IndexMode,
         ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
