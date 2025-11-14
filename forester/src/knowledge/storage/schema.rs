@@ -1,5 +1,6 @@
 //! Database schema definitions and migrations
 
+use crate::knowledge::constants::EMBEDDING_DIM;
 use rusqlite::Connection;
 use snafu::{ResultExt, Snafu};
 
@@ -41,13 +42,6 @@ const CREATE_INDEX_FILE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_file ON c
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
 const CREATE_INDEX_MODE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_mode ON chunks(index_mode)";
 
-const CREATE_VEC_CHUNKS: &str = r#"
-CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-    chunk_id TEXT PRIMARY KEY,
-    embedding FLOAT[384]
-)
-"#;
-
 /// Creates all tables and indexes in the database
 pub fn create_tables(conn: &Connection) -> Result<()> {
     use schema_error::*;
@@ -61,7 +55,14 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         .context(SqlExecutionSnafu)?;
     conn.execute(CREATE_INDEX_MODE, [])
         .context(SqlExecutionSnafu)?;
-    conn.execute(CREATE_VEC_CHUNKS, [])
+
+    let create_vec_chunks = format!(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
+            chunk_id TEXT PRIMARY KEY,
+            embedding FLOAT[{EMBEDDING_DIM}]
+        )"
+    );
+    conn.execute(&create_vec_chunks, [])
         .context(SqlExecutionSnafu)?;
 
     Ok(())
