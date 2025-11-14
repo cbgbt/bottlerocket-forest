@@ -17,6 +17,8 @@ serde_json = "1"
 snafu = "0.8"
 sqlite-vec = "0.1"
 syn = { version = "2", features = ["full", "extra-traits"] }
+text-splitter = { version = "0.28", features = ["markdown", "tokenizers"] }
+tokenizers = { version = "0.22", features = ["http"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
