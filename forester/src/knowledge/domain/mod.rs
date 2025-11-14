@@ -158,6 +158,16 @@ pub struct MatchedTerm(String);
 )]
 pub struct Signature(String);
 
+/// Semantic embedding vector for a chunk
+///
+/// A non-empty vector of floating-point values representing the semantic
+/// meaning of a text chunk. Used for similarity search in Best mode.
+#[nutype(
+    validate(predicate = |v: &Vec<f32>| !v.is_empty()),
+    derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRef, Deref)
+)]
+pub struct Embedding(Vec<f32>);
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -220,5 +230,25 @@ mod test {
         // When Creating the newtype
         // Then It should fail validation
         assert!(too_large.is_err());
+    }
+
+    #[test]
+    fn test_embedding_rejects_empty() {
+        // Given An empty vector
+        let empty = Embedding::try_new(vec![]);
+
+        // When Creating the newtype
+        // Then It should fail validation
+        assert!(empty.is_err());
+    }
+
+    #[test]
+    fn test_embedding_accepts_non_empty() {
+        // Given A non-empty vector
+        let valid = Embedding::try_new(vec![0.1, 0.2, 0.3]);
+
+        // When Creating the newtype
+        // Then It should succeed
+        assert!(valid.is_ok());
     }
 }

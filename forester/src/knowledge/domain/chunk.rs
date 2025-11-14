@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 use std::time::SystemTime;
 
 use super::{
-    ChunkId, ForestRelativePath, HeadingText, IndexMode, ItemName, LineCount, LineNumber, RepoName,
-    Signature, TokenCount,
+    ChunkId, Embedding, ForestRelativePath, HeadingText, IndexMode, ItemName, LineCount,
+    LineNumber, RepoName, Signature, TokenCount,
 };
 
 /// A searchable chunk of documentation with metadata
@@ -35,7 +35,7 @@ pub enum IndexData {
     /// Fast mode using BM25 keyword search
     Fast { bm25_terms: BTreeMap<String, u32> },
     /// Best mode using semantic embeddings
-    Best { embedding: Vec<f32> },
+    Best { embedding: Embedding },
 }
 
 impl IndexData {
@@ -188,7 +188,7 @@ mod test {
     #[test]
     fn test_index_data_best_mode() {
         // Given Best mode index data
-        let embedding = vec![0.1, 0.2, 0.3];
+        let embedding = Embedding::try_new(vec![0.1, 0.2, 0.3]).unwrap();
         let index_data = IndexData::Best {
             embedding: embedding.clone(),
         };
@@ -200,11 +200,21 @@ mod test {
         assert_eq!(mode, IndexMode::Best);
 
         // And The embedding should be accessible
-        if let IndexData::Best { embedding: emb } = index_data {
-            assert_eq!(emb, embedding);
+        if let IndexData::Best { embedding } = index_data {
+            assert_eq!(embedding.into_inner().len(), 3);
         } else {
             panic!("Expected Best variant");
         }
+    }
+
+    #[test]
+    fn test_embedding_rejects_empty() {
+        // Given An empty vector
+        let empty = Embedding::try_new(vec![]);
+
+        // When Creating the embedding
+        // Then It should fail validation
+        assert!(empty.is_err());
     }
 
     #[test]
@@ -278,7 +288,7 @@ mod test {
             ))
             .indexed_at(SystemTime::now())
             .index_data(IndexData::Best {
-                embedding: vec![0.1, 0.2, 0.3],
+                embedding: Embedding::try_new(vec![0.1, 0.2, 0.3]).unwrap(),
             })
             .build();
 

@@ -60,7 +60,21 @@ macro_rules! chunk_from_row {
                         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
                     crate::knowledge::domain::IndexData::Fast { bm25_terms: terms }
                 }
-                "best" => crate::knowledge::domain::IndexData::Best { embedding: vec![] },
+                "best" => {
+                    // For Best mode, we use a placeholder embedding since embeddings
+                    // are stored separately in vec_chunks table and not retrieved in regular queries
+                    let placeholder = crate::knowledge::domain::Embedding::try_new(vec![0.0])
+                        .map_err(|e| {
+                            Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                        })
+                        .context(InvalidFieldSnafu {
+                            field: "embedding".to_string(),
+                        })
+                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                    crate::knowledge::domain::IndexData::Best {
+                        embedding: placeholder,
+                    }
+                }
                 _ => {
                     return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
                         InvalidDataSnafu {

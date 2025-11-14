@@ -124,9 +124,9 @@ impl ChunkRepository for SqliteChunkRepository {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkSource, HeadingText, IndexData, IndexMode, ItemName,
-        LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, RustItemType,
-        Signature, TokenCount, Visibility,
+        ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, IndexData, IndexMode,
+        ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
+        RustItemType, Signature, TokenCount, Visibility,
     };
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
@@ -368,7 +368,7 @@ mod test {
         let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
         let chunk_id = uuid::Uuid::new_v4();
-        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
         let embedding_blob = serialization::serialize_embedding(&embedding);
 
         let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
@@ -417,7 +417,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
@@ -506,8 +506,9 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding1: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
-        let embedding2: Vec<f32> = (0..384).map(|i| (i as f32 + 0.5) / 384.0).collect();
+        let embedding1 = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
+        let embedding2 =
+            Embedding::try_new((0..384).map(|i| (i as f32 + 0.5) / 384.0).collect()).unwrap();
 
         let chunk1 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
@@ -704,7 +705,7 @@ mod test {
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
 
-        let embedding: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        let embedding = Embedding::try_new((0..384).map(|i| i as f32 / 384.0).collect()).unwrap();
 
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
@@ -797,42 +798,12 @@ mod test {
 
     #[test]
     fn test_best_mode_zero_embedding() {
-        // Given A Best mode chunk with zero-length embedding
-        let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        // Given An attempt to create an empty embedding
+        let empty_embedding = Embedding::try_new(vec![]);
 
-        let chunk = Chunk::builder()
-            .id(ChunkId::new(uuid::Uuid::new_v4()))
-            .source(
-                ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                ChunkContent::builder()
-                    .text("test")
-                    .token_count(TokenCount::try_new(4).unwrap())
-                    .build(),
-            )
-            .context(ChunkContext::Markdown(
-                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-            ))
-            .indexed_at(SystemTime::now())
-            .index_data(IndexData::Best { embedding: vec![] })
-            .build();
-
-        // When Saving (should fail because sqlite-vec doesn't support zero-length vectors)
-        let result = repo.save(&chunk);
-
-        // Then It should fail
-        assert!(result.is_err());
+        // When Creating the embedding
+        // Then It should fail validation at the type level
+        assert!(empty_embedding.is_err());
     }
 
     #[test]
