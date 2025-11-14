@@ -1,10 +1,19 @@
 //! Storage layer for chunk persistence
 //!
-//! This module provides:
-//! - `repository`: Trait definition for chunk storage operations
-//! - `schema`: Database schema definitions
-//! - `sqlite`: SQLite implementation with submodules for serialization, queries, and search
-//! - `bm25`: BM25 term calculation utilities
+//! This module implements dual-mode indexing for documentation chunks using SQLite.
+//!
+//! # Architecture
+//!
+//! The storage layer consists of:
+//!
+//! * **Repository Trait** (`repository`): Abstract interface for chunk storage operations.
+//!   Defines methods for saving, retrieving, searching, and managing chunks.
+//!
+//! * **SQLite Implementation** (`sqlite`): Concrete implementation using SQLite with:
+//!   - Regular table for chunk metadata (content, source, context)
+//!   - Virtual table (sqlite-vec) for vector embeddings (Best mode)
+//!   - BM25 term storage in JSON (Fast mode)
+//!
 
 pub mod bm25;
 pub mod repository;
