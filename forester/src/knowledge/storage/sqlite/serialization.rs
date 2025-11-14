@@ -10,7 +10,9 @@ use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 ///
 /// Expects columns in order: id, file_path, repo_name, line_start, line_count,
 /// context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode, embedding
-pub fn chunk_from_row(row: &rusqlite::Row) -> Result<crate::knowledge::domain::Chunk, StorageError> {
+pub fn chunk_from_row(
+    row: &rusqlite::Row,
+) -> Result<crate::knowledge::domain::Chunk, StorageError> {
     use crate::knowledge::storage::repository::storage_error::*;
 
     let id_str: String = row.get(0).context(DatabaseSnafu)?;
@@ -70,14 +72,18 @@ pub fn chunk_from_row(row: &rusqlite::Row) -> Result<crate::knowledge::domain::C
             crate::knowledge::domain::ChunkSource::builder()
                 .file_path(
                     crate::knowledge::domain::ForestRelativePath::try_new(file_path)
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                        .map_err(|e| {
+                            Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                        })
                         .context(InvalidFieldSnafu {
                             field: "file_path".to_string(),
                         })?,
                 )
                 .repo_name(
                     crate::knowledge::domain::RepoName::try_new(repo_name)
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                        .map_err(|e| {
+                            Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                        })
                         .context(InvalidFieldSnafu {
                             field: "repo_name".to_string(),
                         })?,
@@ -86,14 +92,20 @@ pub fn chunk_from_row(row: &rusqlite::Row) -> Result<crate::knowledge::domain::C
                     crate::knowledge::domain::LineRange::builder()
                         .start(
                             crate::knowledge::domain::LineNumber::try_new(line_start as usize)
-                                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                                .map_err(|e| {
+                                    Box::new(e)
+                                        as Box<dyn std::error::Error + Send + Sync + 'static>
+                                })
                                 .context(InvalidFieldSnafu {
                                     field: "line_start".to_string(),
                                 })?,
                         )
                         .line_count(
                             crate::knowledge::domain::LineCount::try_new(line_count as usize)
-                                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                                .map_err(|e| {
+                                    Box::new(e)
+                                        as Box<dyn std::error::Error + Send + Sync + 'static>
+                                })
                                 .context(InvalidFieldSnafu {
                                     field: "line_count".to_string(),
                                 })?,
@@ -107,7 +119,9 @@ pub fn chunk_from_row(row: &rusqlite::Row) -> Result<crate::knowledge::domain::C
                 .text(content)
                 .token_count(
                     crate::knowledge::domain::TokenCount::try_new(token_count as usize)
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                        .map_err(|e| {
+                            Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>
+                        })
                         .context(InvalidFieldSnafu {
                             field: "token_count".to_string(),
                         })?,
@@ -129,6 +143,8 @@ pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
 pub fn deserialize_embedding(
     bytes: &[u8],
 ) -> Result<crate::knowledge::domain::Embedding, StorageError> {
+    use crate::knowledge::constants::EMBEDDING_DIM;
+
     if !bytes.len().is_multiple_of(4) {
         return Err(InvalidDataSnafu {
             message: format!("Invalid embedding blob length: {}", bytes.len()),
@@ -143,6 +159,17 @@ pub fn deserialize_embedding(
             f32::from_le_bytes(arr)
         })
         .collect();
+
+    if vec.len() != EMBEDDING_DIM {
+        return Err(InvalidDataSnafu {
+            message: format!(
+                "Invalid embedding dimension: expected {}, got {}",
+                EMBEDDING_DIM,
+                vec.len()
+            ),
+        }
+        .build());
+    }
 
     crate::knowledge::domain::Embedding::try_new(vec)
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
@@ -224,4 +251,75 @@ pub fn system_time_to_unix(time: SystemTime) -> i64 {
 /// Convert Unix timestamp from database to SystemTime
 pub fn unix_to_system_time(unix: i64) -> SystemTime {
     UNIX_EPOCH + std::time::Duration::from_secs(unix as u64)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::knowledge::constants::EMBEDDING_DIM;
+    use test_case::test_case;
+
+    #[test]
+    fn test_embedding_round_trip() {
+        // Given A valid embedding with correct dimension
+        let original = (0..EMBEDDING_DIM)
+            .map(|i| i as f32 / 100.0)
+            .collect::<Vec<_>>();
+        let embedding = crate::knowledge::domain::Embedding::try_new(original.clone()).unwrap();
+
+        // When Serializing and deserializing
+        let bytes = serialize_embedding(embedding.as_ref());
+        let result = deserialize_embedding(&bytes).unwrap();
+
+        // Then The embedding should be preserved
+        assert_eq!(result.as_ref(), &original);
+    }
+
+    #[test_case(383 ; "one less than expected")]
+    #[test_case(385 ; "one more than expected")]
+    #[test_case(100 ; "much smaller")]
+    #[test_case(1000 ; "much larger")]
+    fn test_deserialize_embedding_rejects_wrong_dimension(dim: usize) {
+        // Given An embedding with wrong dimension
+        let wrong_size: Vec<f32> = (0..dim).map(|i| i as f32).collect();
+        let bytes = serialize_embedding(&wrong_size);
+
+        // When Deserializing
+        let result = deserialize_embedding(&bytes);
+
+        // Then It should fail with dimension error
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Invalid embedding dimension"));
+    }
+
+    #[test_case(3 ; "not multiple of 4")]
+    #[test_case(7 ; "odd number")]
+    fn test_deserialize_embedding_rejects_invalid_byte_length(byte_len: usize) {
+        // Given A byte array with invalid length
+        let bytes = vec![0u8; byte_len];
+
+        // When Deserializing
+        let result = deserialize_embedding(&bytes);
+
+        // Then It should fail with length error
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Invalid embedding blob length"));
+    }
+
+    #[test]
+    fn test_bm25_terms_round_trip() {
+        // Given BM25 terms
+        let mut terms = std::collections::BTreeMap::new();
+        terms.insert("systemd".to_string(), 5);
+        terms.insert("boot".to_string(), 3);
+
+        // When Serializing and deserializing
+        let json = serialize_bm25_terms(&terms).unwrap();
+        let result = deserialize_bm25_terms(&json).unwrap();
+
+        // Then The terms should be preserved
+        assert_eq!(result, terms);
+    }
 }
