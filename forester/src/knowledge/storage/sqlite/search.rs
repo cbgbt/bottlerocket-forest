@@ -7,6 +7,18 @@ use super::serialization::{chunk_from_row, serialize_embedding};
 use crate::knowledge::domain::Chunk;
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
+/// BM25 term saturation parameter (k1).
+/// Controls how quickly term frequency saturates. Higher values (e.g., 2.0) give more weight
+/// to repeated terms, lower values (e.g., 1.0) saturate faster. Typical range: 1.2-2.0.
+/// See: https://en.wikipedia.org/wiki/Okapi_BM25
+const BM25_K1: f64 = 1.2;
+
+/// BM25 length normalization parameter (b).
+/// Controls how much document length affects scoring. b=1.0 fully normalizes by length,
+/// b=0.0 disables normalization. Typical range: 0.5-0.8.
+/// See: https://en.wikipedia.org/wiki/Okapi_BM25
+const BM25_B: f64 = 0.75;
+
 /// Perform semantic search using sqlite-vec
 pub fn search_semantic(
     conn: &Connection,
@@ -48,6 +60,9 @@ pub fn search_bm25(
         return Ok(vec![]);
     }
 
+    let k1_plus_1 = BM25_K1 + 1.0;
+    let one_minus_b = 1.0 - BM25_B;
+
     let query = format!(
         r#"
         WITH corpus_stats AS (
@@ -84,10 +99,10 @@ pub fn search_bm25(
                 SUM(
                     -- IDF component
                     LN((cs.total_docs - COALESCE(ts.doc_freq, 0) + 0.5) / (COALESCE(ts.doc_freq, 0) + 0.5) + 1.0) *
-                    -- TF component with BM25 normalization (k1=1.2, b=0.75)
-                    (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) * 2.2) /
+                    -- TF component with BM25 normalization
+                    (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) * {}) /
                     (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) + 
-                     1.2 * (0.25 + 0.75 * ((SELECT SUM(value) FROM json_each(c.bm25_terms)) / cs.avg_doc_length)))
+                     {} * ({} + {} * ((SELECT SUM(value) FROM json_each(c.bm25_terms)) / cs.avg_doc_length)))
                 ) as score
             FROM chunks c
             CROSS JOIN corpus_stats cs
@@ -105,7 +120,11 @@ pub fn search_bm25(
             .iter()
             .map(|_| "?")
             .collect::<Vec<_>>()
-            .join(",")
+            .join(","),
+        k1_plus_1,
+        BM25_K1,
+        one_minus_b,
+        BM25_B
     );
 
     let mut stmt = conn.prepare(&query).context(DatabaseSnafu)?;
