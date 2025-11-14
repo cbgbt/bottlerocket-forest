@@ -5,6 +5,7 @@ target/
 Cargo.lock
 .env
 forester/target/
+/worktrees
 
 # Bottlerocket component repositories
 /bottlerocket
