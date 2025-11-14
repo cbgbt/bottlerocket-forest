@@ -80,6 +80,9 @@ pub fn search_bm25(
     let query = format!(
         r#"
         WITH corpus_stats AS (
+            -- Calculate corpus-level statistics for BM25 normalization
+            -- total_docs: number of documents in the corpus
+            -- avg_doc_length: average number of terms per document
             SELECT 
                 COUNT(*) as total_docs,
                 AVG((SELECT SUM(value) FROM json_each(bm25_terms))) as avg_doc_length
@@ -87,6 +90,8 @@ pub fn search_bm25(
             WHERE bm25_terms IS NOT NULL
         ),
         term_stats AS (
+            -- Calculate document frequency for each query term
+            -- doc_freq: number of documents containing each term (for IDF calculation)
             SELECT 
                 key as term,
                 COUNT(*) as doc_freq
@@ -96,6 +101,8 @@ pub fn search_bm25(
             GROUP BY key
         ),
         scored_docs AS (
+            -- Apply BM25 scoring formula to rank documents
+            -- Combines IDF (inverse document frequency) with normalized term frequency
             SELECT 
                 c.id,
                 c.file_path,
@@ -111,9 +118,9 @@ pub fn search_bm25(
                 c.index_mode,
                 NULL as embedding,
                 SUM(
-                    -- IDF component
+                    -- IDF component: log((N - df + 0.5) / (df + 0.5) + 1)
                     LN((cs.total_docs - COALESCE(ts.doc_freq, 0) + 0.5) / (COALESCE(ts.doc_freq, 0) + 0.5) + 1.0) *
-                    -- TF component with BM25 normalization
+                    -- TF component with BM25 normalization: (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (dl / avgdl)))
                     (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) * {}) /
                     (CAST(json_extract(c.bm25_terms, '$.' || ts.term) AS REAL) + 
                      {} * ({} + {} * ((SELECT SUM(value) FROM json_each(c.bm25_terms)) / cs.avg_doc_length)))
