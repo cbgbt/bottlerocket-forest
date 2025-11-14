@@ -329,6 +329,7 @@ mod test {
     #[test_case(
         ChunkContext::RustDoc(
             RustDocContext::builder()
+                .module_path(vec![])
                 .item_type(RustItemType::Function)
                 .item_name(ItemName::try_new("build_variant").unwrap())
                 .visibility(Visibility::Public)
@@ -340,6 +341,7 @@ mod test {
     #[test_case(
         ChunkContext::RustDoc(
             RustDocContext::builder()
+                .module_path(vec![])
                 .item_type(RustItemType::Struct)
                 .item_name(ItemName::try_new("Config").unwrap())
                 .visibility(Visibility::Private)
