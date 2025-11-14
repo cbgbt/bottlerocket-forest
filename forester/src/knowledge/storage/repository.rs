@@ -4,7 +4,33 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
+use crate::knowledge::constants;
 use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
+
+/// Configuration for embedding model and chunking parameters
+///
+/// These parameters are fundamental to the index structure. If any of these
+/// values change, the entire index must be rebuilt.
+#[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct EmbeddingModelConfig {
+    pub model_name: String,
+    pub embedding_dim: usize,
+    pub max_tokens: usize,
+    pub overlap_tokens: usize,
+}
+
+impl Default for EmbeddingModelConfig {
+    fn default() -> Self {
+        Self {
+            model_name: constants::DEFAULT_TOKENIZER_MODEL.to_string(),
+            embedding_dim: constants::EMBEDDING_DIM,
+            max_tokens: constants::DEFAULT_MAX_CHUNK_TOKENS,
+            overlap_tokens: constants::DEFAULT_CHUNK_OVERLAP_TOKENS,
+        }
+    }
+}
 
 /// Repository for chunk persistence
 #[cfg_attr(test, mockall::automock)]
@@ -63,6 +89,7 @@ pub struct IndexMetadata {
     pub last_build: std::time::SystemTime,
     pub chunk_count: usize,
     pub file_count: usize,
+    pub model_config: EmbeddingModelConfig,
 }
 
 /// Errors that can occur during storage operations

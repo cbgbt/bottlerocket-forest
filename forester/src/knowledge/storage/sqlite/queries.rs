@@ -268,6 +268,7 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
         .last_build(unix_to_system_time(last_build_unix))
         .chunk_count(chunk_count)
         .file_count(file_count)
+        .model_config(crate::knowledge::storage::EmbeddingModelConfig::default())
         .build())
 }
 

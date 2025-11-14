@@ -302,6 +302,7 @@ mod test {
             .last_build(SystemTime::now())
             .chunk_count(10)
             .file_count(5)
+            .model_config(crate::knowledge::storage::EmbeddingModelConfig::default())
             .build();
 
         repo.set_metadata(&metadata).unwrap();

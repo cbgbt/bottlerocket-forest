@@ -8,11 +8,10 @@ use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, TokenCount}
 
 /// Configuration for chunking operations
 #[derive(Debug, Clone, Builder)]
-#[builder(on(_, into))]
 #[non_exhaustive]
 pub struct ChunkingConfig {
     /// Tokenizer model to use (e.g., "sentence-transformers/all-MiniLM-L6-v2")
-    #[builder(default = crate::knowledge::constants::DEFAULT_TOKENIZER_MODEL.to_string())]
+    #[builder(into, default = crate::knowledge::constants::DEFAULT_TOKENIZER_MODEL.to_string())]
     pub tokenizer_model: String,
     /// Maximum tokens per chunk
     #[builder(default = crate::knowledge::constants::DEFAULT_MAX_CHUNK_TOKENS)]

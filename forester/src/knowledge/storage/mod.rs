@@ -21,6 +21,6 @@ pub mod schema;
 pub mod sqlite;
 
 pub use bm25::calculate_bm25_terms;
-pub use repository::{ChunkRepository, IndexMetadata, StorageError};
+pub use repository::{ChunkRepository, EmbeddingModelConfig, IndexMetadata, StorageError};
 pub use schema::SchemaError;
 pub use sqlite::SqliteChunkRepository;
