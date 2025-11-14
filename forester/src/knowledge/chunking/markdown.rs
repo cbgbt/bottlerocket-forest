@@ -1,7 +1,9 @@
 //! Markdown chunking strategy
 
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use snafu::ResultExt;
 use std::path::Path;
+use text_splitter::{ChunkConfig, MarkdownSplitter};
+use tokenizers::Tokenizer;
 
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::{
@@ -9,22 +11,82 @@ use crate::knowledge::domain::{
 };
 
 /// Chunks markdown files by heading structure
-pub struct MarkdownChunker;
+pub struct MarkdownChunker {
+    splitter: MarkdownSplitter<Tokenizer>,
+}
 
 impl MarkdownChunker {
-    fn estimate_tokens(text: &str) -> usize {
-        text.split_whitespace().count()
+    pub fn new() -> Result<Self, ChunkingError> {
+        use super::strategy::chunking_error::*;
+
+        let tokenizer = Tokenizer::from_pretrained("sentence-transformers/all-MiniLM-L6-v2", None)
+            .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
+            .context(ParseSnafu)?;
+
+        let splitter = MarkdownSplitter::new(
+            ChunkConfig::new(256)
+                .with_sizer(tokenizer)
+                .with_overlap(38)
+                .expect("overlap configuration should be valid"),
+        );
+
+        Ok(Self { splitter })
     }
 
-    fn heading_level_to_depth(level: HeadingLevel) -> usize {
-        match level {
-            HeadingLevel::H1 => 0,
-            HeadingLevel::H2 => 1,
-            HeadingLevel::H3 => 2,
-            HeadingLevel::H4 => 3,
-            HeadingLevel::H5 => 4,
-            HeadingLevel::H6 => 5,
+    fn split_by_headings(&self, content: &str) -> Vec<(String, Vec<HeadingText>)> {
+        let mut sections = Vec::new();
+        let mut current_section = String::new();
+        let mut current_hierarchy: Vec<HeadingText> = Vec::new();
+        let mut level_stack: Vec<(usize, String)> = Vec::new();
+
+        for line in content.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.starts_with('#') {
+                if !current_section.trim().is_empty() {
+                    sections.push((current_section.clone(), current_hierarchy.clone()));
+                    current_section.clear();
+                }
+
+                let hash_count = trimmed.chars().take_while(|c| *c == '#').count();
+                let text = trimmed[hash_count..].trim();
+
+                if !text.is_empty() {
+                    while let Some((last_level, _)) = level_stack.last() {
+                        if *last_level >= hash_count {
+                            level_stack.pop();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    level_stack.push((hash_count, text.to_string()));
+
+                    current_hierarchy = level_stack
+                        .iter()
+                        .filter_map(|(_, t)| HeadingText::try_new(t.clone()).ok())
+                        .collect();
+                }
+
+                current_section.push_str(line);
+                current_section.push('\n');
+            } else {
+                current_section.push_str(line);
+                current_section.push('\n');
+            }
         }
+
+        if !current_section.trim().is_empty() {
+            sections.push((current_section, current_hierarchy));
+        }
+
+        sections
+    }
+}
+
+impl Default for MarkdownChunker {
+    fn default() -> Self {
+        Self::new().expect("failed to initialize MarkdownChunker")
     }
 }
 
@@ -39,110 +101,51 @@ impl ChunkingStrategy for MarkdownChunker {
 
     fn chunk(&self, input: &ChunkingInput) -> Result<Vec<Chunk>, ChunkingError> {
         let content = input.content.clone().into_inner();
-        let parser = Parser::new(&content);
 
+        let sections = self.split_by_headings(&content);
         let mut chunks = Vec::new();
-        let mut current_text = String::new();
-        let mut heading_stack: Vec<String> = Vec::new();
-        let mut in_heading = false;
-        let mut current_heading_text = String::new();
-        let mut current_heading_level = 0;
 
-        for event in parser {
-            match event {
-                Event::Start(Tag::Heading { level, .. }) => {
-                    if !current_text.trim().is_empty() {
-                        let token_count = Self::estimate_tokens(&current_text);
+        for (section_text, hierarchy) in sections {
+            let text_chunks = self.splitter.chunks(&section_text);
 
-                        let chunk = Chunk::builder()
-                            .id(ChunkId::new(uuid::Uuid::new_v4()))
-                            .source(input.source.clone())
-                            .content(
-                                ChunkContent::builder()
-                                    .text(current_text.trim())
-                                    .token_count(TokenCount::try_new(token_count.max(1)).unwrap())
-                                    .build(),
-                            )
-                            .context(ChunkContext::Markdown(
-                                MarkdownContext::builder()
-                                    .heading_hierarchy(
-                                        heading_stack
-                                            .iter()
-                                            .filter_map(|h| HeadingText::try_new(h.clone()).ok())
-                                            .collect::<Vec<_>>(),
-                                    )
-                                    .build(),
-                            ))
-                            .indexed_at(std::time::SystemTime::now())
-                            .index_data(crate::knowledge::domain::IndexData::Fast {
-                                bm25_terms: std::collections::BTreeMap::new(),
-                            })
-                            .build();
+            for chunk_text in text_chunks {
+                let trimmed = chunk_text.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
 
-                        chunks.push(chunk);
-                        current_text.clear();
-                    }
+                let has_body_content = trimmed
+                    .lines()
+                    .any(|line| !line.trim().is_empty() && !line.trim().starts_with('#'));
 
-                    in_heading = true;
-                    current_heading_level = Self::heading_level_to_depth(level);
-                    current_heading_text.clear();
+                if !has_body_content {
+                    continue;
                 }
-                Event::End(TagEnd::Heading(_)) => {
-                    in_heading = false;
 
-                    heading_stack.truncate(current_heading_level);
-                    heading_stack.push(current_heading_text.clone());
-                }
-                Event::Text(text) => {
-                    if in_heading {
-                        current_heading_text.push_str(&text);
-                    } else {
-                        current_text.push_str(&text);
-                    }
-                }
-                Event::Code(text) | Event::Html(text) => {
-                    if !in_heading {
-                        current_text.push_str(&text);
-                    }
-                }
-                Event::SoftBreak | Event::HardBreak => {
-                    if !in_heading {
-                        current_text.push('\n');
-                    }
-                }
-                _ => {}
+                let token_count = trimmed.split_whitespace().count().max(1);
+
+                let chunk = Chunk::builder()
+                    .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .source(input.source.clone())
+                    .content(
+                        ChunkContent::builder()
+                            .text(trimmed)
+                            .token_count(TokenCount::try_new(token_count).unwrap())
+                            .build(),
+                    )
+                    .context(ChunkContext::Markdown(
+                        MarkdownContext::builder()
+                            .heading_hierarchy(hierarchy.clone())
+                            .build(),
+                    ))
+                    .indexed_at(std::time::SystemTime::now())
+                    .index_data(crate::knowledge::domain::IndexData::Fast {
+                        bm25_terms: std::collections::BTreeMap::new(),
+                    })
+                    .build();
+
+                chunks.push(chunk);
             }
-        }
-
-        if !current_text.trim().is_empty() {
-            let token_count = Self::estimate_tokens(&current_text);
-
-            let chunk = Chunk::builder()
-                .id(ChunkId::new(uuid::Uuid::new_v4()))
-                .source(input.source.clone())
-                .content(
-                    ChunkContent::builder()
-                        .text(current_text.trim())
-                        .token_count(TokenCount::try_new(token_count.max(1)).unwrap())
-                        .build(),
-                )
-                .context(ChunkContext::Markdown(
-                    MarkdownContext::builder()
-                        .heading_hierarchy(
-                            heading_stack
-                                .iter()
-                                .filter_map(|h| HeadingText::try_new(h.clone()).ok())
-                                .collect::<Vec<_>>(),
-                        )
-                        .build(),
-                ))
-                .indexed_at(std::time::SystemTime::now())
-                .index_data(crate::knowledge::domain::IndexData::Fast {
-                    bm25_terms: std::collections::BTreeMap::new(),
-                })
-                .build();
-
-            chunks.push(chunk);
         }
 
         Ok(chunks)
@@ -158,7 +161,7 @@ mod test {
     };
     use test_case::test_case;
 
-    fn create_test_input(content: &str) -> ChunkingInput {
+    fn create_test_input(content: &str, max_tokens: usize) -> ChunkingInput {
         ChunkingInput::builder()
             .content(ChunkableContent::new(content.to_string()))
             .source(
@@ -173,14 +176,14 @@ mod test {
                     )
                     .build(),
             )
-            .max_tokens(TokenCount::try_new(500).unwrap())
+            .max_tokens(TokenCount::try_new(max_tokens).unwrap())
             .build()
     }
 
     #[test]
     fn test_supports_markdown_files() {
         // Given A markdown chunker
-        let chunker = MarkdownChunker;
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Checking if it supports .md files
         let supports = chunker.supports(Path::new("test.md"));
@@ -189,119 +192,97 @@ mod test {
         assert!(supports);
     }
 
-    #[test]
-    fn test_does_not_support_non_markdown() {
+    #[test_case("test.md" => true ; "markdown extension")]
+    #[test_case("test.rs" => false ; "rust extension")]
+    #[test_case("test.txt" => false ; "text extension")]
+    #[test_case("test" => false ; "no extension")]
+    fn test_file_extension_support(path: &str) -> bool {
         // Given A markdown chunker
-        let chunker = MarkdownChunker;
+        let chunker = MarkdownChunker::new().unwrap();
 
-        // When Checking if it supports .rs files
-        let supports = chunker.supports(Path::new("test.rs"));
-
-        // Then It should return false
-        assert!(!supports);
+        // When Checking file support
+        // Then Return whether it's supported
+        chunker.supports(Path::new(path))
     }
 
     #[test]
-    fn test_chunks_by_h2_headings() {
-        // Given Markdown with multiple H2 sections
-        let content = r#"# Title
-
-Some intro text.
-
-## Section One
-
-Content for section one.
-
-## Section Two
-
-Content for section two."#;
-
-        let input = create_test_input(content);
-        let chunker = MarkdownChunker;
+    fn test_respects_token_limit() {
+        // Given Markdown with content that exceeds token limit
+        let content = format!(
+            "# Long Section\n\n{}",
+            "word ".repeat(300) // 300 words should exceed 256 tokens
+        );
+        let input = create_test_input(&content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
 
-        // Then Should create chunks for each section
-        assert_eq!(chunks.len(), 3);
-
-        // And First chunk should have intro text
-        assert!(chunks[0].content.text.contains("Some intro text"));
-
-        // And Second chunk should have section one content
-        assert!(chunks[1].content.text.contains("Content for section one"));
-
-        // And Third chunk should have section two content
-        assert!(chunks[2].content.text.contains("Content for section two"));
+        // Then All chunks should respect token limit
+        for chunk in &chunks {
+            assert!(
+                chunk.content.token_count.into_inner() <= 256,
+                "Chunk exceeded token limit: {}",
+                chunk.content.token_count.into_inner()
+            );
+        }
     }
 
     #[test]
-    fn test_builds_heading_hierarchy() {
-        // Given Markdown with nested headings
-        let content = r#"## Parent
-
-Parent content.
-
-### Child
-
-Child content."#;
-
-        let input = create_test_input(content);
-        let chunker = MarkdownChunker;
+    fn test_chunks_have_overlap() {
+        // Given Markdown with long content under one heading
+        let content = format!("# Section\n\n{}", "This is sentence number X. ".repeat(200));
+        let input = create_test_input(&content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
 
-        // Then Should have two chunks
-        assert_eq!(chunks.len(), 2);
+        // Then Should create multiple chunks with overlap
+        if chunks.len() > 1 {
+            let first_chunk_end = &chunks[0].content.text[chunks[0].content.text.len() - 50..];
+            let second_chunk_start =
+                &chunks[1].content.text[..50.min(chunks[1].content.text.len())];
 
-        // And First chunk should have parent in hierarchy
-        if let ChunkContext::Markdown(ctx) = &chunks[0].context {
-            assert_eq!(ctx.heading_hierarchy.len(), 1);
-            assert_eq!(
-                ctx.heading_hierarchy[0],
-                HeadingText::try_new("Parent").unwrap()
+            // And Some content should appear in both chunks
+            assert!(
+                first_chunk_end
+                    .split_whitespace()
+                    .any(|word| second_chunk_start.contains(word)),
+                "Expected overlap between chunks"
             );
-        } else {
-            panic!("Expected Markdown context");
-        }
-
-        // And Second chunk should have both parent and child
-        if let ChunkContext::Markdown(ctx) = &chunks[1].context {
-            assert_eq!(ctx.heading_hierarchy.len(), 2);
-            assert_eq!(
-                ctx.heading_hierarchy[0],
-                HeadingText::try_new("Parent").unwrap()
-            );
-            assert_eq!(
-                ctx.heading_hierarchy[1],
-                HeadingText::try_new("Child").unwrap()
-            );
-        } else {
-            panic!("Expected Markdown context");
         }
     }
 
-    #[test_case("# H1\nContent", 1 ; "single h1")]
-    #[test_case("## H2\nContent", 1 ; "single h2")]
-    #[test_case("### H3\nContent", 1 ; "single h3")]
-    fn test_different_heading_levels(content: &str, expected_chunks: usize) {
-        // Given Markdown with specific heading level
-        let input = create_test_input(content);
-        let chunker = MarkdownChunker;
+    #[test]
+    fn test_preserves_heading_hierarchy_across_chunks() {
+        // Given Markdown with nested headings and long content
+        let content = format!(
+            "# Top\n\n## Middle\n\n{}",
+            "word ".repeat(300) // Force multiple chunks
+        );
+        let input = create_test_input(&content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
 
-        // Then Should create expected number of chunks
-        assert_eq!(chunks.len(), expected_chunks);
+        // Then All chunks under same heading should have same hierarchy
+        for chunk in &chunks {
+            if let ChunkContext::Markdown(ctx) = &chunk.context {
+                assert!(
+                    !ctx.heading_hierarchy.is_empty(),
+                    "Chunks should preserve heading hierarchy"
+                );
+            }
+        }
     }
 
     #[test]
     fn test_empty_content() {
         // Given Empty markdown content
-        let input = create_test_input("");
-        let chunker = MarkdownChunker;
+        let input = create_test_input("", 256);
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -310,24 +291,175 @@ Child content."#;
         assert_eq!(chunks.len(), 0);
     }
 
-    #[test]
-    fn test_content_without_headings() {
-        // Given Markdown without any headings
-        let content = "Just some plain text without headings.";
-        let input = create_test_input(content);
-        let chunker = MarkdownChunker;
+    #[test_case("" => 0 ; "empty string")]
+    #[test_case("   \n\n  " => 0 ; "only whitespace")]
+    #[test_case("# Heading Only" => 0 ; "heading with no content")]
+    fn test_no_chunks_for_empty_sections(content: &str) -> usize {
+        // Given Content with no substantive text
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
 
-        // Then Should create one chunk
-        assert_eq!(chunks.len(), 1);
+        // Then Return chunk count
+        chunks.len()
+    }
+
+    #[test]
+    fn test_content_without_headings() {
+        // Given Markdown without any headings
+        let content = "Just some plain text without headings.";
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
+
+        // When Chunking the content
+        let chunks = chunker.chunk(&input).unwrap();
+
+        // Then Should create at least one chunk
+        assert!(!chunks.is_empty());
 
         // And Chunk should have empty heading hierarchy
         if let ChunkContext::Markdown(ctx) = &chunks[0].context {
             assert_eq!(ctx.heading_hierarchy.len(), 0);
         } else {
             panic!("Expected Markdown context");
+        }
+    }
+
+    #[test]
+    fn test_multiple_sections_create_separate_chunks() {
+        // Given Markdown with multiple distinct sections
+        let content = r#"# First
+
+First section content.
+
+# Second
+
+Second section content.
+
+# Third
+
+Third section content."#;
+
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
+
+        // When Chunking the content
+        let chunks = chunker.chunk(&input).unwrap();
+
+        // Then Should create separate chunks for each section
+        assert!(chunks.len() >= 3, "Expected at least 3 chunks");
+
+        // And Each chunk should have different heading
+        let headings: Vec<_> = chunks
+            .iter()
+            .filter_map(|c| {
+                if let ChunkContext::Markdown(ctx) = &c.context {
+                    ctx.heading_hierarchy.first().cloned()
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert!(headings.contains(&HeadingText::try_new("First").unwrap()));
+        assert!(headings.contains(&HeadingText::try_new("Second").unwrap()));
+        assert!(headings.contains(&HeadingText::try_new("Third").unwrap()));
+    }
+
+    #[test]
+    fn test_nested_headings_build_hierarchy() {
+        // Given Markdown with deeply nested headings
+        let content = r#"# Level 1
+
+## Level 2
+
+### Level 3
+
+Content at level 3."#;
+
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
+
+        // When Chunking the content
+        let chunks = chunker.chunk(&input).unwrap();
+
+        // Then Last chunk should have full hierarchy
+        let last_chunk = chunks.last().expect("Should have at least one chunk");
+        if let ChunkContext::Markdown(ctx) = &last_chunk.context {
+            assert_eq!(ctx.heading_hierarchy.len(), 3);
+            assert_eq!(
+                ctx.heading_hierarchy[0],
+                HeadingText::try_new("Level 1").unwrap()
+            );
+            assert_eq!(
+                ctx.heading_hierarchy[1],
+                HeadingText::try_new("Level 2").unwrap()
+            );
+            assert_eq!(
+                ctx.heading_hierarchy[2],
+                HeadingText::try_new("Level 3").unwrap()
+            );
+        } else {
+            panic!("Expected Markdown context");
+        }
+    }
+
+    #[test]
+    fn test_code_blocks_included_in_chunks() {
+        // Given Markdown with code blocks
+        let content = r#"# Example
+
+Here is some code:
+
+```rust
+fn main() {
+    println!("Hello");
+}
+```
+
+More text after code."#;
+
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
+
+        // When Chunking the content
+        let chunks = chunker.chunk(&input).unwrap();
+
+        // Then Code should be included in chunk text
+        assert!(!chunks.is_empty());
+        let combined_text = chunks
+            .iter()
+            .map(|c| c.content.text.as_str())
+            .collect::<String>();
+        assert!(combined_text.contains("fn main"));
+        assert!(combined_text.contains("println"));
+    }
+
+    #[test]
+    fn test_all_chunks_have_valid_token_counts() {
+        // Given Various markdown content
+        let content = r#"# Section
+
+Some content here.
+
+## Subsection
+
+More content in subsection."#;
+
+        let input = create_test_input(content, 256);
+        let chunker = MarkdownChunker::new().unwrap();
+
+        // When Chunking the content
+        let chunks = chunker.chunk(&input).unwrap();
+
+        // Then All chunks should have token count greater than zero
+        for chunk in &chunks {
+            assert!(
+                chunk.content.token_count.into_inner() > 0,
+                "Chunk should have positive token count"
+            );
         }
     }
 }

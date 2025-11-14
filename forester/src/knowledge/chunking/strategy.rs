@@ -28,7 +28,7 @@ pub struct ChunkingInput {
 
 /// Errors that can occur during chunking
 #[derive(Debug, Snafu)]
-#[snafu(module)]
+#[snafu(module, visibility(pub))]
 pub enum ChunkingError {
     #[snafu(display("Failed to parse content"))]
     ParseError {
