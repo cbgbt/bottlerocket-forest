@@ -5,7 +5,7 @@ use std::path::Path;
 use text_splitter::{ChunkConfig, MarkdownSplitter};
 use tokenizers::Tokenizer;
 
-use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
+use super::{ChunkingConfig, ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, HeadingText, MarkdownContext, TokenCount,
 };
@@ -16,17 +16,17 @@ pub struct MarkdownChunker {
 }
 
 impl MarkdownChunker {
-    pub fn new() -> Result<Self, ChunkingError> {
+    pub fn new(config: &ChunkingConfig) -> Result<Self, ChunkingError> {
         use super::strategy::chunking_error::*;
 
-        let tokenizer = Tokenizer::from_pretrained("sentence-transformers/all-MiniLM-L6-v2", None)
+        let tokenizer = Tokenizer::from_pretrained(&config.tokenizer_model, None)
             .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
             .context(ParseSnafu)?;
 
         let splitter = MarkdownSplitter::new(
-            ChunkConfig::new(256)
+            ChunkConfig::new(config.max_tokens)
                 .with_sizer(tokenizer)
-                .with_overlap(38)
+                .with_overlap(config.overlap_tokens)
                 .expect("overlap configuration should be valid"),
         );
 
@@ -81,12 +81,6 @@ impl MarkdownChunker {
         }
 
         sections
-    }
-}
-
-impl Default for MarkdownChunker {
-    fn default() -> Self {
-        Self::new().expect("failed to initialize MarkdownChunker")
     }
 }
 
@@ -161,6 +155,10 @@ mod test {
     };
     use test_case::test_case;
 
+    fn test_config() -> ChunkingConfig {
+        ChunkingConfig::builder().build()
+    }
+
     fn create_test_input(content: &str, max_tokens: usize) -> ChunkingInput {
         ChunkingInput::builder()
             .content(ChunkableContent::new(content.to_string()))
@@ -183,7 +181,8 @@ mod test {
     #[test]
     fn test_supports_markdown_files() {
         // Given A markdown chunker
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Checking if it supports .md files
         let supports = chunker.supports(Path::new("test.md"));
@@ -198,7 +197,8 @@ mod test {
     #[test_case("test" => false ; "no extension")]
     fn test_file_extension_support(path: &str) -> bool {
         // Given A markdown chunker
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Checking file support
         // Then Return whether it's supported
@@ -213,7 +213,8 @@ mod test {
             "word ".repeat(300) // 300 words should exceed 256 tokens
         );
         let input = create_test_input(&content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -233,7 +234,8 @@ mod test {
         // Given Markdown with long content under one heading
         let content = format!("# Section\n\n{}", "This is sentence number X. ".repeat(200));
         let input = create_test_input(&content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -262,7 +264,8 @@ mod test {
             "word ".repeat(300) // Force multiple chunks
         );
         let input = create_test_input(&content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -282,7 +285,8 @@ mod test {
     fn test_empty_content() {
         // Given Empty markdown content
         let input = create_test_input("", 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -297,7 +301,8 @@ mod test {
     fn test_no_chunks_for_empty_sections(content: &str) -> usize {
         // Given Content with no substantive text
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -311,7 +316,8 @@ mod test {
         // Given Markdown without any headings
         let content = "Just some plain text without headings.";
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -343,7 +349,8 @@ Second section content.
 Third section content."#;
 
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -380,7 +387,8 @@ Third section content."#;
 Content at level 3."#;
 
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -422,7 +430,8 @@ fn main() {
 More text after code."#;
 
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();
@@ -449,7 +458,8 @@ Some content here.
 More content in subsection."#;
 
         let input = create_test_input(content, 256);
-        let chunker = MarkdownChunker::new().unwrap();
+        let config = test_config();
+        let chunker = MarkdownChunker::new(&config).unwrap();
 
         // When Chunking the content
         let chunks = chunker.chunk(&input).unwrap();

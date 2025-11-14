@@ -4,4 +4,4 @@ pub mod markdown;
 pub mod strategy;
 
 pub use markdown::MarkdownChunker;
-pub use strategy::{ChunkingError, ChunkingInput, ChunkingStrategy};
+pub use strategy::{ChunkingConfig, ChunkingError, ChunkingInput, ChunkingStrategy};

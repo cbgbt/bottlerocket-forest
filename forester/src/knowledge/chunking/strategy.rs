@@ -6,6 +6,22 @@ use std::path::Path;
 
 use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, TokenCount};
 
+/// Configuration for chunking operations
+#[derive(Debug, Clone, Builder)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct ChunkingConfig {
+    /// Tokenizer model to use (e.g., "sentence-transformers/all-MiniLM-L6-v2")
+    #[builder(default = crate::knowledge::constants::DEFAULT_TOKENIZER_MODEL.to_string())]
+    pub tokenizer_model: String,
+    /// Maximum tokens per chunk
+    #[builder(default = crate::knowledge::constants::DEFAULT_MAX_CHUNK_TOKENS)]
+    pub max_tokens: usize,
+    /// Number of tokens to overlap between chunks
+    #[builder(default = crate::knowledge::constants::DEFAULT_CHUNK_OVERLAP_TOKENS)]
+    pub overlap_tokens: usize,
+}
+
 /// Strategy for chunking file content into searchable units
 #[cfg_attr(test, mockall::automock)]
 pub trait ChunkingStrategy {
