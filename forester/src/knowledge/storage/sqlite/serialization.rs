@@ -195,7 +195,7 @@ pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
 pub fn deserialize_embedding(
     bytes: &[u8],
 ) -> Result<crate::knowledge::domain::Embedding, StorageError> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return Err(InvalidDataSnafu {
             message: format!("Invalid embedding blob length: {}", bytes.len()),
         }
@@ -212,10 +212,9 @@ pub fn deserialize_embedding(
 
     crate::knowledge::domain::Embedding::try_new(vec)
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
-        .context(InvalidDataSnafu {
-            message: "Deserialized embedding is empty".to_string(),
+        .context(InvalidFieldSnafu {
+            field: "embedding".to_string(),
         })
-}
 }
 
 /// Serialize BM25 terms to JSON string

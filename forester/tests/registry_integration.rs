@@ -8,9 +8,14 @@ use std::process::Command;
 
 const TEST_PORT: &str = "5555";
 
+/// Get path to forester binary (cargo test builds in debug mode)
+fn forester_bin() -> &'static std::path::Path {
+    assert_cmd::cargo::cargo_bin!("forester")
+}
+
 /// Helper to run forester CLI with test port and capture output
 fn run_forester(args: &[&str]) -> (i32, String, String) {
-    let output = Command::new("./target/release/forester")
+    let output = Command::new(forester_bin())
         .env("FORESTER_REGISTRY_PORT", TEST_PORT)
         .args(args)
         .output()
@@ -200,14 +205,14 @@ fn test_registry_custom_port() {
     }
 
     // Given: Custom port via environment
-    let _ = Command::new("./target/release/forester")
+    let _ = Command::new(forester_bin())
         .env("FORESTER_REGISTRY_PORT", "5001")
-        .args(&["registry", "clean"])
+        .args(["registry", "clean"])
         .output();
 
-    let output = Command::new("./target/release/forester")
+    let output = Command::new(forester_bin())
         .env("FORESTER_REGISTRY_PORT", "5001")
-        .args(&["registry", "start"])
+        .args(["registry", "start"])
         .output()
         .expect("Failed to execute forester");
 
@@ -217,8 +222,8 @@ fn test_registry_custom_port() {
     assert!(stdout.contains("5001"), "Should use custom port 5001");
 
     // Cleanup with custom port
-    let _ = Command::new("./target/release/forester")
+    let _ = Command::new(forester_bin())
         .env("FORESTER_REGISTRY_PORT", "5001")
-        .args(&["registry", "clean"])
+        .args(["registry", "clean"])
         .output();
 }
