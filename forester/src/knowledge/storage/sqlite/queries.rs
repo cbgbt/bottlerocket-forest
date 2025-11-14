@@ -64,6 +64,9 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
 }
 
 /// Save multiple chunks in a transaction
+///
+/// If an error occurs during the batch operation, the transaction is automatically
+/// rolled back when `tx` is dropped (Rust's RAII pattern), ensuring atomicity.
 pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
