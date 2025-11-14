@@ -40,7 +40,8 @@ pub fn search_semantic(
         .context(DatabaseSnafu)?;
 
     stmt.query_map(params![embedding_blob, limit], |row| {
-        let chunk = chunk_from_row!(row)?;
+        let chunk = chunk_from_row(row)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
         let distance: f32 = row.get(13)?;
         let similarity = 1.0 - distance;
         Ok((chunk, similarity))
@@ -136,7 +137,8 @@ pub fn search_bm25(
     params.push(&limit);
 
     stmt.query_map(params.as_slice(), |row| {
-        let chunk = chunk_from_row!(row)?;
+        let chunk = chunk_from_row(row)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
         let score: f32 = row.get(13)?;
         Ok((chunk, score))
     })

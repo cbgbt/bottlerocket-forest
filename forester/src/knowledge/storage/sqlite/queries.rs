@@ -127,9 +127,11 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, Stor
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_row(params![id.to_string()], |row| chunk_from_row!(row))
-        .optional()
-        .context(DatabaseSnafu)
+    stmt.query_row(params![id.to_string()], |row| {
+        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+    })
+    .optional()
+    .context(DatabaseSnafu)
 }
 
 /// Find all chunks from a specific file
@@ -148,10 +150,12 @@ pub fn find_by_file(
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_map(params![path.to_string()], |row| chunk_from_row!(row))
-        .context(DatabaseSnafu)?
-        .collect::<Result<Vec<_>, _>>()
-        .context(DatabaseSnafu)
+    stmt.query_map(params![path.to_string()], |row| {
+        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+    })
+    .context(DatabaseSnafu)?
+    .collect::<Result<Vec<_>, _>>()
+    .context(DatabaseSnafu)
 }
 
 /// Find all chunks in the database
@@ -166,10 +170,12 @@ pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
         )
         .context(DatabaseSnafu)?;
 
-    stmt.query_map([], |row| chunk_from_row!(row))
-        .context(DatabaseSnafu)?
-        .collect::<Result<Vec<_>, _>>()
-        .context(DatabaseSnafu)
+    stmt.query_map([], |row| {
+        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+    })
+    .context(DatabaseSnafu)?
+    .collect::<Result<Vec<_>, _>>()
+    .context(DatabaseSnafu)
 }
 
 /// Delete all chunks from a specific file
