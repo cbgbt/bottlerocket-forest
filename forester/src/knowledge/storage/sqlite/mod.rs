@@ -133,12 +133,16 @@ mod test {
     use test_case::test_case;
 
     fn create_test_chunk() -> Chunk {
+        create_test_chunk_fast("test.md", "test-repo")
+    }
+
+    fn create_test_chunk_fast(file_path: &str, repo_name: &str) -> Chunk {
         Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
             .source(
                 ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .file_path(ForestRelativePath::try_new(file_path).unwrap())
+                    .repo_name(RepoName::try_new(repo_name).unwrap())
                     .line_range(
                         LineRange::builder()
                             .start(LineNumber::try_new(1).unwrap())
@@ -159,6 +163,37 @@ mod test {
             .indexed_at(SystemTime::now())
             .index_data(IndexData::Fast {
                 bm25_terms: std::collections::BTreeMap::new(),
+            })
+            .build()
+    }
+
+    fn create_test_chunk_best(file_path: &str, repo_name: &str) -> Chunk {
+        Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new(file_path).unwrap())
+                    .repo_name(RepoName::try_new(repo_name).unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("test content")
+                    .token_count(TokenCount::try_new(10).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .indexed_at(SystemTime::now())
+            .index_data(IndexData::Best {
+                embedding: Embedding::try_new(vec![0.1; 384]).unwrap(),
             })
             .build()
     }
@@ -845,5 +880,89 @@ mod test {
 
         // Then It should fail with InvalidData error
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_by_file_removes_embeddings() {
+        // Given A repository with Best mode chunks containing embeddings
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk = create_test_chunk_best("test.md", "test-repo");
+        repo.save(&chunk).unwrap();
+
+        let vec_count_before: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_before, 1);
+
+        // When Deleting chunks by file
+        repo.delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
+            .unwrap();
+
+        // Then Embeddings should also be deleted from vec_chunks
+        let vec_count_after: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_after, 0);
+    }
+
+    #[test]
+    fn test_clear_removes_all_embeddings() {
+        // Given A repository with multiple Best mode chunks
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk1 = create_test_chunk_best("file1.md", "repo1");
+        let chunk2 = create_test_chunk_best("file2.md", "repo2");
+        repo.save(&chunk1).unwrap();
+        repo.save(&chunk2).unwrap();
+
+        let vec_count_before: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_before, 2);
+
+        // When Clearing all chunks
+        repo.clear().unwrap();
+
+        // Then All embeddings should be deleted from vec_chunks
+        let vec_count_after: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_after, 0);
+    }
+
+    #[test]
+    fn test_delete_by_file_with_mixed_modes() {
+        // Given A repository with both Fast and Best mode chunks for the same file
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let chunk_fast = create_test_chunk_fast("test.md", "test-repo");
+        let chunk_best = create_test_chunk_best("test.md", "test-repo");
+        repo.save(&chunk_fast).unwrap();
+        repo.save(&chunk_best).unwrap();
+
+        let vec_count_before: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_before, 1);
+
+        // When Deleting chunks by file
+        repo.delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
+            .unwrap();
+
+        // Then Only the Best mode embedding should be deleted
+        let vec_count_after: i64 = repo
+            .conn
+            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(vec_count_after, 0);
     }
 }

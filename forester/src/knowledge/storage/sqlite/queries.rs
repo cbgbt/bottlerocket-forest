@@ -177,6 +177,12 @@ pub fn delete_by_file(
     conn: &mut Connection,
     path: &ForestRelativePath,
 ) -> Result<usize, StorageError> {
+    conn.execute(
+        "DELETE FROM vec_chunks WHERE chunk_id IN (SELECT id FROM chunks WHERE file_path = ?1)",
+        params![path.to_string()],
+    )
+    .context(DatabaseSnafu)?;
+
     let count = conn
         .execute(
             "DELETE FROM chunks WHERE file_path = ?1",
@@ -189,6 +195,9 @@ pub fn delete_by_file(
 
 /// Delete all chunks from the database
 pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
+    conn.execute("DELETE FROM vec_chunks", [])
+        .context(DatabaseSnafu)?;
+
     let count = conn
         .execute("DELETE FROM chunks", [])
         .context(DatabaseSnafu)?;
