@@ -1,6 +1,6 @@
 //! Database schema definitions and migrations
 
-use crate::knowledge::constants::EMBEDDING_DIM;
+use crate::knowledge::storage::EmbeddingModelConfig;
 use rusqlite::Connection;
 use snafu::{ResultExt, Snafu};
 
@@ -43,7 +43,7 @@ const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON c
 const CREATE_INDEX_MODE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_mode ON chunks(index_mode)";
 
 /// Creates all tables and indexes in the database
-pub fn create_tables(conn: &Connection) -> Result<()> {
+pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result<()> {
     use schema_error::*;
 
     conn.execute(CREATE_INDEX_METADATA, [])
@@ -59,8 +59,9 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
     let create_vec_chunks = format!(
         "CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
             chunk_id TEXT PRIMARY KEY,
-            embedding FLOAT[{EMBEDDING_DIM}]
-        )"
+            embedding FLOAT[{}]
+        )",
+        config.embedding_dim
     );
     conn.execute(&create_vec_chunks, [])
         .context(SqlExecutionSnafu)?;
@@ -76,6 +77,7 @@ pub fn migrate(_conn: &Connection) -> Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::storage::EmbeddingModelConfig;
 
     fn setup_connection() -> Connection {
         // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
@@ -95,14 +97,48 @@ mod test {
     }
 
     #[test]
-    fn test_create_tables_succeeds() {
-        // Given A database connection
+    fn test_create_tables_with_default_config() {
+        // Given A database connection and default config
         let conn = setup_connection();
+        let config = EmbeddingModelConfig::default();
 
-        // When Creating tables
-        let result = create_tables(&conn);
+        // When Creating tables with the config
+        let result = create_tables(&conn, &config);
 
         // Then It should succeed
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_tables_with_custom_dimension() {
+        // Given A database connection and custom embedding dimension
+        let conn = setup_connection();
+        let config = EmbeddingModelConfig::builder()
+            .model_name("test-model")
+            .embedding_dim(512)
+            .max_tokens(256)
+            .overlap_tokens(38)
+            .build();
+
+        // When Creating tables with the custom config
+        let result = create_tables(&conn, &config);
+
+        // Then It should succeed
+        assert!(result.is_ok());
+
+        // Then The vec_chunks table should be created with the correct dimension
+        let table_info: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert!(
+            table_info.contains("FLOAT[512]"),
+            "Expected vec_chunks table to use embedding_dim from config, got: {}",
+            table_info
+        );
     }
 }

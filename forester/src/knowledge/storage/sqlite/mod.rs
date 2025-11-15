@@ -24,7 +24,10 @@ pub struct SqliteChunkRepository {
 
 impl SqliteChunkRepository {
     /// Open or create a database at the given path
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
+    pub fn open(
+        path: impl AsRef<Path>,
+        config: &super::repository::EmbeddingModelConfig,
+    ) -> Result<Self, StorageError> {
         // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
         // 1. We are not calling this from within an auto-extension handler (would cause recursion)
         // 2. We will not close any database connection from within the auto-extension
@@ -56,7 +59,7 @@ impl SqliteChunkRepository {
         )
         .context(DatabaseSnafu)?;
 
-        schema::create_tables(&conn).map_err(|e| {
+        schema::create_tables(&conn, config).map_err(|e| {
             InvalidDataSnafu {
                 message: e.to_string(),
             }
@@ -71,7 +74,7 @@ impl SqliteChunkRepository {
         path: impl AsRef<Path>,
         expected_config: &super::repository::EmbeddingModelConfig,
     ) -> Result<Self, StorageError> {
-        let repo = Self::open(path)?;
+        let repo = Self::open(path, expected_config)?;
         let metadata = repo.get_metadata()?;
 
         snafu::ensure!(
@@ -149,9 +152,14 @@ mod test {
         ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
         RustItemType, Signature, TokenCount, Visibility,
     };
+    use crate::knowledge::storage::EmbeddingModelConfig;
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    fn test_config() -> EmbeddingModelConfig {
+        EmbeddingModelConfig::default()
+    }
 
     fn create_test_chunk() -> Chunk {
         create_test_chunk_fast("test.md", "test-repo")
@@ -223,7 +231,7 @@ mod test {
     fn test_save_and_retrieve() {
         // Given A repository and a chunk
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
         let chunk = create_test_chunk();
 
         // When Saving the chunk
@@ -241,7 +249,7 @@ mod test {
     fn test_save_batch() {
         // Given A repository and multiple chunks
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
         let chunks = vec![create_test_chunk(), create_test_chunk()];
 
         // When Saving in batch
@@ -256,7 +264,7 @@ mod test {
     fn test_find_by_file() {
         // Given A repository with chunks from different files
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
         let chunk1 = create_test_chunk();
         let mut chunk2 = create_test_chunk();
         chunk2.source.file_path = ForestRelativePath::try_new("other.md").unwrap();
@@ -278,7 +286,7 @@ mod test {
     fn test_delete_by_file() {
         // Given A repository with chunks
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
         let chunk = create_test_chunk();
         repo.save(&chunk).unwrap();
 
@@ -297,7 +305,7 @@ mod test {
     fn test_clear() {
         // Given A repository with chunks
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
         repo.save(&create_test_chunk()).unwrap();
         repo.save(&create_test_chunk()).unwrap();
 
@@ -314,7 +322,7 @@ mod test {
     fn test_metadata() {
         // Given A repository
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         // When Setting metadata
         let metadata = IndexMetadata::builder()
@@ -373,7 +381,7 @@ mod test {
     fn test_context_roundtrip(context: ChunkContext) {
         // Given A repository and a chunk with specific context
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
@@ -424,7 +432,7 @@ mod test {
     fn test_search_semantic_with_embeddings() {
         // Given A repository with chunks that have embeddings
         let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk_id = uuid::Uuid::new_v4();
         let embedding = Embedding::try_new(
@@ -482,7 +490,7 @@ mod test {
     fn test_save_with_embedding_stores_in_both_tables() {
         // Given A repository and a chunk with an embedding
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let embedding = Embedding::try_new(
             (0..EMBEDDING_DIM)
@@ -546,7 +554,7 @@ mod test {
     fn test_save_without_embedding_skips_vec_chunks() {
         // Given A repository and a chunk without an embedding
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk = create_test_chunk();
 
@@ -576,7 +584,7 @@ mod test {
     fn test_save_batch_with_embeddings() {
         // Given A repository and chunks with embeddings
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let embedding1 = Embedding::try_new(
             (0..EMBEDDING_DIM)
@@ -664,7 +672,7 @@ mod test {
     fn test_search_bm25() {
         // Given A repository with chunks that have BM25 term frequencies
         let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk1_id = uuid::Uuid::new_v4();
         let chunk2_id = uuid::Uuid::new_v4();
@@ -731,7 +739,7 @@ mod test {
     fn test_fast_mode_roundtrip() {
         // Given A repository and a Fast mode chunk with BM25 terms
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let mut bm25_terms = std::collections::BTreeMap::new();
         bm25_terms.insert("rust".to_string(), 5);
@@ -786,7 +794,7 @@ mod test {
     fn test_best_mode_roundtrip() {
         // Given A repository and a Best mode chunk with embedding
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let embedding = Embedding::try_new(
             (0..EMBEDDING_DIM)
@@ -840,7 +848,7 @@ mod test {
     fn test_fast_mode_empty_terms() {
         // Given A Fast mode chunk with empty BM25 terms
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
@@ -898,7 +906,7 @@ mod test {
     fn test_invalid_fast_mode_missing_terms() {
         // Given A database with Fast mode chunk but NULL bm25_terms
         let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk_id = uuid::Uuid::new_v4();
         let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
@@ -936,7 +944,7 @@ mod test {
     fn test_delete_by_file_removes_embeddings() {
         // Given A repository with Best mode chunks containing embeddings
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk = create_test_chunk_best("test.md", "test-repo");
         repo.save(&chunk).unwrap();
@@ -963,7 +971,7 @@ mod test {
     fn test_clear_removes_all_embeddings() {
         // Given A repository with multiple Best mode chunks
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk1 = create_test_chunk_best("file1.md", "repo1");
         let chunk2 = create_test_chunk_best("file2.md", "repo2");
@@ -991,7 +999,7 @@ mod test {
     fn test_delete_by_file_with_mixed_modes() {
         // Given A repository with both Fast and Best mode chunks for the same file
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk_fast = create_test_chunk_fast("test.md", "test-repo");
         let chunk_best = create_test_chunk_best("test.md", "test-repo");
@@ -1022,7 +1030,7 @@ mod test {
 
         // Given A repository with custom model config
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let custom_config = EmbeddingModelConfig::builder()
             .model_name("custom-model")
@@ -1062,7 +1070,7 @@ mod test {
 
         // Given A repository with default model config
         let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let metadata = IndexMetadata::builder()
             .mode(IndexMode::Fast)
@@ -1102,7 +1110,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1115,7 +1123,7 @@ mod test {
         }
 
         // When Reopening the database
-        let repo = SqliteChunkRepository::open(&temp_path).unwrap();
+        let repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
         let retrieved = repo.get_metadata().unwrap();
 
         // Then Model config is still present
@@ -1138,7 +1146,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1172,7 +1180,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1215,7 +1223,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1260,7 +1268,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1305,7 +1313,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1350,7 +1358,7 @@ mod test {
             .build();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1386,7 +1394,7 @@ mod test {
         let temp_path = temp_file.path().to_path_buf();
 
         {
-            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
                 .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
@@ -1398,7 +1406,7 @@ mod test {
         }
 
         // When Opening without config validation
-        let result = SqliteChunkRepository::open(&temp_path);
+        let result = SqliteChunkRepository::open(&temp_path, &test_config());
 
         // Then It should succeed regardless of stored config
         assert!(result.is_ok());
