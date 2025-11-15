@@ -116,4 +116,12 @@ pub enum StorageError {
 
     #[snafu(display("Operation not supported: {operation}"))]
     UnsupportedOperation { operation: String },
+
+    #[snafu(display(
+        "Index configuration mismatch. Expected: {expected:?}, Found: {actual:?}. Run `forester index rebuild` to recreate the index with the current configuration."
+    ))]
+    ConfigMismatch {
+        expected: EmbeddingModelConfig,
+        actual: EmbeddingModelConfig,
+    },
 }
