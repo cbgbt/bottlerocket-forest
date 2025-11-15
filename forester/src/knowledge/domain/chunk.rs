@@ -7,8 +7,8 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName,
-    Signature, TokenCount,
+    ChunkId, ForestRelativePath, HeadingText, ItemName, LineCount, LineNumber, RepoName, Signature,
+    TokenCount,
 };
 
 /// A searchable chunk of documentation with metadata

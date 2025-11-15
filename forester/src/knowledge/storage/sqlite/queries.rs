@@ -69,7 +69,10 @@ pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), S
 ///
 /// If an error occurs during the batch operation, the transaction is automatically
 /// rolled back when `tx` is dropped (Rust's RAII pattern), ensuring atomicity.
-pub fn save_batch(conn: &mut Connection, indexed_chunks: &[IndexedChunk]) -> Result<(), StorageError> {
+pub fn save_batch(
+    conn: &mut Connection,
+    indexed_chunks: &[IndexedChunk],
+) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
     for indexed_chunk in indexed_chunks {
@@ -142,7 +145,8 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk
         .context(DatabaseSnafu)?;
 
     stmt.query_row(rusqlite::named_params! { ":id": id.to_string() }, |row| {
-        indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+        indexed_chunk_from_row(row)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
     })
     .optional()
     .context(DatabaseSnafu)
@@ -166,7 +170,10 @@ pub fn find_by_file(
 
     stmt.query_map(
         rusqlite::named_params! { ":file_path": path.to_string() },
-        |row| indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
+        |row| {
+            indexed_chunk_from_row(row)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+        },
     )
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
@@ -186,7 +193,8 @@ pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
         .context(DatabaseSnafu)?;
 
     stmt.query_map([], |row| {
-        indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+        indexed_chunk_from_row(row)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
     })
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
