@@ -150,7 +150,7 @@ mod test {
     use crate::knowledge::domain::{
         ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, IndexData, IndexMode,
         ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
-        RustItemType, Signature, TokenCount, Visibility,
+        Signature, TokenCount, Visibility,
     };
     use crate::knowledge::storage::EmbeddingModelConfig;
     use std::time::SystemTime;
@@ -358,8 +358,6 @@ mod test {
     #[test_case(
         ChunkContext::RustDoc(
             RustDocContext::builder()
-                .module_path(vec![])
-                .item_type(RustItemType::Function)
                 .item_name(ItemName::try_new("build_variant").unwrap())
                 .visibility(Visibility::Public)
                 .signature(Signature::try_new("pub fn build_variant()").unwrap())
@@ -370,8 +368,6 @@ mod test {
     #[test_case(
         ChunkContext::RustDoc(
             RustDocContext::builder()
-                .module_path(vec![])
-                .item_type(RustItemType::Struct)
                 .item_name(ItemName::try_new("Config").unwrap())
                 .visibility(Visibility::Private)
                 .build()

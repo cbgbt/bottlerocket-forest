@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 pub use chunk::{
     Chunk, ChunkContent, ChunkContext, ChunkSource, IndexData, LineRange, MarkdownContext,
-    RustDocContext, RustItemType, Visibility,
+    RustDocContext, Visibility,
 };
 pub use file_type::FileType;
 pub use index_mode::{IndexMode, InvalidIndexMode};

@@ -588,6 +588,7 @@ dependencies = [
  "mockall",
  "nutype",
  "pulldown-cmark",
+ "quote",
  "reqwest",
  "rusqlite",
  "serde",

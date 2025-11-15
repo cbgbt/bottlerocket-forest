@@ -10,6 +10,7 @@ dotenvy = "0.15"
 envy = "0.4"
 nutype = { version = "0.5", features = ["serde"] }
 pulldown-cmark = "0.13"
+quote = "1"
 reqwest = { version = "0.12", features = ["blocking"] }
 rusqlite = { version = "0.32", features = ["bundled", "functions"] }
 serde = { version = "1", features = ["derive"] }

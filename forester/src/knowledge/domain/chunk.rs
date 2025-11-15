@@ -48,6 +48,14 @@ impl IndexData {
     }
 }
 
+impl Default for IndexData {
+    fn default() -> Self {
+        IndexData::Fast {
+            bm25_terms: BTreeMap::new(),
+        }
+    }
+}
+
 /// Source location of the chunk
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
@@ -105,40 +113,34 @@ pub struct MarkdownContext {
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct RustDocContext {
-    pub module_path: Vec<ItemName>,
-    pub item_type: RustItemType,
     pub item_name: ItemName,
     pub visibility: Visibility,
     pub signature: Option<Signature>,
-    pub parent_item: Option<Box<ParentItem>>,
 }
 
 /// Parent item for Rust doc comments in impl blocks
-#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
-#[builder(on(_, into))]
-#[non_exhaustive]
-pub struct ParentItem {
-    pub item_type: RustItemType,
-    pub item_name: ItemName,
-}
-
-/// Type of Rust item being documented
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RustItemType {
-    Function,
-    Struct,
-    Enum,
-    Module,
-    Trait,
-    Impl,
-}
-
 /// Visibility of a Rust item
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Visibility {
     Public,
     Crate,
     Private,
+}
+
+impl From<syn::Visibility> for Visibility {
+    fn from(vis: syn::Visibility) -> Self {
+        match vis {
+            syn::Visibility::Public(_) => Visibility::Public,
+            syn::Visibility::Restricted(r) => {
+                if r.path.is_ident("crate") {
+                    Visibility::Crate
+                } else {
+                    Visibility::Private
+                }
+            }
+            syn::Visibility::Inherited => Visibility::Private,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -292,8 +294,6 @@ mod test {
             )
             .context(ChunkContext::RustDoc(
                 RustDocContext::builder()
-                    .module_path(vec![])
-                    .item_type(RustItemType::Function)
                     .item_name(ItemName::try_new("test_fn").unwrap())
                     .visibility(Visibility::Public)
                     .build(),
