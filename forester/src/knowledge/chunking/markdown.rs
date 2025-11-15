@@ -11,10 +11,10 @@ use text_splitter::{ChunkConfig, MarkdownSplitter};
 use tokenizers::Tokenizer;
 
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
+use crate::knowledge::domain::EmbeddingModelConfig;
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, HeadingText, MarkdownContext, TokenCount,
 };
-use crate::knowledge::domain::EmbeddingModelConfig;
 
 /// Chunks markdown files while preserving heading hierarchy.
 ///
@@ -162,11 +162,11 @@ impl ChunkingStrategy for MarkdownChunker {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::domain::{
         ChunkSource, ChunkableContent, ForestRelativePath, LineCount, LineNumber, LineRange,
         RepoName,
     };
-    use crate::knowledge::domain::EmbeddingModelConfig;
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {

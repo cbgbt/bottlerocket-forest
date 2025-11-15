@@ -17,11 +17,11 @@ use text_splitter::{ChunkConfig, TextSplitter};
 use tokenizers::Tokenizer;
 
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
+use crate::knowledge::domain::EmbeddingModelConfig;
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ItemName, RustDocContext, Signature, TokenCount,
     Visibility,
 };
-use crate::knowledge::domain::EmbeddingModelConfig;
 
 /// Extracts and chunks Rust documentation comments.
 ///
@@ -330,11 +330,11 @@ impl ChunkingStrategy for RustDocChunker {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::domain::{
         ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, LineCount,
         LineNumber, LineRange, RepoName, Visibility,
     };
-    use crate::knowledge::domain::EmbeddingModelConfig;
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {

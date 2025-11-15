@@ -3,7 +3,7 @@
 use snafu::Snafu;
 
 use crate::knowledge::domain::{
-    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexData, IndexMetadata, IndexedChunk,
+    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
 };
 
 /// Repository for chunk persistence

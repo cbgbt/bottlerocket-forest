@@ -30,7 +30,7 @@ pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
 pub use domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, Embedding,
     EmbeddingModelConfig, FileType, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
-    IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery,
-    SearchResult, SearchResults, Timestamp,
+    IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult,
+    SearchResults, Timestamp,
 };
 pub use storage::{ChunkRepository, StorageError};
