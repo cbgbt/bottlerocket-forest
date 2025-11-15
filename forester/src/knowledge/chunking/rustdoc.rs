@@ -21,7 +21,7 @@ use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ItemName, RustDocContext, Signature, TokenCount,
     Visibility,
 };
-use crate::knowledge::storage::EmbeddingModelConfig;
+use crate::knowledge::domain::EmbeddingModelConfig;
 
 /// Extracts and chunks Rust documentation comments.
 ///
@@ -334,7 +334,7 @@ mod test {
         ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, LineCount,
         LineNumber, LineRange, RepoName, Visibility,
     };
-    use crate::knowledge::storage::EmbeddingModelConfig;
+    use crate::knowledge::domain::EmbeddingModelConfig;
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {

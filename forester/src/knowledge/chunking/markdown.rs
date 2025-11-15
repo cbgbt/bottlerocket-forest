@@ -14,7 +14,7 @@ use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, HeadingText, MarkdownContext, TokenCount,
 };
-use crate::knowledge::storage::EmbeddingModelConfig;
+use crate::knowledge::domain::EmbeddingModelConfig;
 
 /// Chunks markdown files while preserving heading hierarchy.
 ///
@@ -166,7 +166,7 @@ mod test {
         ChunkSource, ChunkableContent, ForestRelativePath, LineCount, LineNumber, LineRange,
         RepoName,
     };
-    use crate::knowledge::storage::EmbeddingModelConfig;
+    use crate::knowledge::domain::EmbeddingModelConfig;
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {

@@ -4,7 +4,8 @@ use rusqlite::Connection;
 use snafu::ResultExt;
 
 use super::serialization::{indexed_chunk_from_row, serialize_embedding};
-use crate::knowledge::storage::repository::{IndexedChunk, StorageError, storage_error::*};
+use crate::knowledge::domain::IndexedChunk;
+use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// BM25 term saturation parameter (k1).
 /// Controls how quickly term frequency saturates. Higher values (e.g., 2.0) give more weight

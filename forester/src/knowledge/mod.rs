@@ -28,7 +28,9 @@ pub mod storage;
 
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
 pub use domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, FileType, IndexMode,
-    LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult, SearchResults,
+    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, Embedding,
+    EmbeddingModelConfig, FileType, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
+    IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery,
+    SearchResult, SearchResults, Timestamp,
 };
-pub use storage::{ChunkRepository, IndexMetadata, StorageError};
+pub use storage::{ChunkRepository, StorageError};

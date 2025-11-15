@@ -6,10 +6,11 @@ use snafu::ResultExt;
 use super::serialization::{
     indexed_chunk_from_row, serialize_bm25_terms, serialize_context, serialize_embedding,
 };
-use crate::knowledge::domain::{ChunkId, ForestRelativePath, IndexMode};
-use crate::knowledge::storage::repository::{
-    IndexData, IndexMetadata, IndexedChunk, StorageError, storage_error::*,
+use crate::knowledge::domain::{
+    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
+    IndexedChunk,
 };
+use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Save a single indexed chunk to the database
 pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), StorageError> {
@@ -317,7 +318,7 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
         .and_then(|s: String| s.parse().ok())
         .unwrap_or(crate::knowledge::constants::DEFAULT_CHUNK_OVERLAP_TOKENS);
 
-    let model_config = crate::knowledge::storage::EmbeddingModelConfig::builder()
+    let model_config = EmbeddingModelConfig::builder()
         .model_name(model_name)
         .embedding_dim(embedding_dim)
         .max_tokens(max_tokens)

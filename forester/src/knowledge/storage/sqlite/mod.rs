@@ -12,11 +12,11 @@ use rusqlite::Connection;
 use snafu::ResultExt;
 use std::path::Path;
 
-use super::repository::{
-    ChunkRepository, IndexMetadata, IndexedChunk, StorageError, storage_error::*,
-};
+use super::repository::{ChunkRepository, StorageError, storage_error::*};
 use super::schema;
-use crate::knowledge::domain::{ChunkId, ForestRelativePath};
+use crate::knowledge::domain::{
+    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
+};
 
 /// SQLite-backed chunk repository
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl SqliteChunkRepository {
     /// Open or create a database at the given path
     pub fn open(
         path: impl AsRef<Path>,
-        config: &super::repository::EmbeddingModelConfig,
+        config: &EmbeddingModelConfig,
     ) -> Result<Self, StorageError> {
         // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
         // 1. We are not calling this from within an auto-extension handler (would cause recursion)
@@ -74,7 +74,7 @@ impl SqliteChunkRepository {
     /// Open an existing database and validate the model configuration matches
     pub fn open_with_config(
         path: impl AsRef<Path>,
-        expected_config: &super::repository::EmbeddingModelConfig,
+        expected_config: &EmbeddingModelConfig,
     ) -> Result<Self, StorageError> {
         let repo = Self::open(path, expected_config)?;
         let metadata = repo.get_metadata()?;
@@ -154,7 +154,7 @@ mod test {
         ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
         Signature, TokenCount, Visibility,
     };
-    use crate::knowledge::storage::{EmbeddingModelConfig, IndexData, Timestamp};
+    use crate::knowledge::domain::{EmbeddingModelConfig, IndexData, Timestamp};
     use std::collections::BTreeMap;
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
@@ -343,7 +343,7 @@ mod test {
             .last_build(SystemTime::now())
             .chunk_count(10)
             .file_count(5)
-            .model_config(crate::knowledge::storage::EmbeddingModelConfig::default())
+            .model_config(crate::knowledge::domain::EmbeddingModelConfig::default())
             .build();
 
         repo.set_metadata(&metadata).unwrap();
@@ -987,7 +987,7 @@ mod test {
 
     #[test]
     fn test_metadata_model_config_roundtrip() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given A repository with custom model config
         let temp_file = NamedTempFile::new().unwrap();
@@ -1027,7 +1027,7 @@ mod test {
 
     #[test]
     fn test_metadata_default_model_config() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given A repository with default model config
         let temp_file = NamedTempFile::new().unwrap();
@@ -1057,7 +1057,7 @@ mod test {
 
     #[test]
     fn test_metadata_persists_across_reopens() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given A repository with metadata
         let temp_file = NamedTempFile::new().unwrap();
@@ -1093,7 +1093,7 @@ mod test {
 
     #[test]
     fn test_open_with_matching_config_succeeds() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with specific model config
         let temp_file = NamedTempFile::new().unwrap();
@@ -1127,7 +1127,7 @@ mod test {
 
     #[test]
     fn test_open_with_mismatched_model_name_fails() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with one model
         let temp_file = NamedTempFile::new().unwrap();
@@ -1170,7 +1170,7 @@ mod test {
 
     #[test]
     fn test_open_with_mismatched_embedding_dim_fails() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with one embedding dimension
         let temp_file = NamedTempFile::new().unwrap();
@@ -1215,7 +1215,7 @@ mod test {
 
     #[test]
     fn test_open_with_mismatched_max_tokens_fails() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with one max_tokens value
         let temp_file = NamedTempFile::new().unwrap();
@@ -1260,7 +1260,7 @@ mod test {
 
     #[test]
     fn test_open_with_mismatched_overlap_tokens_fails() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with one overlap_tokens value
         let temp_file = NamedTempFile::new().unwrap();
@@ -1305,7 +1305,7 @@ mod test {
 
     #[test]
     fn test_config_mismatch_error_message_includes_details() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with specific config
         let temp_file = NamedTempFile::new().unwrap();
@@ -1348,7 +1348,7 @@ mod test {
 
     #[test]
     fn test_open_without_config_validation_still_works() {
-        use crate::knowledge::storage::EmbeddingModelConfig;
+        use crate::knowledge::domain::EmbeddingModelConfig;
 
         // Given An existing index with any config
         let temp_file = NamedTempFile::new().unwrap();

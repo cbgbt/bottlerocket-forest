@@ -4,11 +4,10 @@ use snafu::ResultExt;
 
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-    LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, TokenCount,
+    IndexData, IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, RepoName,
+    RustDocContext, Timestamp, TokenCount,
 };
-use crate::knowledge::storage::repository::{
-    IndexData, IndexedChunk, StorageError, Timestamp, storage_error::*,
-};
+use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Parse a Chunk from a rusqlite::Row
 ///

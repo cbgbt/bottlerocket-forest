@@ -1,8 +1,9 @@
 //! Database schema definitions and migrations
 
-use crate::knowledge::storage::EmbeddingModelConfig;
 use rusqlite::Connection;
 use snafu::{ResultExt, Snafu};
+
+use crate::knowledge::domain::EmbeddingModelConfig;
 
 #[derive(Debug, Snafu)]
 #[snafu(module)]
@@ -77,7 +78,7 @@ pub fn migrate(_conn: &Connection) -> Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::storage::EmbeddingModelConfig;
+    use crate::knowledge::domain::EmbeddingModelConfig;
 
     fn setup_connection() -> Connection {
         // SAFETY: This call satisfies the safety requirements for sqlite3_auto_extension:
