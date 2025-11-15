@@ -12,9 +12,9 @@ use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
 /// These parameters are fundamental to the index structure. If any of these
 /// values change, the entire index must be rebuilt.
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
-#[builder(on(_, into))]
 #[non_exhaustive]
 pub struct EmbeddingModelConfig {
+    #[builder(into)]
     pub model_name: String,
     pub embedding_dim: usize,
     pub max_tokens: usize,

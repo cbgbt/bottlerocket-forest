@@ -263,12 +263,62 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
         })
         .context(DatabaseSnafu)?;
 
+    let model_name: String = conn
+        .query_row(
+            "SELECT value FROM index_metadata WHERE key = 'model_name'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .context(DatabaseSnafu)?
+        .unwrap_or_else(|| crate::knowledge::constants::DEFAULT_TOKENIZER_MODEL.to_string());
+
+    let embedding_dim: usize = conn
+        .query_row(
+            "SELECT value FROM index_metadata WHERE key = 'embedding_dim'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .context(DatabaseSnafu)?
+        .and_then(|s: String| s.parse().ok())
+        .unwrap_or(crate::knowledge::constants::EMBEDDING_DIM);
+
+    let max_tokens: usize = conn
+        .query_row(
+            "SELECT value FROM index_metadata WHERE key = 'max_tokens'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .context(DatabaseSnafu)?
+        .and_then(|s: String| s.parse().ok())
+        .unwrap_or(crate::knowledge::constants::DEFAULT_MAX_CHUNK_TOKENS);
+
+    let overlap_tokens: usize = conn
+        .query_row(
+            "SELECT value FROM index_metadata WHERE key = 'overlap_tokens'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .context(DatabaseSnafu)?
+        .and_then(|s: String| s.parse().ok())
+        .unwrap_or(crate::knowledge::constants::DEFAULT_CHUNK_OVERLAP_TOKENS);
+
+    let model_config = crate::knowledge::storage::EmbeddingModelConfig::builder()
+        .model_name(model_name)
+        .embedding_dim(embedding_dim)
+        .max_tokens(max_tokens)
+        .overlap_tokens(overlap_tokens)
+        .build();
+
     Ok(IndexMetadata::builder()
         .mode(mode)
         .last_build(unix_to_system_time(last_build_unix))
         .chunk_count(chunk_count)
         .file_count(file_count)
-        .model_config(crate::knowledge::storage::EmbeddingModelConfig::default())
+        .model_config(model_config)
         .build())
 }
 
@@ -283,6 +333,30 @@ pub fn set_metadata(conn: &mut Connection, metadata: &IndexMetadata) -> Result<(
     conn.execute(
         "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('last_build', :last_build)",
         rusqlite::named_params! { ":last_build": system_time_to_unix(metadata.last_build).to_string() },
+    )
+    .context(DatabaseSnafu)?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('model_name', :model_name)",
+        rusqlite::named_params! { ":model_name": metadata.model_config.model_name },
+    )
+    .context(DatabaseSnafu)?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('embedding_dim', :embedding_dim)",
+        rusqlite::named_params! { ":embedding_dim": metadata.model_config.embedding_dim.to_string() },
+    )
+    .context(DatabaseSnafu)?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('max_tokens', :max_tokens)",
+        rusqlite::named_params! { ":max_tokens": metadata.model_config.max_tokens.to_string() },
+    )
+    .context(DatabaseSnafu)?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('overlap_tokens', :overlap_tokens)",
+        rusqlite::named_params! { ":overlap_tokens": metadata.model_config.overlap_tokens.to_string() },
     )
     .context(DatabaseSnafu)?;
 

@@ -995,4 +995,110 @@ mod test {
             .unwrap();
         assert_eq!(vec_count_after, 0);
     }
+
+    #[test]
+    fn test_metadata_model_config_roundtrip() {
+        use crate::knowledge::storage::EmbeddingModelConfig;
+
+        // Given A repository with custom model config
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let custom_config = EmbeddingModelConfig::builder()
+            .model_name("custom-model")
+            .embedding_dim(512)
+            .max_tokens(128)
+            .overlap_tokens(20)
+            .build();
+
+        let metadata = IndexMetadata::builder()
+            .mode(IndexMode::Best)
+            .last_build(SystemTime::now())
+            .chunk_count(42)
+            .file_count(7)
+            .model_config(custom_config.clone())
+            .build();
+
+        // When Setting and retrieving metadata
+        repo.set_metadata(&metadata).unwrap();
+        let retrieved = repo.get_metadata().unwrap();
+
+        // Then All model config fields are preserved
+        assert_eq!(retrieved.model_config.model_name, custom_config.model_name);
+        assert_eq!(
+            retrieved.model_config.embedding_dim,
+            custom_config.embedding_dim
+        );
+        assert_eq!(retrieved.model_config.max_tokens, custom_config.max_tokens);
+        assert_eq!(
+            retrieved.model_config.overlap_tokens,
+            custom_config.overlap_tokens
+        );
+    }
+
+    #[test]
+    fn test_metadata_default_model_config() {
+        use crate::knowledge::storage::EmbeddingModelConfig;
+
+        // Given A repository with default model config
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path()).unwrap();
+
+        let metadata = IndexMetadata::builder()
+            .mode(IndexMode::Fast)
+            .last_build(SystemTime::now())
+            .chunk_count(0)
+            .file_count(0)
+            .model_config(EmbeddingModelConfig::default())
+            .build();
+
+        // When Setting and retrieving metadata
+        repo.set_metadata(&metadata).unwrap();
+        let retrieved = repo.get_metadata().unwrap();
+
+        // Then Default config values are preserved
+        assert_eq!(
+            retrieved.model_config.model_name,
+            "sentence-transformers/all-MiniLM-L6-v2"
+        );
+        assert_eq!(retrieved.model_config.embedding_dim, 384);
+        assert_eq!(retrieved.model_config.max_tokens, 256);
+        assert_eq!(retrieved.model_config.overlap_tokens, 38);
+    }
+
+    #[test]
+    fn test_metadata_persists_across_reopens() {
+        use crate::knowledge::storage::EmbeddingModelConfig;
+
+        // Given A repository with metadata
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path().to_path_buf();
+
+        let custom_config = EmbeddingModelConfig::builder()
+            .model_name("test-model")
+            .embedding_dim(256)
+            .max_tokens(512)
+            .overlap_tokens(64)
+            .build();
+
+        {
+            let mut repo = SqliteChunkRepository::open(&temp_path).unwrap();
+            let metadata = IndexMetadata::builder()
+                .mode(IndexMode::Best)
+                .last_build(SystemTime::now())
+                .chunk_count(100)
+                .file_count(10)
+                .model_config(custom_config.clone())
+                .build();
+
+            repo.set_metadata(&metadata).unwrap();
+        }
+
+        // When Reopening the database
+        let repo = SqliteChunkRepository::open(&temp_path).unwrap();
+        let retrieved = repo.get_metadata().unwrap();
+
+        // Then Model config is still present
+        assert_eq!(retrieved.model_config, custom_config);
+    }
 }
