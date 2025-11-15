@@ -3,9 +3,10 @@
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
+use std::collections::BTreeMap;
 
 use crate::knowledge::constants;
-use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexMode};
+use crate::knowledge::domain::{Chunk, ChunkId, Embedding, ForestRelativePath, IndexMode};
 
 /// Configuration for embedding model and chunking parameters
 ///
@@ -29,6 +30,68 @@ impl Default for EmbeddingModelConfig {
             max_tokens: constants::DEFAULT_MAX_CHUNK_TOKENS,
             overlap_tokens: constants::DEFAULT_CHUNK_OVERLAP_TOKENS,
         }
+    }
+}
+
+/// A chunk with index-specific metadata
+///
+/// Wraps a domain `Chunk` with indexing data (embeddings or BM25 terms) and
+/// a timestamp indicating when it was indexed.
+#[derive(Debug, Clone, Builder)]
+#[non_exhaustive]
+pub struct IndexedChunk {
+    pub chunk: Chunk,
+    pub index_data: IndexData,
+    pub indexed_at: Timestamp,
+}
+
+/// Index-specific data for a chunk
+///
+/// Represents either BM25 term frequencies (Fast mode) or semantic embeddings
+/// (Best mode). This type ensures chunks are indexed with the correct data
+/// for their mode.
+#[derive(Debug, Clone)]
+pub enum IndexData {
+    Fast { bm25_terms: BTreeMap<String, u32> },
+    Best { embedding: Embedding },
+}
+
+impl IndexData {
+    /// Returns the index mode for this data
+    pub fn mode(&self) -> IndexMode {
+        match self {
+            IndexData::Fast { .. } => IndexMode::Fast,
+            IndexData::Best { .. } => IndexMode::Best,
+        }
+    }
+}
+
+/// Unix timestamp in seconds
+///
+/// Represents when a chunk was indexed, used for staleness detection
+/// and incremental updates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Timestamp(i64);
+
+impl Timestamp {
+    /// Create a timestamp from Unix seconds
+    pub fn from_secs(secs: i64) -> Self {
+        Self(secs)
+    }
+
+    /// Get the Unix seconds value
+    pub fn as_secs(&self) -> i64 {
+        self.0
+    }
+
+    /// Create a timestamp for the current time
+    pub fn now() -> Self {
+        Self(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time before Unix epoch")
+                .as_secs() as i64,
+        )
     }
 }
 
@@ -124,4 +187,30 @@ pub enum StorageError {
         expected: EmbeddingModelConfig,
         actual: EmbeddingModelConfig,
     },
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_index_data_mode_returns_correct_mode() {
+        // Given Fast mode index data
+        let fast_data = IndexData::Fast {
+            bm25_terms: BTreeMap::new(),
+        };
+
+        // When Getting the mode
+        // Then It should return Fast
+        assert_eq!(fast_data.mode(), IndexMode::Fast);
+
+        // Given Best mode index data
+        let best_data = IndexData::Best {
+            embedding: Embedding::try_new(vec![0.1, 0.2, 0.3]).unwrap(),
+        };
+
+        // When Getting the mode
+        // Then It should return Best
+        assert_eq!(best_data.mode(), IndexMode::Best);
+    }
 }
