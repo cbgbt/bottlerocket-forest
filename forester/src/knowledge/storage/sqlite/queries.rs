@@ -4,18 +4,20 @@ use rusqlite::{Connection, OptionalExtension};
 use snafu::ResultExt;
 
 use super::serialization::{
-    chunk_from_row, serialize_bm25_terms, serialize_context, serialize_embedding,
-    system_time_to_unix, unix_to_system_time,
+    indexed_chunk_from_row, serialize_bm25_terms, serialize_context, serialize_embedding,
 };
-use crate::knowledge::domain::{Chunk, ChunkId, ForestRelativePath, IndexData, IndexMode};
-use crate::knowledge::storage::repository::{IndexMetadata, StorageError, storage_error::*};
+use crate::knowledge::domain::{ChunkId, ForestRelativePath, IndexMode};
+use crate::knowledge::storage::repository::{
+    IndexData, IndexMetadata, IndexedChunk, StorageError, storage_error::*,
+};
 
-/// Save a single chunk to the database
-pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
+/// Save a single indexed chunk to the database
+pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), StorageError> {
+    let chunk = &indexed_chunk.chunk;
     let (context_type, context_data) = serialize_context(&chunk.context)?;
-    let mode = chunk.index_data.mode();
+    let mode = indexed_chunk.index_data.mode();
 
-    let (bm25_terms, embedding_blob) = match &chunk.index_data {
+    let (bm25_terms, embedding_blob) = match &indexed_chunk.index_data {
         IndexData::Fast { bm25_terms } => {
             let terms_json = serialize_bm25_terms(bm25_terms)?;
             (Some(terms_json), None)
@@ -42,7 +44,7 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
             ":context_data": context_data,
             ":content": chunk.content.text,
             ":token_count": chunk.content.token_count.into_inner() as i64,
-            ":last_modified": system_time_to_unix(chunk.indexed_at),
+            ":last_modified": indexed_chunk.indexed_at.as_secs(),
             ":bm25_terms": bm25_terms,
             ":index_mode": mode.to_string(),
         },
@@ -63,18 +65,19 @@ pub fn save(conn: &mut Connection, chunk: &Chunk) -> Result<(), StorageError> {
     Ok(())
 }
 
-/// Save multiple chunks in a transaction
+/// Save multiple indexed chunks in a transaction
 ///
 /// If an error occurs during the batch operation, the transaction is automatically
 /// rolled back when `tx` is dropped (Rust's RAII pattern), ensuring atomicity.
-pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), StorageError> {
+pub fn save_batch(conn: &mut Connection, indexed_chunks: &[IndexedChunk]) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
-    for chunk in chunks {
+    for indexed_chunk in indexed_chunks {
+        let chunk = &indexed_chunk.chunk;
         let (context_type, context_data) = serialize_context(&chunk.context)?;
-        let mode = chunk.index_data.mode();
+        let mode = indexed_chunk.index_data.mode();
 
-        let (bm25_terms, embedding_blob) = match &chunk.index_data {
+        let (bm25_terms, embedding_blob) = match &indexed_chunk.index_data {
             IndexData::Fast { bm25_terms } => {
                 let terms_json = serialize_bm25_terms(bm25_terms)?;
                 (Some(terms_json), None)
@@ -101,7 +104,7 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
                 ":context_data": context_data,
                 ":content": chunk.content.text,
                 ":token_count": chunk.content.token_count.into_inner() as i64,
-                ":last_modified": system_time_to_unix(chunk.indexed_at),
+                ":last_modified": indexed_chunk.indexed_at.as_secs(),
                 ":bm25_terms": bm25_terms,
                 ":index_mode": mode.to_string(),
             },
@@ -125,8 +128,8 @@ pub fn save_batch(conn: &mut Connection, chunks: &[Chunk]) -> Result<(), Storage
     Ok(())
 }
 
-/// Find a chunk by its ID
-pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, StorageError> {
+/// Find an indexed chunk by its ID
+pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
@@ -139,17 +142,17 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<Chunk>, Stor
         .context(DatabaseSnafu)?;
 
     stmt.query_row(rusqlite::named_params! { ":id": id.to_string() }, |row| {
-        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+        indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
     })
     .optional()
     .context(DatabaseSnafu)
 }
 
-/// Find all chunks from a specific file
+/// Find all indexed chunks from a specific file
 pub fn find_by_file(
     conn: &Connection,
     path: &ForestRelativePath,
-) -> Result<Vec<Chunk>, StorageError> {
+) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
@@ -163,15 +166,15 @@ pub fn find_by_file(
 
     stmt.query_map(
         rusqlite::named_params! { ":file_path": path.to_string() },
-        |row| chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
+        |row| indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e))),
     )
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
     .context(DatabaseSnafu)
 }
 
-/// Find all chunks in the database
-pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
+/// Find all indexed chunks in the database
+pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
@@ -183,7 +186,7 @@ pub fn find_all(conn: &Connection) -> Result<Vec<Chunk>, StorageError> {
         .context(DatabaseSnafu)?;
 
     stmt.query_map([], |row| {
-        chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+        indexed_chunk_from_row(row).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
     })
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
@@ -313,9 +316,11 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
         .overlap_tokens(overlap_tokens)
         .build();
 
+    let last_build = std::time::UNIX_EPOCH + std::time::Duration::from_secs(last_build_unix as u64);
+
     Ok(IndexMetadata::builder()
         .mode(mode)
-        .last_build(unix_to_system_time(last_build_unix))
+        .last_build(last_build)
         .chunk_count(chunk_count)
         .file_count(file_count)
         .model_config(model_config)
@@ -330,9 +335,15 @@ pub fn set_metadata(conn: &mut Connection, metadata: &IndexMetadata) -> Result<(
     )
     .context(DatabaseSnafu)?;
 
+    let last_build_unix = metadata
+        .last_build
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
     conn.execute(
         "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('last_build', :last_build)",
-        rusqlite::named_params! { ":last_build": system_time_to_unix(metadata.last_build).to_string() },
+        rusqlite::named_params! { ":last_build": last_build_unix.to_string() },
     )
     .context(DatabaseSnafu)?;
 

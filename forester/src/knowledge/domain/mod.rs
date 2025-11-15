@@ -11,8 +11,8 @@ use nutype::nutype;
 use uuid::Uuid;
 
 pub use chunk::{
-    Chunk, ChunkContent, ChunkContext, ChunkSource, IndexData, LineRange, MarkdownContext,
-    RustDocContext, Visibility,
+    Chunk, ChunkContent, ChunkContext, ChunkSource, LineRange, MarkdownContext, RustDocContext,
+    Visibility,
 };
 pub use file_type::FileType;
 pub use index_mode::{IndexMode, InvalidIndexMode};

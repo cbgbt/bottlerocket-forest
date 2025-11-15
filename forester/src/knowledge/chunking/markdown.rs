@@ -149,10 +149,6 @@ impl ChunkingStrategy for MarkdownChunker {
                             .heading_hierarchy(hierarchy.clone())
                             .build(),
                     ))
-                    .indexed_at(std::time::SystemTime::now())
-                    .index_data(crate::knowledge::domain::IndexData::Fast {
-                        bm25_terms: std::collections::BTreeMap::new(),
-                    })
                     .build();
 
                 chunks.push(chunk);

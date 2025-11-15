@@ -1,20 +1,20 @@
 //! Serialization helpers for converting between domain types and database formats
 
 use snafu::ResultExt;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-    IndexData, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
-    TokenCount,
+    LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, TokenCount,
 };
-use crate::knowledge::storage::repository::{StorageError, storage_error::*};
+use crate::knowledge::storage::repository::{
+    IndexData, IndexedChunk, StorageError, Timestamp, storage_error::*,
+};
 
 /// Parse a Chunk from a rusqlite::Row
 ///
 /// Expects columns in order: id, file_path, repo_name, line_start, line_count,
 /// context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode, embedding
-pub fn chunk_from_row(row: &rusqlite::Row) -> Result<Chunk, StorageError> {
+pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, StorageError> {
     let id_str: String = row.get(0).context(DatabaseSnafu)?;
     let file_path: String = row.get(1).context(DatabaseSnafu)?;
     let repo_name: String = row.get(2).context(DatabaseSnafu)?;
@@ -66,7 +66,7 @@ pub fn chunk_from_row(row: &rusqlite::Row) -> Result<Chunk, StorageError> {
         }
     };
 
-    Ok(Chunk::builder()
+    let chunk = Chunk::builder()
         .id(ChunkId::new(uuid))
         .source(
             ChunkSource::builder()
@@ -129,8 +129,12 @@ pub fn chunk_from_row(row: &rusqlite::Row) -> Result<Chunk, StorageError> {
                 .build(),
         )
         .context(context)
-        .indexed_at(unix_to_system_time(last_modified))
+        .build();
+
+    Ok(IndexedChunk::builder()
+        .chunk(chunk)
         .index_data(index_data)
+        .indexed_at(Timestamp::from_secs(last_modified))
         .build())
 }
 
@@ -237,18 +241,6 @@ pub fn deserialize_context(
         }
         .build()),
     }
-}
-
-/// Convert SystemTime to Unix timestamp for database storage
-pub fn system_time_to_unix(time: SystemTime) -> i64 {
-    time.duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
-
-/// Convert Unix timestamp from database to SystemTime
-pub fn unix_to_system_time(unix: i64) -> SystemTime {
-    UNIX_EPOCH + std::time::Duration::from_secs(unix as u64)
 }
 
 #[cfg(test)]

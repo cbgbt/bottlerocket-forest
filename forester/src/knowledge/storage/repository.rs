@@ -98,20 +98,20 @@ impl Timestamp {
 /// Repository for chunk persistence
 #[cfg_attr(test, mockall::automock)]
 pub trait ChunkRepository {
-    /// Store a chunk
-    fn save(&mut self, chunk: &Chunk) -> Result<(), StorageError>;
+    /// Store an indexed chunk
+    fn save(&mut self, chunk: &IndexedChunk) -> Result<(), StorageError>;
 
-    /// Store multiple chunks (transaction)
-    fn save_batch(&mut self, chunks: &[Chunk]) -> Result<(), StorageError>;
+    /// Store multiple indexed chunks (transaction)
+    fn save_batch(&mut self, chunks: &[IndexedChunk]) -> Result<(), StorageError>;
 
-    /// Retrieve a chunk by ID
-    fn find_by_id(&self, id: &ChunkId) -> Result<Option<Chunk>, StorageError>;
+    /// Retrieve an indexed chunk by ID
+    fn find_by_id(&self, id: &ChunkId) -> Result<Option<IndexedChunk>, StorageError>;
 
-    /// Find all chunks for a file
-    fn find_by_file(&self, path: &ForestRelativePath) -> Result<Vec<Chunk>, StorageError>;
+    /// Find all indexed chunks for a file
+    fn find_by_file(&self, path: &ForestRelativePath) -> Result<Vec<IndexedChunk>, StorageError>;
 
-    /// Find all chunks in the index
-    fn find_all(&self) -> Result<Vec<Chunk>, StorageError>;
+    /// Find all indexed chunks in the index
+    fn find_all(&self) -> Result<Vec<IndexedChunk>, StorageError>;
 
     /// Remove chunks for a file
     fn delete_by_file(&mut self, path: &ForestRelativePath) -> Result<usize, StorageError>;
@@ -127,21 +127,21 @@ pub trait ChunkRepository {
 
     /// Search chunks using semantic similarity
     ///
-    /// Returns chunks ranked by similarity to the query embedding, with scores.
+    /// Returns indexed chunks ranked by similarity to the query embedding, with scores.
     fn search_semantic(
         &self,
         query_embedding: &[f32],
         limit: usize,
-    ) -> Result<Vec<(Chunk, f32)>, StorageError>;
+    ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
 
     /// Search chunks using BM25 keyword matching
     ///
-    /// Returns chunks ranked by BM25 relevance to the query terms, with scores.
+    /// Returns indexed chunks ranked by BM25 relevance to the query terms, with scores.
     fn search_bm25(
         &self,
         query_terms: &[String],
         limit: usize,
-    ) -> Result<Vec<(Chunk, f32)>, StorageError>;
+    ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
 }
 
 /// Metadata about the index

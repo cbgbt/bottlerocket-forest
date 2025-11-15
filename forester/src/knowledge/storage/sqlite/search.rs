@@ -3,9 +3,8 @@
 use rusqlite::Connection;
 use snafu::ResultExt;
 
-use super::serialization::{chunk_from_row, serialize_embedding};
-use crate::knowledge::domain::Chunk;
-use crate::knowledge::storage::repository::{StorageError, storage_error::*};
+use super::serialization::{indexed_chunk_from_row, serialize_embedding};
+use crate::knowledge::storage::repository::{IndexedChunk, StorageError, storage_error::*};
 
 /// BM25 term saturation parameter (k1).
 /// Controls how quickly term frequency saturates. Higher values (e.g., 2.0) give more weight
@@ -31,7 +30,7 @@ pub fn search_semantic(
     conn: &Connection,
     query_embedding: &[f32],
     limit: usize,
-) -> Result<Vec<(Chunk, f32)>, StorageError> {
+) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
     let embedding_blob = serialize_embedding(query_embedding);
 
     let mut stmt = conn
@@ -52,7 +51,7 @@ pub fn search_semantic(
             ":limit": limit,
         },
         |row| {
-            let chunk = chunk_from_row(row)
+            let chunk = indexed_chunk_from_row(row)
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
             let distance: f32 = row.get(13)?;
             let similarity = 1.0 - distance;
@@ -69,7 +68,7 @@ pub fn search_bm25(
     conn: &Connection,
     query_terms: &[String],
     limit: usize,
-) -> Result<Vec<(Chunk, f32)>, StorageError> {
+) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
     if query_terms.is_empty() {
         return Ok(vec![]);
     }
@@ -157,7 +156,7 @@ pub fn search_bm25(
     params.push(&limit);
 
     stmt.query_map(params.as_slice(), |row| {
-        let chunk = chunk_from_row(row)
+        let chunk = indexed_chunk_from_row(row)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
         let score: f32 = row.get(13)?;
         Ok((chunk, score))

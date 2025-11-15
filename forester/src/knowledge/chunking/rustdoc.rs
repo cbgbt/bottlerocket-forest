@@ -18,8 +18,8 @@ use tokenizers::Tokenizer;
 
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, IndexData, ItemName, RustDocContext, Signature,
-    TokenCount, Visibility,
+    Chunk, ChunkContent, ChunkContext, ChunkId, ItemName, RustDocContext, Signature, TokenCount,
+    Visibility,
 };
 use crate::knowledge::storage::EmbeddingModelConfig;
 
@@ -277,10 +277,6 @@ impl RustDocChunker {
                             .build(),
                     )
                     .context(ChunkContext::RustDoc(context))
-                    .indexed_at(std::time::SystemTime::now())
-                    .index_data(IndexData::Fast {
-                        bm25_terms: std::collections::BTreeMap::new(),
-                    })
                     .build())
             })
             .collect()
