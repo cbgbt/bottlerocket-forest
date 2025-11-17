@@ -10,8 +10,12 @@ clippy:
 test:
 	cargo test --release --locked --quiet
 
+.PHONY: deny
+deny:
+	cargo deny --no-default-features check licenses bans sources
+
 .PHONY: check
-check: fmt clippy test
+check: fmt clippy deny test
 
 .PHONY: integ
 integ: check
