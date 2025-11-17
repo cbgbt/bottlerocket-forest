@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::knowledge::domain::IndexMode;
 use crate::knowledge::storage::StorageError;
 
-use super::super::{DispatchError, ScanError};
+use super::super::{DispatchError, IndexDataError, ScanError};
 
 /// Result of an indexing operation
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -44,6 +44,9 @@ pub enum IndexError {
 
     #[snafu(display("Failed to chunk file"))]
     ChunkingFailed { source: DispatchError },
+
+    #[snafu(display("Failed to generate index data"))]
+    IndexDataGenerationFailed { source: IndexDataError },
 
     #[snafu(display("Failed to access storage"))]
     StorageFailed { source: StorageError },

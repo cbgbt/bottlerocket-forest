@@ -11,10 +11,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::knowledge::chunking::ChunkingDispatcher;
-use crate::knowledge::domain::{EmbeddingModelConfig, IndexMode};
+use crate::knowledge::domain::EmbeddingModelConfig;
 use crate::knowledge::storage::ChunkRepository;
 
-use super::FileScanner;
+use super::{FileScanner, IndexDataProvider};
 
 /// Strategy for index operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct Indexer<R: ChunkRepository> {
     scanner: FileScanner,
     dispatcher: ChunkingDispatcher,
     repository: R,
-    mode: IndexMode,
+    provider: Box<dyn IndexDataProvider>,
 }
 
 impl<R: ChunkRepository> Indexer<R> {
@@ -43,7 +43,7 @@ impl<R: ChunkRepository> Indexer<R> {
         forest_root: impl AsRef<Path>,
         repository: R,
         config: &EmbeddingModelConfig,
-        mode: IndexMode,
+        provider: Box<dyn IndexDataProvider>,
     ) -> Result<Self, IndexError> {
         use types::index_error::*;
 
@@ -54,7 +54,7 @@ impl<R: ChunkRepository> Indexer<R> {
             scanner,
             dispatcher,
             repository,
-            mode,
+            provider,
         })
     }
 
@@ -78,7 +78,8 @@ impl<R: ChunkRepository> Indexer<R> {
         let files = self.scanner.scan().context(ScanFailedSnafu)?;
 
         for file in files {
-            let indexed_chunks = operations::process_file(&file, &self.dispatcher, self.mode)?;
+            let indexed_chunks =
+                operations::process_file(&file, &self.dispatcher, &*self.provider)?;
 
             if !indexed_chunks.is_empty() {
                 chunks_affected += indexed_chunks.len();
@@ -96,7 +97,7 @@ impl<R: ChunkRepository> Indexer<R> {
             .files_removed(0)
             .chunks_affected(chunks_affected)
             .duration(start.elapsed())
-            .mode(self.mode)
+            .mode(self.provider.mode())
             .build())
     }
 
@@ -163,7 +164,7 @@ impl<R: ChunkRepository> Indexer<R> {
                 chunks_affected += removed;
             }
 
-            let indexed_chunks = operations::process_file(file, &self.dispatcher, self.mode)?;
+            let indexed_chunks = operations::process_file(file, &self.dispatcher, &*self.provider)?;
 
             if !indexed_chunks.is_empty() {
                 chunks_affected += indexed_chunks.len();
@@ -180,7 +181,7 @@ impl<R: ChunkRepository> Indexer<R> {
             .files_removed(deleted.len())
             .chunks_affected(chunks_affected)
             .duration(std::time::Duration::from_secs(0))
-            .mode(self.mode)
+            .mode(self.provider.mode())
             .build())
     }
 }
@@ -188,26 +189,28 @@ impl<R: ChunkRepository> Indexer<R> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::domain::{ForestRelativePath, Timestamp};
+    use crate::knowledge::domain::{ForestRelativePath, IndexData, IndexMode, Timestamp};
+    use crate::knowledge::indexing::provider::MockIndexDataProvider;
     use crate::knowledge::storage::StorageError;
     use crate::knowledge::storage::repository::MockChunkRepository;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
 
-    // Constructor tests
     #[test]
     fn test_new_creates_indexer_with_valid_forest() {
-        // Given A valid forest directory
+        // Given A valid forest directory and mock provider
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
 
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
 
         // When Creating an Indexer
-        let result = Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast);
+        let result = Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider));
 
         // Then It should succeed
         assert!(result.is_ok());
@@ -219,15 +222,15 @@ mod test {
         let nonexistent = Path::new("/nonexistent/forest");
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
+        let mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
-        let result = Indexer::new(nonexistent, mock_repo, &config, IndexMode::Fast);
+        let result = Indexer::new(nonexistent, mock_repo, &config, Box::new(mock_provider));
 
         // Then It should fail with ScanFailed error
         assert!(matches!(result, Err(IndexError::ScanFailed { .. })));
     }
 
-    // Build strategy tests
     #[test]
     fn test_build_indexes_markdown_files() {
         // Given A forest with markdown files
@@ -243,8 +246,16 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
@@ -277,8 +288,16 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
@@ -291,75 +310,64 @@ mod test {
     }
 
     #[test]
-    fn test_build_wraps_chunks_with_fast_mode_data() {
-        // Given A forest with a markdown file in Fast mode
+    fn test_build_calls_provider_generate() {
+        // Given A forest with a markdown file
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(
-            repo_dir.join("test.md"),
-            "# Rust programming\n\nRust is a systems programming language.",
-        )
-        .unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_save_batch().times(1).returning(|chunks| {
-            assert_eq!(chunks.len(), 1);
-            assert!(matches!(
-                chunks[0].index_data,
-                crate::knowledge::domain::IndexData::Fast { .. }
-            ));
-            if let crate::knowledge::domain::IndexData::Fast { ref bm25_terms } =
-                chunks[0].index_data
-            {
-                assert!(bm25_terms.contains_key("rust"));
-                assert!(bm25_terms.contains_key("programming"));
-            }
-            Ok(())
-        });
+        mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().times(1).returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
 
-        // Then Chunks should have BM25 terms
+        // Then Provider generate should be called
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_build_wraps_chunks_with_best_mode_data() {
-        // Given A forest with a markdown file in Best mode
+    fn test_build_propagates_provider_errors() {
+        // Given A provider that fails to generate
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(
-            repo_dir.join("test.md"),
-            "# Test content\n\nThis is test content for indexing.",
-        )
-        .unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_save_batch().times(1).returning(|chunks| {
-            assert_eq!(chunks.len(), 1);
-            assert!(matches!(
-                chunks[0].index_data,
-                crate::knowledge::domain::IndexData::Best { .. }
-            ));
-            Ok(())
-        });
-
+        let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Err(crate::knowledge::indexing::IndexDataError::Bm25Failed {
+                source: Box::new(std::io::Error::other("test error")),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Best).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
 
-        // Then Chunks should have embeddings
-        assert!(result.is_ok());
+        // Then It should fail with IndexDataGenerationFailed error
+        assert!(matches!(
+            result,
+            Err(IndexError::IndexDataGenerationFailed { .. })
+        ));
     }
 
     #[test]
@@ -368,7 +376,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("test.md"), "# Test\n\nSome content here").unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
         mock_repo.expect_save_batch().returning(|_| {
@@ -378,8 +386,16 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
@@ -397,8 +413,11 @@ mod test {
         mock_repo.expect_save_batch().times(0);
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build).unwrap();
@@ -411,49 +430,58 @@ mod test {
     }
 
     #[test]
-    fn test_build_counts_chunks_correctly() {
-        // Given A forest with multiple files
+    fn test_build_uses_provider_mode_in_result() {
+        // Given A provider with Best mode
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("file1.md"), "# Test 1\nContent").unwrap();
-        fs::write(repo_dir.join("file2.md"), "# Test 2\nMore content").unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo
-            .expect_save_batch()
-            .times(2)
-            .returning(|_chunks| Ok(()));
+        mock_repo.expect_save_batch().returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Best {
+                embedding: crate::knowledge::domain::Embedding::try_new(vec![0.1; 384]).unwrap(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Best);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Building the index
         let result = indexer.index(IndexStrategy::Build).unwrap();
 
-        // Then Chunk count should reflect all chunks from all files
-        assert_eq!(result.files_added, 2);
-        assert_eq!(result.files_processed, 2);
-        assert!(result.chunks_affected >= 2);
+        // Then Result should reflect provider mode
+        assert_eq!(result.mode, IndexMode::Best);
     }
 
-    // Rebuild strategy tests
     #[test]
     fn test_rebuild_clears_then_builds() {
         // Given A forest with files
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("test.md"), "# Test\n\nContent here").unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
         mock_repo.expect_clear().times(1).returning(|| Ok(5));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Rebuilding the index
         let result = indexer.index(IndexStrategy::Rebuild);
@@ -462,14 +490,13 @@ mod test {
         assert!(result.is_ok());
     }
 
-    // Incremental strategy tests
     #[test]
     fn test_incremental_adds_new_files() {
         // Given A forest with a new file and empty index
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("new.md"), "# New\n\nContent here").unwrap();
+        fs::write(repo_dir.join("new.md"), "# New\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
@@ -478,8 +505,16 @@ mod test {
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental).unwrap();
@@ -516,8 +551,16 @@ mod test {
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental).unwrap();
@@ -552,8 +595,11 @@ mod test {
             .returning(|_| Ok(2));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental).unwrap();
@@ -595,8 +641,16 @@ mod test {
         mock_repo.expect_save_batch().times(2).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate().returning(|_| {
+            Ok(IndexData::Fast {
+                bm25_terms: Default::default(),
+            })
+        });
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental).unwrap();
@@ -624,8 +678,10 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
+        let mock_provider = MockIndexDataProvider::new();
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental);
@@ -645,8 +701,11 @@ mod test {
             .returning(|| Ok(HashMap::new()));
 
         let config = EmbeddingModelConfig::default();
+        let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_mode().return_const(IndexMode::Fast);
+
         let mut indexer =
-            Indexer::new(temp_dir.path(), mock_repo, &config, IndexMode::Fast).unwrap();
+            Indexer::new(temp_dir.path(), mock_repo, &config, Box::new(mock_provider)).unwrap();
 
         // When Updating the index
         let result = indexer.index(IndexStrategy::Incremental).unwrap();
