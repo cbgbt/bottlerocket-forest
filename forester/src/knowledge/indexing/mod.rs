@@ -8,13 +8,14 @@
 //! * [`FileScanner`] - Discovers indexable files (.md, .rs) in the forest
 //! * [`Indexer`] - Unified indexer with multiple strategies (Build, Rebuild, Incremental)
 //! * [`bm25`] - BM25 term frequency calculation for keyword-based search
+//! * [`provider`] - Index data generation providers (BM25, embeddings)
 //!
 //! # Workflow
 //!
 //! The typical indexing workflow:
 //! 1. Scan the forest to find documentation files
 //! 2. Chunk files using appropriate strategies (markdown/rustdoc)
-//! 3. Generate index data (BM25 terms or embeddings)
+//! 3. Generate index data (BM25 terms or embeddings) via [`IndexDataProvider`]
 //! 4. Store indexed chunks in the repository
 //!
 //! For incremental updates, the indexer compares current files against
@@ -22,10 +23,12 @@
 
 pub mod bm25;
 pub mod indexer;
+pub mod provider;
 pub mod scanner;
 
 pub use bm25::calculate_bm25_terms;
 pub use indexer::{IndexError, IndexResult, IndexStrategy, Indexer};
+pub use provider::{Bm25Provider, IndexDataError, IndexDataProvider};
 pub use scanner::{FileScanner, IndexableFile, ScanError};
 
 // Re-export for indexer module

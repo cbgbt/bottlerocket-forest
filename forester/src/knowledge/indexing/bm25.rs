@@ -6,6 +6,9 @@
 //!
 //! This module handles the first step: tokenizing text and counting term frequencies
 //! while filtering out common words that don't help distinguish documents.
+//!
+//! For the scoring algorithm that uses these term frequencies, see
+//! `crate::knowledge::storage::sqlite::search::search_bm25`.
 
 use std::collections::BTreeMap;
 

@@ -1,0 +1,144 @@
+//! Index data generation providers
+//!
+//! This module defines the unified interface for generating index data from text chunks.
+//! Different providers implement different indexing strategies (BM25 keyword indexing,
+//! semantic embeddings, etc.) while presenting a consistent API.
+//!
+//! ## Architecture
+//!
+//! The [`IndexDataProvider`] trait abstracts over different indexing strategies:
+//! - [`Bm25Provider`]: Generates BM25 term frequencies for keyword search
+//! - `EmbeddingDataProvider`: Generates semantic embeddings (implemented in Phase 7, Commit 29)
+//!
+//! ## Cross-References
+//!
+//! - BM25 tokenization: [`super::bm25::calculate_bm25_terms`]
+//! - BM25 search scoring: `crate::knowledge::storage::sqlite::search::search_bm25`
+//! - Semantic embeddings: [`crate::knowledge::search::embeddings::EmbeddingProvider`]
+//! - Semantic search: `crate::knowledge::storage::sqlite::search::search_semantic`
+
+use snafu::Snafu;
+
+use crate::knowledge::domain::{IndexData, IndexMode};
+
+use super::bm25::calculate_bm25_terms;
+
+/// Generates index data from text content
+///
+/// Implementations of this trait convert raw text into searchable index data.
+/// The specific format depends on the indexing strategy (BM25 terms, embeddings, etc.).
+#[cfg_attr(test, mockall::automock)]
+pub trait IndexDataProvider: Send + Sync {
+    /// Generate index data from text
+    ///
+    /// Processes the input text and returns index-specific data wrapped in [`IndexData`].
+    fn generate(&self, text: &str) -> Result<IndexData, IndexDataError>;
+
+    /// Returns the index mode for this provider
+    fn mode(&self) -> IndexMode;
+}
+
+/// Errors that can occur during index data generation
+#[derive(Debug, Snafu)]
+#[snafu(module)]
+pub enum IndexDataError {
+    /// BM25 term calculation failed
+    #[snafu(display("Failed to calculate BM25 terms"))]
+    Bm25Failed {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
+    /// Embedding generation failed
+    #[snafu(display("Failed to generate embedding"))]
+    EmbeddingFailed {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+}
+
+/// BM25 keyword indexing provider
+///
+/// Generates term frequency maps for keyword-based search using the BM25 algorithm.
+/// This provider tokenizes text, removes stopwords, and counts term frequencies.
+///
+/// For the corresponding search implementation, see
+/// `crate::knowledge::storage::sqlite::search::search_bm25`.
+pub struct Bm25Provider;
+
+impl IndexDataProvider for Bm25Provider {
+    fn generate(&self, text: &str) -> Result<IndexData, IndexDataError> {
+        let bm25_terms = calculate_bm25_terms(text);
+        Ok(IndexData::Fast { bm25_terms })
+    }
+
+    fn mode(&self) -> IndexMode {
+        IndexMode::Fast
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_bm25_provider_generates_fast_index_data() {
+        // Given A Bm25Provider and sample text
+        let provider = Bm25Provider;
+        let text = "rust programming language";
+
+        // When Generating index data
+        let result = provider.generate(text);
+
+        // Then It should return Fast mode IndexData
+        assert!(result.is_ok());
+        let index_data = result.unwrap();
+        assert!(matches!(index_data, IndexData::Fast { .. }));
+    }
+
+    #[test]
+    fn test_bm25_provider_calculates_correct_terms() {
+        // Given A Bm25Provider and text with known terms
+        let provider = Bm25Provider;
+        let text = "rust rust programming";
+
+        // When Generating index data
+        let result = provider.generate(text).unwrap();
+
+        // Then The BM25 terms should be correctly calculated
+        if let IndexData::Fast { bm25_terms } = result {
+            assert_eq!(bm25_terms.get("rust"), Some(&2));
+            assert_eq!(bm25_terms.get("programming"), Some(&1));
+            assert_eq!(bm25_terms.len(), 2);
+        } else {
+            panic!("Expected Fast mode IndexData");
+        }
+    }
+
+    #[test]
+    fn test_bm25_provider_mode_returns_fast() {
+        // Given A Bm25Provider
+        let provider = Bm25Provider;
+
+        // When Getting the mode
+        let mode = provider.mode();
+
+        // Then It should return Fast mode
+        assert_eq!(mode, IndexMode::Fast);
+    }
+
+    #[test]
+    fn test_bm25_provider_handles_empty_text() {
+        // Given A Bm25Provider and empty text
+        let provider = Bm25Provider;
+        let text = "";
+
+        // When Generating index data
+        let result = provider.generate(text).unwrap();
+
+        // Then It should return empty BM25 terms
+        if let IndexData::Fast { bm25_terms } = result {
+            assert!(bm25_terms.is_empty());
+        } else {
+            panic!("Expected Fast mode IndexData");
+        }
+    }
+}
