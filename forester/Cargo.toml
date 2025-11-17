@@ -21,6 +21,7 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 text-splitter = { version = "0.28", features = ["markdown", "tokenizers"] }
 tokenizers = { version = "0.22", features = ["http"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+walkdir = "2"
 
 [dev-dependencies]
 assert_cmd = "2"

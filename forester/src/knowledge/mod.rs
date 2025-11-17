@@ -15,6 +15,8 @@
 //! * **Chunking Layer** Splits documentation into searchable chunks with
 //!   context preservation (markdown headings, rustdoc items).
 //!
+//! * **Indexing Layer** (`indexing/`): File scanning and index building
+//!
 //! # Index Modes
 //!
 //! - **Fast**: BM25 lexical search - quick keyword matching, no embeddings
@@ -24,6 +26,7 @@
 pub mod chunking;
 pub mod constants;
 pub mod domain;
+pub mod indexing;
 pub mod storage;
 
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
@@ -33,4 +36,5 @@ pub use domain::{
     IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult,
     SearchResults, Timestamp,
 };
+pub use indexing::{FileScanner, IndexableFile, ScanError};
 pub use storage::{ChunkRepository, StorageError};
