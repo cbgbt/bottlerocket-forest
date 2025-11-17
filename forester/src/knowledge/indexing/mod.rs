@@ -7,6 +7,7 @@
 //!
 //! * [`FileScanner`] - Discovers indexable files (.md, .rs) in the forest
 //! * [`Indexer`] - Unified indexer with multiple strategies (Build, Rebuild, Incremental)
+//! * [`bm25`] - BM25 term frequency calculation for keyword-based search
 //!
 //! # Workflow
 //!
@@ -19,9 +20,11 @@
 //! For incremental updates, the indexer compares current files against
 //! indexed files to identify additions, modifications, and deletions.
 
+pub mod bm25;
 pub mod indexer;
 pub mod scanner;
 
+pub use bm25::calculate_bm25_terms;
 pub use indexer::{IndexError, IndexResult, IndexStrategy, Indexer};
 pub use scanner::{FileScanner, IndexableFile, ScanError};
 

@@ -6,6 +6,7 @@ use crate::knowledge::domain::{
     LineNumber, LineRange, Timestamp,
 };
 
+use super::super::bm25::calculate_bm25_terms;
 use super::super::IndexableFile;
 use super::types::IndexError;
 
@@ -17,12 +18,11 @@ use snafu::ResultExt;
 pub(super) fn index_chunk(chunk: Chunk, mode: IndexMode) -> IndexedChunk {
     let index_data = match mode {
         IndexMode::Fast => {
-            let bm25_terms =
-                crate::knowledge::storage::bm25::calculate_bm25_terms(chunk.content.text.as_ref());
+            let bm25_terms = calculate_bm25_terms(chunk.content.text.as_ref());
             IndexData::Fast { bm25_terms }
         }
         IndexMode::Best => {
-            // TODO: Replace with real EmbeddingProvider when implemented (Phase 6, Commit 21-22)
+            // TODO: Replace with real EmbeddingProvider when implemented (Phase 7, Commit 27.a)
             let embedding =
                 Embedding::try_new(vec![0.0; 384]).expect("placeholder embedding should be valid");
             IndexData::Best { embedding }
