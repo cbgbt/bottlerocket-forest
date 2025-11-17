@@ -40,5 +40,5 @@ pub use domain::{
 pub use indexing::{
     FileScanner, IndexError, IndexResult, IndexStrategy, IndexableFile, Indexer, ScanError,
 };
-pub use search::{Bm25SearchEngine, SearchEngine, SearchError};
+pub use search::{Bm25SearchEngine, SearchEngine, SearchError, SemanticSearchEngine};
 pub use storage::{ChunkRepository, StorageError};

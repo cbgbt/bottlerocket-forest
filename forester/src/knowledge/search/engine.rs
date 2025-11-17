@@ -33,4 +33,10 @@ pub enum SearchError {
     EmbeddingFailed {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+
+    #[snafu(display("Repository returned invalid relevance score: {score}"))]
+    InvalidScore {
+        score: f32,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }

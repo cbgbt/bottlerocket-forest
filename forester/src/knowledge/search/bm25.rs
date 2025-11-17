@@ -56,16 +56,24 @@ impl<R: ChunkRepository> SearchEngine for Bm25SearchEngine<R> {
             .map(|(indexed_chunk, score)| {
                 let matched_terms: Vec<MatchedTerm> = query_terms
                     .iter()
-                    .map(|t| MatchedTerm::try_new(t.clone()).expect("non-empty term"))
-                    .collect();
+                    .map(|t| {
+                        MatchedTerm::try_new(t.clone())
+                            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                            .context(InvalidScoreSnafu { score: 0.0 })
+                    })
+                    .collect::<Result<Vec<_>, SearchError>>()?;
 
-                SearchResult::builder()
+                let relevance_score = RelevanceScore::try_new(score)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                    .context(InvalidScoreSnafu { score })?;
+
+                Ok(SearchResult::builder()
                     .chunk(indexed_chunk.chunk)
-                    .score(RelevanceScore::try_new(score).expect("score in valid range"))
+                    .score(relevance_score)
                     .matched_terms(matched_terms)
-                    .build()
+                    .build())
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, SearchError>>()?;
 
         let total_chunks_searched = results.len();
 
