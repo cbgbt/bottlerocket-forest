@@ -8,7 +8,7 @@
 //!
 //! The [`IndexDataProvider`] trait abstracts over different indexing strategies:
 //! - [`Bm25Provider`]: Generates BM25 term frequencies for keyword search
-//! - `EmbeddingDataProvider`: Generates semantic embeddings (implemented in Phase 7, Commit 29)
+//! - [`EmbeddingDataProvider`]: Generates semantic embeddings for similarity search
 //!
 //! ## Cross-References
 //!
@@ -17,9 +17,10 @@
 //! - Semantic embeddings: [`crate::knowledge::search::embeddings::EmbeddingProvider`]
 //! - Semantic search: `crate::knowledge::storage::sqlite::search::search_semantic`
 
-use snafu::Snafu;
+use snafu::{IntoError, Snafu};
 
 use crate::knowledge::domain::{IndexData, IndexMode};
+use crate::knowledge::search::embeddings::EmbeddingProvider;
 
 use super::bm25::calculate_bm25_terms;
 
@@ -75,9 +76,48 @@ impl IndexDataProvider for Bm25Provider {
     }
 }
 
+/// Semantic embedding provider
+///
+/// Generates semantic embeddings for similarity-based search using neural language models.
+/// This provider wraps an [`EmbeddingProvider`] to convert text into dense vector
+/// representations that capture semantic meaning.
+///
+/// For the corresponding search implementation, see
+/// `crate::knowledge::storage::sqlite::search::search_semantic`.
+pub struct EmbeddingDataProvider {
+    embedding_provider: Box<dyn EmbeddingProvider>,
+}
+
+impl EmbeddingDataProvider {
+    /// Create a new embedding data provider
+    ///
+    /// Wraps an embedding provider that will be used to generate embeddings
+    /// for text chunks during indexing.
+    pub fn new(embedding_provider: Box<dyn EmbeddingProvider>) -> Self {
+        Self { embedding_provider }
+    }
+}
+
+impl IndexDataProvider for EmbeddingDataProvider {
+    fn generate(&self, text: &str) -> Result<IndexData, IndexDataError> {
+        let embedding = self
+            .embedding_provider
+            .embed(text)
+            .map_err(|e| index_data_error::EmbeddingFailedSnafu.into_error(Box::new(e)))?;
+
+        Ok(IndexData::Best { embedding })
+    }
+
+    fn mode(&self) -> IndexMode {
+        IndexMode::Best
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::knowledge::domain::Embedding;
+    use crate::knowledge::search::embeddings::model::MockEmbeddingProvider;
 
     #[test]
     fn test_bm25_provider_generates_fast_index_data() {
@@ -140,5 +180,87 @@ mod test {
         } else {
             panic!("Expected Fast mode IndexData");
         }
+    }
+
+    #[test]
+    fn test_embedding_provider_generates_best_index_data() {
+        // Given An EmbeddingDataProvider with mock embedding provider
+        let mut mock = MockEmbeddingProvider::new();
+        let test_embedding = Embedding::try_new(vec![0.1, 0.2, 0.3]).unwrap();
+        mock.expect_embed()
+            .returning(move |_| Ok(test_embedding.clone()));
+
+        let provider = EmbeddingDataProvider::new(Box::new(mock));
+        let text = "rust programming language";
+
+        // When Generating index data
+        let result = provider.generate(text);
+
+        // Then It should return Best mode IndexData
+        assert!(result.is_ok());
+        let index_data = result.unwrap();
+        assert!(matches!(index_data, IndexData::Best { .. }));
+    }
+
+    #[test]
+    fn test_embedding_provider_wraps_embedding_correctly() {
+        // Given An EmbeddingDataProvider with mock returning specific embedding
+        let mut mock = MockEmbeddingProvider::new();
+        let expected_embedding = Embedding::try_new(vec![0.5, 0.6, 0.7]).unwrap();
+        let expected_clone = expected_embedding.clone();
+        mock.expect_embed()
+            .returning(move |_| Ok(expected_clone.clone()));
+
+        let provider = EmbeddingDataProvider::new(Box::new(mock));
+        let text = "test content";
+
+        // When Generating index data
+        let result = provider.generate(text).unwrap();
+
+        // Then The embedding should be correctly wrapped in IndexData::Best
+        if let IndexData::Best { embedding } = result {
+            assert_eq!(embedding, expected_embedding);
+        } else {
+            panic!("Expected Best mode IndexData");
+        }
+    }
+
+    #[test]
+    fn test_embedding_provider_mode_returns_best() {
+        // Given An EmbeddingDataProvider
+        let mock = MockEmbeddingProvider::new();
+        let provider = EmbeddingDataProvider::new(Box::new(mock));
+
+        // When Getting the mode
+        let mode = provider.mode();
+
+        // Then It should return Best mode
+        assert_eq!(mode, IndexMode::Best);
+    }
+
+    #[test]
+    fn test_embedding_provider_propagates_errors() {
+        // Given An EmbeddingDataProvider with mock that returns error
+        let mut mock = MockEmbeddingProvider::new();
+        mock.expect_embed().returning(|_| {
+            Err(
+                crate::knowledge::search::embeddings::EmbeddingError::EmbeddingGenerationFailed {
+                    source: Box::new(std::io::Error::other("test error")),
+                },
+            )
+        });
+
+        let provider = EmbeddingDataProvider::new(Box::new(mock));
+        let text = "test content";
+
+        // When Generating index data
+        let result = provider.generate(text);
+
+        // Then It should return an EmbeddingFailed error
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            IndexDataError::EmbeddingFailed { .. }
+        ));
     }
 }
