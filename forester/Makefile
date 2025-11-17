@@ -13,6 +13,10 @@ test:
 .PHONY: check
 check: fmt clippy test
 
+.PHONY: integ
+integ: check
+	cargo test --locked --quiet -- --ignored
+
 .PHONY: build
 build:
 	cargo build --locked --quiet

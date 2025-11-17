@@ -6,8 +6,10 @@ edition = "2024"
 [dependencies]
 argh = "0.1"
 bon = "3"
+dirs = "5"
 dotenvy = "0.15"
 envy = "0.4"
+fastembed = "4"
 nutype = { version = "0.5", features = ["serde"] }
 pulldown-cmark = "0.13"
 quote = "1"
