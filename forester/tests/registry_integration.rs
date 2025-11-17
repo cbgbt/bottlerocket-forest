@@ -2,6 +2,14 @@
 //!
 //! These tests use a dedicated test port (5555) and run serially with #[serial(registry)].
 //! Each test cleans up at the start to ensure a fresh environment.
+//!
+//! These tests are marked with `#[ignore]` because they:
+//! - Require Docker to be installed and running
+//! - Spawn actual Docker containers (slow, resource-intensive)
+//! - Require network access and available ports
+//! - Are not suitable for CI environments without Docker
+//!
+//! Run with: `cargo test --test registry_integration -- --ignored`
 
 use serial_test::serial;
 use std::process::Command;
@@ -39,6 +47,7 @@ fn clean_test_registry() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_start_idempotent() {
     if !docker_available() {
@@ -64,6 +73,7 @@ fn test_registry_start_idempotent() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_status_not_created() {
     if !docker_available() {
@@ -86,6 +96,7 @@ fn test_registry_status_not_created() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_status_running() {
     if !docker_available() {
@@ -110,6 +121,7 @@ fn test_registry_status_running() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_stop() {
     if !docker_available() {
@@ -133,6 +145,7 @@ fn test_registry_stop() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_stop_idempotent() {
     if !docker_available() {
@@ -151,6 +164,7 @@ fn test_registry_stop_idempotent() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_clean() {
     if !docker_available() {
@@ -174,6 +188,7 @@ fn test_registry_clean() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_logs() {
     if !docker_available() {
@@ -197,6 +212,7 @@ fn test_registry_logs() {
 }
 
 #[test]
+#[ignore]
 #[serial(registry)]
 fn test_registry_custom_port() {
     if !docker_available() {
