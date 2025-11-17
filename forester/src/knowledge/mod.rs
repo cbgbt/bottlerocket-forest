@@ -27,6 +27,7 @@ pub mod chunking;
 pub mod constants;
 pub mod domain;
 pub mod indexing;
+pub mod search;
 pub mod storage;
 
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
@@ -39,4 +40,5 @@ pub use domain::{
 pub use indexing::{
     FileScanner, IndexError, IndexResult, IndexStrategy, IndexableFile, Indexer, ScanError,
 };
+pub use search::{Bm25SearchEngine, SearchEngine, SearchError};
 pub use storage::{ChunkRepository, StorageError};

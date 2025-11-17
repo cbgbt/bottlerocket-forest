@@ -5,6 +5,8 @@ Claude Code skills for common Bottlerocket development workflows.
 ## Available Skills
 
 - **local-registry** - Start and manage a local OCI registry for development
+- **build-and-publish-kit** - Build a kit and publish it to the local registry
+- **build-variant-from-local-kits** - Build a variant using locally published kits
 - **update-twoliter** - Update all repositories to a new Twoliter version
 
 ## Using Skills

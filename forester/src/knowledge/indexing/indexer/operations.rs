@@ -6,8 +6,8 @@ use crate::knowledge::domain::{
     LineNumber, LineRange, Timestamp,
 };
 
-use super::super::bm25::calculate_bm25_terms;
 use super::super::IndexableFile;
+use super::super::bm25::calculate_bm25_terms;
 use super::types::IndexError;
 
 use snafu::ResultExt;

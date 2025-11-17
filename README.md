@@ -50,6 +50,10 @@ bottlerocket-forest/
 
 This context is essential for understanding the Bottlerocket ecosystem before making changes or answering questions about system behavior.
 
+## Skills
+
+The `skills/` directory contains modular workflows for common Bottlerocket development tasks. Skills are model-invoked—Claude autonomously decides when to use them based on your request and each skill's description. When working on any task, evaluate available skills and use them when relevant to ensure consistent, reproducible workflows.
+
 ## Component Dependencies
 
 When developing features:
@@ -59,14 +63,3 @@ When developing features:
 4. Testing requires deploying the built variant image
 
 The forest tool helps orchestrate these dependencies.
-
-## Skills
-
-Skills are documented workflows that AI agents can follow. Each skill includes:
-- Purpose and when to use it
-- Prerequisites and dependencies
-- Step-by-step procedures
-- Validation steps
-- Common failure modes and recovery
-
-See individual skill directories for details.
