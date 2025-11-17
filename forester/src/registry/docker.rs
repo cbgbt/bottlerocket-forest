@@ -21,40 +21,6 @@
 //!   • logs()     → Result<()>
 //! ```
 //!
-//! # Example
-//!
-//! ```ignore
-//! use forester::registry::docker::{Container, ContainerDiscovered};
-//! use forester::registry::types::{ContainerName, ImageRef, RegistryPort, VolumeName};
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a container handle (doesn't touch Docker yet)
-//! let name = ContainerName::try_new("test-registry")?;
-//! let port = RegistryPort::try_new(5000)?;
-//! let volume = VolumeName::try_new("test-data")?;
-//! let image = ImageRef::try_new("registry:2")?;
-//! let container = Container::new(name, port, volume, image);
-//!
-//! // Discover current state from Docker
-//! match container.discover()? {
-//!     ContainerDiscovered::NotCreated(c) => {
-//!         // Container doesn't exist, create it
-//!         let running = c.create()?;
-//!         println!("Registry available at {}", running.url());
-//!     }
-//!     ContainerDiscovered::Stopped(c) => {
-//!         // Container exists but is stopped, start it
-//!         let running = c.start()?;
-//!         println!("Registry available at {}", running.url());
-//!     }
-//!     ContainerDiscovered::Running(c) => {
-//!         // Already running
-//!         println!("Registry available at {}", c.url());
-//!     }
-//! }
-//! # Ok(())
-//! # }
-//! ```
 
 use crate::registry::types::{ContainerName, ImageRef, RegistryPort, RegistryUrl, VolumeName};
 use snafu::{ResultExt, Snafu};
