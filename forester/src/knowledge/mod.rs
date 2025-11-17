@@ -37,7 +37,6 @@ pub use domain::{
     SearchResults, Timestamp,
 };
 pub use indexing::{
-    FileScanner, IncrementalUpdater, IndexBuildError, IndexBuildResult, IndexBuilder,
-    IndexableFile, ScanError, UpdateError, UpdateResult,
+    FileScanner, IndexError, IndexResult, IndexStrategy, IndexableFile, Indexer, ScanError,
 };
 pub use storage::{ChunkRepository, StorageError};

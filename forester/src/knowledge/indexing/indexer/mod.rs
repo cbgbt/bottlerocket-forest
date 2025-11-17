@@ -188,42 +188,12 @@ impl<R: ChunkRepository> Indexer<R> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, LineCount,
-        LineNumber, LineRange, MarkdownContext, RepoName, Timestamp, TokenCount,
-    };
-    use crate::knowledge::storage::repository::MockChunkRepository;
+    use crate::knowledge::domain::{ForestRelativePath, Timestamp};
     use crate::knowledge::storage::StorageError;
+    use crate::knowledge::storage::repository::MockChunkRepository;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
-
-    fn create_test_chunk(file_path: &str, content: &str) -> crate::knowledge::domain::Chunk {
-        crate::knowledge::domain::Chunk::builder()
-            .id(ChunkId::new(uuid::Uuid::new_v4()))
-            .source(
-                ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new(file_path).unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(1).unwrap())
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                ChunkContent::builder()
-                    .text(content.to_string())
-                    .token_count(TokenCount::try_new(content.split_whitespace().count()).unwrap())
-                    .build(),
-            )
-            .context(ChunkContext::Markdown(
-                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-            ))
-            .build()
-    }
 
     // Constructor tests
     #[test]
