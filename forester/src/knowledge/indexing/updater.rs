@@ -2,14 +2,14 @@
 
 use bon::Builder;
 use snafu::{ResultExt, Snafu};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 
 use super::{FileScanner, ScanError};
 use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingInput, DispatchError};
 use crate::knowledge::domain::{
-    Chunk, ChunkSource, ChunkableContent, Embedding, EmbeddingModelConfig, ForestRelativePath,
-    IndexData, IndexMode, IndexedChunk, LineCount, LineNumber, LineRange, Timestamp,
+    Chunk, ChunkSource, ChunkableContent, Embedding, EmbeddingModelConfig, IndexData, IndexMode,
+    IndexedChunk, LineCount, LineNumber, LineRange, Timestamp,
 };
 use crate::knowledge::storage::{ChunkRepository, StorageError};
 
@@ -47,15 +47,10 @@ impl<R: ChunkRepository> IncrementalUpdater<R> {
         use update_error::*;
 
         let current_files = self.scanner.scan().context(ScanFailedSnafu)?;
-        let indexed_chunks = self.repository.find_all().context(StorageFailedSnafu)?;
-
-        let indexed_files: HashMap<ForestRelativePath, Timestamp> = indexed_chunks
-            .iter()
-            .map(|ic| (ic.chunk.source.file_path.clone(), ic.indexed_at))
-            .fold(HashMap::new(), |mut map, (path, ts)| {
-                map.entry(path).or_insert(ts);
-                map
-            });
+        let indexed_files = self
+            .repository
+            .get_indexed_files()
+            .context(StorageFailedSnafu)?;
 
         let current_paths: HashSet<_> = current_files
             .iter()
@@ -230,46 +225,12 @@ pub enum UpdateError {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkId, MarkdownContext, RepoName, TokenCount,
+        ChunkContent, ChunkContext, ChunkId, ForestRelativePath, MarkdownContext, RepoName,
+        TokenCount,
     };
     use crate::knowledge::storage::repository::MockChunkRepository;
     use std::fs;
     use tempfile::TempDir;
-
-    fn create_test_indexed_chunk(path: &str, timestamp: i64) -> IndexedChunk {
-        IndexedChunk::builder()
-            .chunk(
-                Chunk::builder()
-                    .id(ChunkId::new(uuid::Uuid::new_v4()))
-                    .source(
-                        ChunkSource::builder()
-                            .file_path(ForestRelativePath::try_new(path).unwrap())
-                            .repo_name(RepoName::try_new("test-repo").unwrap())
-                            .line_range(
-                                LineRange::builder()
-                                    .start(LineNumber::try_new(1).unwrap())
-                                    .line_count(LineCount::try_new(1).unwrap())
-                                    .build(),
-                            )
-                            .build(),
-                    )
-                    .content(
-                        ChunkContent::builder()
-                            .text("test content")
-                            .token_count(TokenCount::try_new(2).unwrap())
-                            .build(),
-                    )
-                    .context(ChunkContext::Markdown(
-                        MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-                    ))
-                    .build(),
-            )
-            .index_data(IndexData::Fast {
-                bm25_terms: std::collections::BTreeMap::new(),
-            })
-            .indexed_at(Timestamp::from_secs(timestamp))
-            .build()
-    }
 
     #[test]
     fn test_new_creates_updater_with_valid_forest() {
@@ -311,7 +272,9 @@ mod test {
         fs::write(repo_dir.join("new.md"), "# New\n\nContent here").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_find_all().returning(|| Ok(vec![]));
+        mock_repo
+            .expect_get_indexed_files()
+            .returning(|| Ok(std::collections::HashMap::new()));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
@@ -336,12 +299,15 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("modified.md"), "# Modified\n\nNew content").unwrap();
 
-        let indexed_chunk = create_test_indexed_chunk("test-repo/modified.md", 1000);
-
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo
-            .expect_find_all()
-            .returning(move || Ok(vec![indexed_chunk.clone()]));
+        mock_repo.expect_get_indexed_files().returning(|| {
+            let mut map = std::collections::HashMap::new();
+            map.insert(
+                ForestRelativePath::try_new("test-repo/modified.md").unwrap(),
+                Timestamp::from_secs(1000),
+            );
+            Ok(map)
+        });
         mock_repo
             .expect_delete_by_file()
             .times(1)
@@ -369,12 +335,15 @@ mod test {
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
 
-        let indexed_chunk = create_test_indexed_chunk("test-repo/deleted.md", 1000);
-
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo
-            .expect_find_all()
-            .returning(move || Ok(vec![indexed_chunk.clone()]));
+        mock_repo.expect_get_indexed_files().returning(|| {
+            let mut map = std::collections::HashMap::new();
+            map.insert(
+                ForestRelativePath::try_new("test-repo/deleted.md").unwrap(),
+                Timestamp::from_secs(1000),
+            );
+            Ok(map)
+        });
         mock_repo
             .expect_delete_by_file()
             .times(1)
@@ -408,15 +377,19 @@ mod test {
         fs::write(repo_dir.join("new.md"), "# New\n\nContent").unwrap();
         fs::write(repo_dir.join("modified.md"), "# Modified\n\nContent").unwrap();
 
-        let indexed_chunks = vec![
-            create_test_indexed_chunk("test-repo/modified.md", 1000),
-            create_test_indexed_chunk("test-repo/deleted.md", 1000),
-        ];
-
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo
-            .expect_find_all()
-            .returning(move || Ok(indexed_chunks.clone()));
+        mock_repo.expect_get_indexed_files().returning(|| {
+            let mut map = std::collections::HashMap::new();
+            map.insert(
+                ForestRelativePath::try_new("test-repo/modified.md").unwrap(),
+                Timestamp::from_secs(1000),
+            );
+            map.insert(
+                ForestRelativePath::try_new("test-repo/deleted.md").unwrap(),
+                Timestamp::from_secs(1000),
+            );
+            Ok(map)
+        });
         mock_repo
             .expect_delete_by_file()
             .times(2)
@@ -439,13 +412,13 @@ mod test {
 
     #[test]
     fn test_update_propagates_storage_errors() {
-        // Given A repository that fails to find chunks
+        // Given A repository that fails to get indexed files
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_find_all().returning(|| {
+        mock_repo.expect_get_indexed_files().returning(|| {
             Err(StorageError::InvalidData {
                 message: "test error".to_string(),
             })
@@ -468,7 +441,9 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_find_all().returning(|| Ok(vec![]));
+        mock_repo
+            .expect_get_indexed_files()
+            .returning(|| Ok(std::collections::HashMap::new()));
 
         let config = EmbeddingModelConfig::default();
         let mut updater =

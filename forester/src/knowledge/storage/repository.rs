@@ -24,6 +24,17 @@ pub trait ChunkRepository {
     /// Find all indexed chunks in the index
     fn find_all(&self) -> Result<Vec<IndexedChunk>, StorageError>;
 
+    /// Get indexed file metadata (path and last indexed timestamp)
+    ///
+    /// Returns a map of file paths to their most recent indexing timestamp.
+    /// This is more efficient than `find_all()` for incremental update comparisons.
+    fn get_indexed_files(
+        &self,
+    ) -> Result<
+        std::collections::HashMap<ForestRelativePath, crate::knowledge::domain::Timestamp>,
+        StorageError,
+    >;
+
     /// Remove chunks for a file
     fn delete_by_file(&mut self, path: &ForestRelativePath) -> Result<usize, StorageError>;
 

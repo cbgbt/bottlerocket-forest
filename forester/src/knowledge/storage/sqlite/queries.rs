@@ -8,7 +8,7 @@ use super::serialization::{
 };
 use crate::knowledge::domain::{
     ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
-    IndexedChunk,
+    IndexedChunk, Timestamp,
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
@@ -200,6 +200,35 @@ pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     .context(DatabaseSnafu)?
     .collect::<Result<Vec<_>, _>>()
     .context(DatabaseSnafu)
+}
+
+/// Get indexed file metadata (path and last indexed timestamp)
+pub fn get_indexed_files(
+    conn: &Connection,
+) -> Result<std::collections::HashMap<ForestRelativePath, Timestamp>, StorageError> {
+    let mut stmt = conn
+        .prepare("SELECT file_path, MAX(last_modified) FROM chunks GROUP BY file_path")
+        .context(DatabaseSnafu)?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let path_str: String = row.get(0)?;
+            let timestamp: i64 = row.get(1)?;
+            Ok((path_str, timestamp))
+        })
+        .context(DatabaseSnafu)?;
+
+    let mut result = std::collections::HashMap::new();
+    for row in rows {
+        let (path_str, timestamp) = row.context(DatabaseSnafu)?;
+        let path =
+            ForestRelativePath::try_new(path_str).map_err(|_| StorageError::InvalidData {
+                message: "invalid file path in database".to_string(),
+            })?;
+        result.insert(path, Timestamp::from_secs(timestamp));
+    }
+
+    Ok(result)
 }
 
 /// Delete all chunks from a specific file

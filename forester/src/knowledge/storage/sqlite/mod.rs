@@ -112,6 +112,15 @@ impl ChunkRepository for SqliteChunkRepository {
         queries::find_all(&self.conn)
     }
 
+    fn get_indexed_files(
+        &self,
+    ) -> Result<
+        std::collections::HashMap<ForestRelativePath, crate::knowledge::domain::Timestamp>,
+        StorageError,
+    > {
+        queries::get_indexed_files(&self.conn)
+    }
+
     fn delete_by_file(&mut self, path: &ForestRelativePath) -> Result<usize, StorageError> {
         queries::delete_by_file(&mut self.conn, path)
     }
@@ -1371,5 +1380,42 @@ mod test {
 
         // Then It should succeed regardless of stored config
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_indexed_files() {
+        // Given A repository with multiple chunks from different files
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+
+        let chunk1 = create_test_chunk_fast("repo1/file1.md", "repo1");
+        let chunk2 = create_test_chunk_fast("repo1/file1.md", "repo1");
+        let chunk3 = create_test_chunk_fast("repo2/file2.md", "repo2");
+
+        repo.save(&chunk1).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        repo.save(&chunk2).unwrap();
+        repo.save(&chunk3).unwrap();
+
+        // When Getting indexed files
+        let indexed_files = repo.get_indexed_files().unwrap();
+
+        // Then It should return one entry per file with the latest timestamp
+        assert_eq!(indexed_files.len(), 2);
+        assert!(
+            indexed_files.contains_key(&ForestRelativePath::try_new("repo1/file1.md").unwrap())
+        );
+        assert!(
+            indexed_files.contains_key(&ForestRelativePath::try_new("repo2/file2.md").unwrap())
+        );
+
+        let file1_ts = indexed_files
+            .get(&ForestRelativePath::try_new("repo1/file1.md").unwrap())
+            .unwrap();
+        let file2_ts = indexed_files
+            .get(&ForestRelativePath::try_new("repo2/file2.md").unwrap())
+            .unwrap();
+
+        assert!(file1_ts >= file2_ts);
     }
 }
