@@ -36,5 +36,8 @@ pub use domain::{
     IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult,
     SearchResults, Timestamp,
 };
-pub use indexing::{FileScanner, IndexableFile, ScanError};
+pub use indexing::{
+    FileScanner, IncrementalUpdater, IndexBuildError, IndexBuildResult, IndexBuilder,
+    IndexableFile, ScanError, UpdateError, UpdateResult,
+};
 pub use storage::{ChunkRepository, StorageError};

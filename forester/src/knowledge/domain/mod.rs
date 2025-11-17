@@ -73,7 +73,7 @@ pub struct QueryText(String);
 /// making the index portable across different machines.
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
+    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Hash)
 )]
 pub struct ForestRelativePath(String);
 
