@@ -2,6 +2,12 @@
 //!
 //! A chunk represents a searchable unit of documentation with metadata about its
 //! source location and context.
+//!
+//! Core abstractions:
+//! * [`Chunk`] - The main type combining source, content, and context
+//! * [`ChunkSource`] - Identifies where the chunk came from (file, repo, line range)
+//! * [`ChunkContent`] - The actual text and token count
+//! * [`ChunkContext`] - Type-specific metadata (markdown headings or Rust doc context)
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};

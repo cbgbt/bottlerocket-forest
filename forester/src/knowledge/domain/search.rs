@@ -1,6 +1,11 @@
 //! Search domain types
 //!
 //! Types for representing search queries and results.
+//!
+//! The search flow:
+//! * [`SearchQuery`] specifies what to search for (text, mode, limit)
+//! * [`SearchResult`] represents a single matched chunk with score and matched terms
+//! * [`SearchResults`] aggregates all results with metadata about the search operation
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};

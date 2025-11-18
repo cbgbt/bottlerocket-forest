@@ -1,4 +1,8 @@
 //! File type classification for indexing
+//!
+//! Determines which files should be indexed and how they should be processed.
+//! The file scanner uses [`FileType::from_path`] to classify files, then filters
+//! to only indexable types before dispatching to appropriate chunking strategies.
 
 use std::path::Path;
 

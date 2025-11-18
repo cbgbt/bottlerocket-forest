@@ -1,4 +1,11 @@
 //! Index mode selection for search strategy
+//!
+//! The index mode determines both how chunks are indexed and how searches are performed:
+//! * Fast mode uses BM25 keyword matching with term frequencies
+//! * Best mode uses semantic embeddings for concept-based search
+//!
+//! The mode affects indexing (what data is generated), storage (which tables are used),
+//! and search (which algorithms are applied).
 
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
