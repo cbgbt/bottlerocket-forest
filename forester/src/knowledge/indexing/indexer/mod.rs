@@ -3,7 +3,7 @@
 mod operations;
 mod types;
 
-pub use types::{IndexError, IndexResult};
+pub use types::{IndexResult, IndexingError};
 
 use snafu::ResultExt;
 use std::collections::HashSet;
@@ -44,8 +44,8 @@ impl<R: ChunkRepository> Indexer<R> {
         repository: R,
         config: &EmbeddingModelConfig,
         provider: Box<dyn IndexDataProvider>,
-    ) -> Result<Self, IndexError> {
-        use types::index_error::*;
+    ) -> Result<Self, IndexingError> {
+        use types::indexing_error::*;
 
         let scanner = FileScanner::new(forest_root).context(ScanFailedSnafu)?;
         let dispatcher = ChunkingDispatcher::with_defaults(config).context(ChunkingFailedSnafu)?;
@@ -59,7 +59,7 @@ impl<R: ChunkRepository> Indexer<R> {
     }
 
     /// Execute an indexing operation
-    pub fn index(&mut self, strategy: IndexStrategy) -> Result<IndexResult, IndexError> {
+    pub fn index(&mut self, strategy: IndexStrategy) -> Result<IndexResult, IndexingError> {
         match strategy {
             IndexStrategy::Build => self.build(),
             IndexStrategy::Rebuild => self.rebuild(),
@@ -68,8 +68,8 @@ impl<R: ChunkRepository> Indexer<R> {
     }
 
     /// Build index from scratch (don't clear existing)
-    fn build(&mut self) -> Result<IndexResult, IndexError> {
-        use types::index_error::*;
+    fn build(&mut self) -> Result<IndexResult, IndexingError> {
+        use types::indexing_error::*;
 
         let start = Instant::now();
         let mut files_added = 0;
@@ -102,16 +102,16 @@ impl<R: ChunkRepository> Indexer<R> {
     }
 
     /// Clear existing index then build from scratch
-    fn rebuild(&mut self) -> Result<IndexResult, IndexError> {
-        use types::index_error::*;
+    fn rebuild(&mut self) -> Result<IndexResult, IndexingError> {
+        use types::indexing_error::*;
 
         self.repository.clear().context(StorageFailedSnafu)?;
         self.build()
     }
 
     /// Update only changed files
-    fn incremental(&mut self) -> Result<IndexResult, IndexError> {
-        use types::index_error::*;
+    fn incremental(&mut self) -> Result<IndexResult, IndexingError> {
+        use types::indexing_error::*;
 
         let current_files = self.scanner.scan().context(ScanFailedSnafu)?;
         let indexed_files = self
@@ -228,7 +228,7 @@ mod test {
         let result = Indexer::new(nonexistent, mock_repo, &config, Box::new(mock_provider));
 
         // Then It should fail with ScanFailed error
-        assert!(matches!(result, Err(IndexError::ScanFailed { .. })));
+        assert!(matches!(result, Err(IndexingError::ScanFailed { .. })));
     }
 
     #[test]
@@ -366,7 +366,7 @@ mod test {
         // Then It should fail with IndexDataGenerationFailed error
         assert!(matches!(
             result,
-            Err(IndexError::IndexDataGenerationFailed { .. })
+            Err(IndexingError::IndexDataGenerationFailed { .. })
         ));
     }
 
@@ -401,7 +401,7 @@ mod test {
         let result = indexer.index(IndexStrategy::Build);
 
         // Then It should fail with StorageFailed error
-        assert!(matches!(result, Err(IndexError::StorageFailed { .. })));
+        assert!(matches!(result, Err(IndexingError::StorageFailed { .. })));
     }
 
     #[test]
@@ -687,7 +687,7 @@ mod test {
         let result = indexer.index(IndexStrategy::Incremental);
 
         // Then It should fail with StorageFailed error
-        assert!(matches!(result, Err(IndexError::StorageFailed { .. })));
+        assert!(matches!(result, Err(IndexingError::StorageFailed { .. })));
     }
 
     #[test]

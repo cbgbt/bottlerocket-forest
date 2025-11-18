@@ -38,7 +38,7 @@ pub struct IndexResult {
 /// Errors that can occur during indexing
 #[derive(Debug, Snafu)]
 #[snafu(module, visibility(pub(crate)))]
-pub enum IndexError {
+pub enum IndexingError {
     #[snafu(display("Failed to scan files"))]
     ScanFailed { source: ScanError },
 

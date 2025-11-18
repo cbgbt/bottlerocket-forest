@@ -27,7 +27,7 @@ pub mod provider;
 pub mod scanner;
 
 pub use bm25::calculate_bm25_terms;
-pub use indexer::{IndexError, IndexResult, IndexStrategy, Indexer};
+pub use indexer::{IndexResult, IndexStrategy, Indexer, IndexingError};
 pub use provider::{Bm25Provider, IndexDataError, IndexDataProvider};
 pub use scanner::{FileScanner, IndexableFile, ScanError};
 

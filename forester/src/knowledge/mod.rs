@@ -5,27 +5,44 @@
 //!
 //! # Architecture
 //!
-//! The knowledge index is organized into three layers:
+//! The knowledge index is organized into layers:
 //!
 //! * **Domain Layer** (`domain/`): Type-safe domain models
 //!   Defines core concepts like `Chunk`, `SearchQuery`, and `IndexMode` (Fast/Best).
 //!
 //! * **Storage Layer** (`storage/`): Knowledgebase persistence
 //!
-//! * **Chunking Layer** Splits documentation into searchable chunks with
+//! * **Chunking Layer** (`chunking/`): Splits documentation into searchable chunks with
 //!   context preservation (markdown headings, rustdoc items).
 //!
 //! * **Indexing Layer** (`indexing/`): File scanning and index building
+//!
+//! * **Search Layer** (`search/`): BM25 and semantic search engines
+//!
+//! * **Facade Layer** (`facade/`): High-level API via [`KnowledgeIndex`]
 //!
 //! # Index Modes
 //!
 //! - **Fast**: BM25 lexical search - quick keyword matching, no embeddings
 //! - **Best**: Semantic search using all-MiniLM-L6-v2 embeddings - understands meaning
 //!
+//! # Quick Start
+//!
+//! ```no_run
+//! use forester::knowledge::{KnowledgeIndex, IndexMode};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut index = KnowledgeIndex::open("/path/to/forest", IndexMode::Best)?;
+//! let result = index.build()?;
+//! let results = index.search("boot process", 10)?;
+//! # Ok(())
+//! # }
+//! ```
 
 pub mod chunking;
 pub mod constants;
 pub mod domain;
+pub mod facade;
 pub mod indexing;
 pub mod search;
 pub mod storage;
@@ -37,8 +54,9 @@ pub use domain::{
     IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult,
     SearchResults, Timestamp,
 };
+pub use facade::{IndexError, IndexStatus, KnowledgeIndex};
 pub use indexing::{
-    FileScanner, IndexError, IndexResult, IndexStrategy, IndexableFile, Indexer, ScanError,
+    FileScanner, IndexResult, IndexStrategy, IndexableFile, Indexer, IndexingError, ScanError,
 };
 pub use search::{Bm25SearchEngine, SearchEngine, SearchError, SemanticSearchEngine};
 pub use storage::{ChunkRepository, StorageError};

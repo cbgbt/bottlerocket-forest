@@ -6,7 +6,7 @@ use crate::knowledge::domain::{
 };
 
 use super::super::{IndexDataProvider, IndexableFile};
-use super::types::IndexError;
+use super::types::IndexingError;
 
 use snafu::ResultExt;
 
@@ -16,8 +16,8 @@ use snafu::ResultExt;
 pub(super) fn index_chunk(
     chunk: Chunk,
     provider: &dyn IndexDataProvider,
-) -> Result<IndexedChunk, IndexError> {
-    use super::types::index_error::*;
+) -> Result<IndexedChunk, IndexingError> {
+    use super::types::indexing_error::*;
 
     let index_data = provider
         .generate(chunk.content.text.as_ref())
@@ -38,8 +38,8 @@ pub(super) fn process_file(
     file: &IndexableFile,
     dispatcher: &ChunkingDispatcher,
     provider: &dyn IndexDataProvider,
-) -> Result<Vec<IndexedChunk>, IndexError> {
-    use super::types::index_error::*;
+) -> Result<Vec<IndexedChunk>, IndexingError> {
+    use super::types::indexing_error::*;
 
     let content = std::fs::read_to_string(file.absolute_path.to_string())
         .map_err(|e| super::super::ScanError::IoError {
@@ -190,7 +190,7 @@ mod test {
         // Then It should fail with IndexDataGenerationFailed error
         assert!(matches!(
             result,
-            Err(IndexError::IndexDataGenerationFailed { .. })
+            Err(IndexingError::IndexDataGenerationFailed { .. })
         ));
     }
 }
