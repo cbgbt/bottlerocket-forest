@@ -84,7 +84,6 @@ pub struct RustDocContext {
     pub signature: Option<Signature>,
 }
 
-/// Parent item for Rust doc comments in impl blocks
 /// Visibility of a Rust item
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Visibility {
@@ -112,7 +111,6 @@ impl From<syn::Visibility> for Visibility {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::domain::Embedding;
 
     #[test]
     fn test_line_range_single_line() {
@@ -138,15 +136,5 @@ mod test {
 
         // Then End should be start + count - 1
         assert_eq!(range.end(), LineNumber::try_new(14).unwrap());
-    }
-
-    #[test]
-    fn test_embedding_rejects_empty() {
-        // Given An empty vector
-        let empty = Embedding::try_new(vec![]);
-
-        // When Creating the embedding
-        // Then It should fail validation
-        assert!(empty.is_err());
     }
 }

@@ -63,6 +63,7 @@ pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
     }
 }
 
+/// Start the registry and display the URL
 fn start(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -72,6 +73,7 @@ fn start(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Stop the registry and display confirmation
 fn stop(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -80,6 +82,7 @@ fn stop(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Display the registry status
 fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -110,6 +113,7 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Clean the registry container and volume
 fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -118,6 +122,7 @@ fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Display registry logs
 fn logs(config: &registry::RegistryConfig, follow: bool) -> Result<(), RegistryError> {
     use registry_error::*;
 

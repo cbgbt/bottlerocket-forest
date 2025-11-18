@@ -9,6 +9,11 @@ pub use types::{RegistryConfig, RegistryState, RegistryStatus, RegistryUrl};
 
 const REGISTRY_STARTUP_TIMEOUT_SECS: u64 = 10;
 
+/// Start the local OCI registry container
+///
+/// Creates and starts a Docker container running the registry image. If the container
+/// already exists but is stopped, it will be started. Waits for the registry to become
+/// healthy before returning.
 pub fn start(config: &RegistryConfig) -> Result<RegistryUrl, RegistryError> {
     use registry_error::*;
 
@@ -33,6 +38,10 @@ pub fn start(config: &RegistryConfig) -> Result<RegistryUrl, RegistryError> {
     Ok(url)
 }
 
+/// Stop the local OCI registry container
+///
+/// Stops the registry container if it is running. Does nothing if the container
+/// is already stopped or does not exist.
 pub fn stop(config: &RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -53,6 +62,10 @@ pub fn stop(config: &RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Get the status of the local OCI registry
+///
+/// Returns information about the registry container state (running, stopped, or not created)
+/// and whether the data volume exists.
 pub fn status(config: &RegistryConfig) -> Result<RegistryStatus, RegistryError> {
     use registry_error::*;
 
@@ -77,6 +90,10 @@ pub fn status(config: &RegistryConfig) -> Result<RegistryStatus, RegistryError> 
     })
 }
 
+/// Remove the registry container and data volume
+///
+/// Stops and removes the registry container if it exists, then removes the data volume.
+/// This permanently deletes all registry data.
 pub fn clean(config: &RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -105,6 +122,10 @@ pub fn clean(config: &RegistryConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Display logs from the registry container
+///
+/// Shows the container logs. If `follow` is true, streams logs continuously until interrupted.
+/// Returns an error if the container is not running.
 pub fn logs(config: &RegistryConfig, follow: bool) -> Result<(), RegistryError> {
     use registry_error::*;
 

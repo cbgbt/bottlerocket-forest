@@ -26,6 +26,7 @@ const STOPWORDS: &[&str] = &[
 ///
 /// Tokenizes text by splitting on whitespace and punctuation, converts to lowercase,
 /// removes stopwords, and counts term frequencies.
+#[must_use = "computed BM25 terms should be used"]
 pub fn calculate_bm25_terms(text: &str) -> BTreeMap<String, u32> {
     text.split(|c: char| c.is_whitespace() || c.is_ascii_punctuation())
         .filter_map(|token| {

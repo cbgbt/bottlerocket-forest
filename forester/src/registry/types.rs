@@ -58,6 +58,7 @@ pub struct RegistryUrl {
 }
 
 impl RegistryUrl {
+    #[must_use]
     pub fn port(&self) -> u16 {
         self.port.into_inner()
     }
@@ -117,6 +118,7 @@ impl Default for RegistryConfig {
 }
 
 impl RegistryConfig {
+    #[must_use = "builder methods return new instances"]
     pub fn with_port(mut self, port: RegistryPort) -> Self {
         self.port = port;
         self.container_name =

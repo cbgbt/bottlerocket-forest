@@ -13,6 +13,7 @@ pub struct ChunkingDispatcher {
 
 impl ChunkingDispatcher {
     /// Creates a dispatcher with default strategies for markdown and Rust files.
+    #[must_use = "dispatcher must be used or initialization error handled"]
     pub fn with_defaults(config: &EmbeddingModelConfig) -> Result<Self, DispatchError> {
         use dispatch_error::*;
 

@@ -13,9 +13,7 @@
 //! ## Cross-References
 //!
 //! - BM25 tokenization: [`super::bm25::calculate_bm25_terms`]
-//! - BM25 search scoring: `crate::knowledge::storage::sqlite::search::search_bm25`
 //! - Semantic embeddings: [`crate::knowledge::search::embeddings::EmbeddingProvider`]
-//! - Semantic search: `crate::knowledge::storage::sqlite::search::search_semantic`
 
 use snafu::{IntoError, Snafu};
 
@@ -61,8 +59,8 @@ pub enum IndexDataError {
 /// Generates term frequency maps for keyword-based search using the BM25 algorithm.
 /// This provider tokenizes text, removes stopwords, and counts term frequencies.
 ///
-/// For the corresponding search implementation, see
-/// `crate::knowledge::storage::sqlite::search::search_bm25`.
+/// For the search implementation that uses these terms, see the BM25 search
+/// functionality in the storage layer.
 pub struct Bm25Provider;
 
 impl IndexDataProvider for Bm25Provider {
@@ -82,8 +80,8 @@ impl IndexDataProvider for Bm25Provider {
 /// This provider wraps an [`EmbeddingProvider`] to convert text into dense vector
 /// representations that capture semantic meaning.
 ///
-/// For the corresponding search implementation, see
-/// `crate::knowledge::storage::sqlite::search::search_semantic`.
+/// For the search implementation that uses these embeddings, see the semantic search
+/// functionality in the storage layer.
 pub struct EmbeddingDataProvider {
     embedding_provider: Box<dyn EmbeddingProvider>,
 }
