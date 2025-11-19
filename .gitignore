@@ -7,6 +7,9 @@ Cargo.lock
 forester/target/
 /worktrees
 
+# Forester data directory
+.forester/
+
 # Bottlerocket component repositories
 /bottlerocket
 /kits
