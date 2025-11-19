@@ -1,3 +1,4 @@
+mod index;
 mod registry;
 
 use argh::FromArgs;
@@ -13,6 +14,7 @@ pub struct Args {
 #[derive(FromArgs)]
 #[argh(subcommand)]
 enum Command {
+    Index(index::IndexCommand),
     Registry(registry::RegistryCommand),
 }
 
@@ -22,6 +24,7 @@ pub fn run() -> Result<(), CliError> {
     let args: Args = argh::from_env();
 
     match args.command {
+        Command::Index(cmd) => index::run(cmd).context(IndexSnafu)?,
         Command::Registry(cmd) => registry::run(cmd).context(RegistrySnafu)?,
     }
 
@@ -31,6 +34,9 @@ pub fn run() -> Result<(), CliError> {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum CliError {
+    #[snafu(display("Index command failed"))]
+    Index { source: index::IndexError },
+
     #[snafu(display("Registry command failed"))]
     Registry { source: registry::RegistryError },
 }
