@@ -15,26 +15,44 @@ pub trait SearchEngine {
 }
 
 /// Errors that can occur during search operations
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub(crate)))]
 pub enum SearchError {
-    #[snafu(display("Storage operation failed"))]
+    #[snafu(display("Failed to query database during search"))]
+    #[diagnostic(
+        code(forester::search::storage_error),
+        help("The database may be locked or corrupted")
+    )]
     Storage {
         source: crate::knowledge::storage::StorageError,
     },
 
-    #[snafu(display("Query mode {query_mode:?} does not match engine mode {engine_mode:?}"))]
+    #[snafu(display(
+        "Search mode mismatch: query uses {query_mode:?} mode but search engine is configured for {engine_mode:?} mode"
+    ))]
+    #[diagnostic(
+        code(forester::search::mode_mismatch),
+        help("Ensure the query mode matches the index mode")
+    )]
     ModeMismatch {
         query_mode: IndexMode,
         engine_mode: IndexMode,
     },
 
-    #[snafu(display("Failed to generate query embedding"))]
+    #[snafu(display("Failed to generate embedding vector for search query"))]
+    #[diagnostic(
+        code(forester::search::embedding_failed),
+        help("The embedding model may not be loaded or the query text may be invalid")
+    )]
     EmbeddingFailed {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
-    #[snafu(display("Repository returned invalid relevance score: {score}"))]
+    #[snafu(display("Database returned invalid relevance score: {score}"))]
+    #[diagnostic(
+        code(forester::search::invalid_score),
+        help("The index may be corrupted. Try running `forester index rebuild`")
+    )]
     InvalidScore {
         score: f32,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,

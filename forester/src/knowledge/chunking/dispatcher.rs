@@ -44,16 +44,28 @@ impl ChunkingDispatcher {
 }
 
 /// Errors that can occur during dispatch operations
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub(crate)))]
 pub enum DispatchError {
-    #[snafu(display("No strategy found for file"))]
+    #[snafu(display("No chunking strategy available for this file type"))]
+    #[diagnostic(
+        code(forester::chunking::no_strategy_found),
+        help("Only Markdown (.md) and Rust (.rs) files are currently supported")
+    )]
     NoStrategyFound,
 
-    #[snafu(display("Chunking failed"))]
+    #[snafu(display("Failed to chunk file content into searchable segments"))]
+    #[diagnostic(
+        code(forester::chunking::chunking_failed),
+        help("The file may contain invalid syntax or exceed size limits")
+    )]
     ChunkingFailed { source: ChunkingError },
 
-    #[snafu(display("Failed to initialize strategy"))]
+    #[snafu(display("Failed to initialize chunking strategy"))]
+    #[diagnostic(
+        code(forester::chunking::strategy_init_failed),
+        help("Check that the embedding model configuration is valid")
+    )]
     StrategyInitFailed { source: ChunkingError },
 }
 

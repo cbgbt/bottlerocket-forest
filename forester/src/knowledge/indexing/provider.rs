@@ -38,17 +38,23 @@ pub trait IndexDataProvider: Send + Sync {
 }
 
 /// Errors that can occur during index data generation
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum IndexDataError {
-    /// BM25 term calculation failed
     #[snafu(display("Failed to calculate BM25 terms"))]
+    #[diagnostic(
+        code(forester::indexing::bm25_failed),
+        help("The text may contain unsupported characters or be malformed")
+    )]
     Bm25Failed {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
-    /// Embedding generation failed
     #[snafu(display("Failed to generate embedding"))]
+    #[diagnostic(
+        code(forester::indexing::embedding_failed),
+        help("The embedding model may not be loaded or the text may be invalid")
+    )]
     EmbeddingFailed {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },

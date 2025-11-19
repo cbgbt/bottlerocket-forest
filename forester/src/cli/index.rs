@@ -387,27 +387,48 @@ enum OutputFormat {
     Json,
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum IndexError {
     #[snafu(display("Knowledge index operation failed"))]
+    #[diagnostic(
+        code(forester::cli::knowledge_index_failed),
+        help("Check the error details above for specific guidance")
+    )]
     KnowledgeIndex {
         source: crate::knowledge::facade::IndexError,
     },
 
-    #[snafu(display("Index not found at {path}. Run `forester index build` to create it."))]
+    #[snafu(display("Index not found at {path}"))]
+    #[diagnostic(
+        code(forester::cli::index_not_found),
+        help("Run `forester index build` to create it")
+    )]
     IndexNotFound { path: String },
 
-    #[snafu(display("Invalid mode: {mode}. Must be 'fast' or 'best'"))]
+    #[snafu(display("Invalid mode: {mode}"))]
+    #[diagnostic(code(forester::cli::invalid_mode), help("Must be 'fast' or 'best'"))]
     InvalidMode { mode: String },
 
-    #[snafu(display("Invalid output format: {format}. Must be 'human' or 'json'"))]
+    #[snafu(display("Invalid output format: {format}"))]
+    #[diagnostic(
+        code(forester::cli::invalid_output_format),
+        help("Must be 'human' or 'json'")
+    )]
     InvalidOutputFormat { format: String },
 
     #[snafu(display("Failed to read user input"))]
+    #[diagnostic(
+        code(forester::cli::input_read_failed),
+        help("Check that stdin is available and not closed")
+    )]
     InputReadFailed { source: std::io::Error },
 
     #[snafu(display("Failed to serialize JSON output"))]
+    #[diagnostic(
+        code(forester::cli::json_serialization_failed),
+        help("The search results may contain invalid data")
+    )]
     JsonSerializationFailed { source: serde_json::Error },
 }
 

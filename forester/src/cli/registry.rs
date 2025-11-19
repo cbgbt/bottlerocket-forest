@@ -129,12 +129,20 @@ fn logs(config: &registry::RegistryConfig, follow: bool) -> Result<(), RegistryE
     registry::logs(config, follow).context(OperationSnafu)
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum RegistryError {
     #[snafu(display("Failed to load configuration"))]
+    #[diagnostic(
+        code(forester::registry::config_failed),
+        help("Check that the configuration file is valid and accessible")
+    )]
     Config { source: config::ConfigError },
 
     #[snafu(display("Registry operation failed"))]
+    #[diagnostic(
+        code(forester::registry::operation_failed),
+        help("Check the error details above for specific guidance")
+    )]
     Operation { source: registry::RegistryError },
 }

@@ -166,30 +166,45 @@ pub struct IndexableFile {
 }
 
 /// Errors that can occur during file scanning
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum ScanError {
-    /// Forest root directory does not exist
     #[snafu(display("Forest root not found: {path}"))]
+    #[diagnostic(
+        code(forester::scanner::forest_root_not_found),
+        help("Ensure the path exists and is accessible")
+    )]
     ForestRootNotFound { path: String },
 
-    /// Permission denied accessing a file or directory
     #[snafu(display("Permission denied: {path}"))]
+    #[diagnostic(
+        code(forester::scanner::permission_denied),
+        help("Check file and directory permissions")
+    )]
     PermissionDenied { path: String },
 
-    /// I/O error during scanning
     #[snafu(display("I/O error scanning {path}"))]
+    #[diagnostic(
+        code(forester::scanner::io_error),
+        help("Check that the path is accessible and the filesystem is healthy")
+    )]
     IoError {
         path: String,
         source: std::io::Error,
     },
 
-    /// Invalid path structure (cannot extract repo name)
     #[snafu(display("Invalid path structure: {path}"))]
+    #[diagnostic(
+        code(forester::scanner::invalid_path_structure),
+        help("Ensure the path follows the expected forest directory structure")
+    )]
     InvalidPathStructure { path: String },
 
-    /// Failed to create domain type from path
     #[snafu(display("Failed to create path type"))]
+    #[diagnostic(
+        code(forester::scanner::path_creation_failed),
+        help("The path may contain invalid characters or exceed length limits")
+    )]
     PathCreation {
         source: Box<dyn std::error::Error + Send + Sync>,
     },

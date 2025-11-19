@@ -67,33 +67,59 @@ pub trait ChunkRepository {
 }
 
 /// Errors that can occur during storage operations
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub))]
 pub enum StorageError {
-    #[snafu(display("Database error"))]
+    #[snafu(display("Database operation failed"))]
+    #[diagnostic(
+        code(forester::storage::database_error),
+        help("The database may be locked, corrupted, or out of disk space")
+    )]
     DatabaseError { source: rusqlite::Error },
 
-    #[snafu(display("Failed to serialize data"))]
+    #[snafu(display("Failed to serialize chunk data to JSON"))]
+    #[diagnostic(
+        code(forester::storage::serialization_error),
+        help("The chunk may contain invalid UTF-8 or unsupported characters")
+    )]
     SerializationError { source: serde_json::Error },
 
-    #[snafu(display("Invalid data: {message}"))]
+    #[snafu(display("Invalid data in database: {message}"))]
+    #[diagnostic(
+        code(forester::storage::invalid_data),
+        help("The database may be corrupted. Try running `forester index rebuild`")
+    )]
     InvalidData { message: String },
 
-    #[snafu(display("Invalid field '{field}'"))]
+    #[snafu(display("Invalid value in database field '{field}'"))]
+    #[diagnostic(
+        code(forester::storage::invalid_field),
+        help("The database schema may be incompatible with this version")
+    )]
     InvalidField {
         field: String,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
-    #[snafu(display("Chunk not found: {id:?}"))]
+    #[snafu(display("Chunk not found in index: {id:?}"))]
+    #[diagnostic(
+        code(forester::storage::not_found),
+        help("The chunk may have been deleted or the index may be out of sync")
+    )]
     NotFound { id: ChunkId },
 
-    #[snafu(display("Operation not supported: {operation}"))]
+    #[snafu(display("Operation not supported in current index mode: {operation}"))]
+    #[diagnostic(
+        code(forester::storage::unsupported_operation),
+        help("This operation requires a different index mode")
+    )]
     UnsupportedOperation { operation: String },
 
-    #[snafu(display(
-        "Index configuration mismatch. Expected: {expected:?}, Found: {actual:?}. Run `forester index rebuild` to recreate the index with the current configuration."
-    ))]
+    #[snafu(display("Index configuration mismatch\nExpected: {expected:?}\nFound: {actual:?}"))]
+    #[diagnostic(
+        code(forester::storage::config_mismatch),
+        help("Run `forester index rebuild` to recreate the index with the current configuration")
+    )]
     ConfigMismatch {
         expected: EmbeddingModelConfig,
         actual: EmbeddingModelConfig,

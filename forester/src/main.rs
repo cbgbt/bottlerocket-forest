@@ -1,6 +1,6 @@
 use forester::cli;
 
-#[snafu::report]
-fn main() -> Result<(), cli::CliError> {
-    cli::run()
+fn main() -> miette::Result<()> {
+    miette::set_panic_hook();
+    Ok(cli::run()?)
 }

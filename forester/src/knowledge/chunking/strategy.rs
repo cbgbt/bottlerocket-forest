@@ -23,17 +23,29 @@ pub struct ChunkingInput {
 }
 
 /// Errors that can occur during chunking
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub))]
 pub enum ChunkingError {
     #[snafu(display("Failed to parse content"))]
+    #[diagnostic(
+        code(forester::chunking::parse_error),
+        help("The file may contain invalid syntax")
+    )]
     ParseError {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
     #[snafu(display("Token limit exceeded: {actual} > {max}"))]
+    #[diagnostic(
+        code(forester::chunking::token_limit_exceeded),
+        help("The content section is too large and cannot be chunked further")
+    )]
     TokenLimitExceeded { actual: usize, max: usize },
 
     #[snafu(display("Invalid UTF-8 in content"))]
+    #[diagnostic(
+        code(forester::chunking::invalid_utf8),
+        help("The file contains invalid UTF-8 encoding")
+    )]
     InvalidUtf8 { source: std::str::Utf8Error },
 }

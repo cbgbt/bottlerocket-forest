@@ -31,12 +31,20 @@ pub fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum CliError {
     #[snafu(display("Index command failed"))]
+    #[diagnostic(
+        code(forester::cli::index_command_failed),
+        help("Check the error details above for specific guidance")
+    )]
     Index { source: index::IndexError },
 
     #[snafu(display("Registry command failed"))]
+    #[diagnostic(
+        code(forester::cli::registry_command_failed),
+        help("Check the error details above for specific guidance")
+    )]
     Registry { source: registry::RegistryError },
 }
