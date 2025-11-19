@@ -65,9 +65,11 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
             .into_iter()
             .map(|(indexed_chunk, score)| {
                 use crate::knowledge::domain::{RelevanceScore, SearchResult};
-                let relevance_score = RelevanceScore::try_new(score)
+                // Normalize cosine similarity from [-1, 1] to [0, 1]
+                let normalized_score = (score + 1.0) / 2.0;
+                let relevance_score = RelevanceScore::try_new(normalized_score)
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                    .context(InvalidScoreSnafu { score })?;
+                    .context(InvalidScoreSnafu { score: normalized_score })?;
 
                 Ok(SearchResult::builder()
                     .chunk(indexed_chunk.chunk)

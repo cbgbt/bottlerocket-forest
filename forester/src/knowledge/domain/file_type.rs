@@ -29,7 +29,9 @@ impl FileType {
 
     /// Check if this file type should be indexed
     pub fn is_indexable(&self) -> bool {
-        matches!(self, Self::Markdown | Self::Rust)
+        matches!(self, Self::Markdown)
+        // TODO: Re-enable Rust once we handle parse errors gracefully
+        // matches!(self, Self::Markdown | Self::Rust)
     }
 }
 

@@ -49,6 +49,14 @@ impl FileScanner {
         for entry in walkdir::WalkDir::new(&self.forest_root)
             .follow_links(false)
             .into_iter()
+            .filter_entry(|e| {
+                // Skip common directories that shouldn't be indexed
+                let file_name = e.file_name().to_string_lossy();
+                !matches!(
+                    file_name.as_ref(),
+                    ".git" | "target" | "vendor" | ".cargo" | "node_modules" | ".forester"
+                ) && !file_name.starts_with('.')
+            })
         {
             let entry = entry.map_err(|e| {
                 if e.io_error()
