@@ -25,6 +25,9 @@ pub struct IndexResult {
     /// Number of files removed (Build/Rebuild: 0, Incremental: deleted files)
     pub files_removed: usize,
 
+    /// Number of files skipped due to parse errors
+    pub files_skipped: usize,
+
     /// Total chunks affected (created, updated, or removed)
     pub chunks_affected: usize,
 

@@ -1,14 +1,47 @@
 //! Core indexing operations
 
-use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingInput};
+use snafu::ResultExt;
+
+use super::super::{IndexDataProvider, IndexableFile};
+use super::types::IndexingError;
+use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingError, ChunkingInput, DispatchError};
 use crate::knowledge::domain::{
     Chunk, ChunkSource, ChunkableContent, IndexedChunk, LineCount, LineNumber, LineRange, Timestamp,
 };
 
-use super::super::{IndexDataProvider, IndexableFile};
-use super::types::IndexingError;
+/// Process a file with graceful error handling for parse failures
+///
+/// Returns:
+/// - Ok: Successfully processed chunks
+/// - Err(Ok): File was skipped due to parse error
+/// - Err(Err): Fatal error - caller should propagate
+pub(super) fn process_file_gracefully(
+    file: &IndexableFile,
+    dispatcher: &ChunkingDispatcher,
+    provider: &dyn IndexDataProvider,
+) -> Result<Vec<IndexedChunk>, Result<(), IndexingError>> {
+    match process_file(file, dispatcher, provider) {
+        Ok(chunks) => Ok(chunks),
+        Err(e) => {
+            if is_skippable_parse_error(&e) {
+                Err(Ok(()))
+            } else {
+                Err(Err(e))
+            }
+        }
+    }
+}
 
-use snafu::ResultExt;
+fn is_skippable_parse_error(error: &IndexingError) -> bool {
+    matches!(
+        error,
+        IndexingError::ChunkingFailed {
+            source: DispatchError::ChunkingFailed {
+                source: ChunkingError::ParseError { .. }
+            }
+        }
+    )
+}
 
 /// Process a single file: read, chunk, and index
 ///

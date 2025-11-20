@@ -42,11 +42,11 @@ impl RustDocChunker {
 
         let tokenizer = Tokenizer::from_pretrained(&config.model_name, None)
             .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
-            .context(ParseSnafu)?;
+            .context(TokenizerInitSnafu)?;
 
         let tokenizer_for_counting = Tokenizer::from_pretrained(&config.model_name, None)
             .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
-            .context(ParseSnafu)?;
+            .context(TokenizerInitSnafu)?;
 
         let splitter = TextSplitter::new(
             ChunkConfig::new(config.max_tokens)
@@ -93,6 +93,7 @@ impl RustDocChunker {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;
 
+        let file_path = input.source.file_path.to_string();
         let mut chunks = Vec::new();
 
         match item {
@@ -101,12 +102,16 @@ impl RustDocChunker {
                 if !doc_text.trim().is_empty() {
                     let item_name = ItemName::try_new(item_fn.sig.ident.to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     let sig = &item_fn.sig;
                     let signature = Signature::try_new(quote::quote!(#sig).to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     chunks.extend(self.create_chunks(
                         &doc_text,
@@ -122,7 +127,9 @@ impl RustDocChunker {
                 if !doc_text.trim().is_empty() {
                     let item_name = ItemName::try_new(item_struct.ident.to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     chunks.extend(self.create_chunks(
                         &doc_text,
@@ -138,7 +145,9 @@ impl RustDocChunker {
                 if !doc_text.trim().is_empty() {
                     let item_name = ItemName::try_new(item_enum.ident.to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     chunks.extend(self.create_chunks(
                         &doc_text,
@@ -154,7 +163,9 @@ impl RustDocChunker {
                 if !doc_text.trim().is_empty() {
                     let item_name = ItemName::try_new(item_trait.ident.to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     chunks.extend(self.create_chunks(
                         &doc_text,
@@ -169,7 +180,9 @@ impl RustDocChunker {
                 let doc_text = Self::extract_doc_text(&item_mod.attrs);
                 let mod_name = ItemName::try_new(item_mod.ident.to_string())
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                    .context(ParseSnafu)?;
+                    .context(ParseSnafu {
+                        file_path: file_path.clone(),
+                    })?;
 
                 if !doc_text.trim().is_empty() {
                     chunks.extend(self.create_chunks(
@@ -205,6 +218,7 @@ impl RustDocChunker {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;
 
+        let file_path = input.source.file_path.to_string();
         let mut chunks = Vec::new();
 
         for impl_item in &item_impl.items {
@@ -213,12 +227,16 @@ impl RustDocChunker {
                 if !doc_text.trim().is_empty() {
                     let item_name = ItemName::try_new(method.sig.ident.to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     let sig = &method.sig;
                     let signature = Signature::try_new(quote::quote!(#sig).to_string())
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?;
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
 
                     chunks.extend(self.create_chunks(
                         &doc_text,
@@ -248,18 +266,23 @@ impl RustDocChunker {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;
 
+        let file_path = input.source.file_path.to_string();
         let text_chunks: Vec<&str> = self.splitter.chunks(doc_text).collect();
 
         text_chunks
             .into_iter()
             .map(|text| {
-                let encoding = self.tokenizer.encode(text, false).context(ParseSnafu)?;
+                let encoding = self.tokenizer.encode(text, false).context(ParseSnafu {
+                    file_path: file_path.clone(),
+                })?;
 
                 let token_count = encoding.len().max(1);
 
                 let token_count = TokenCount::try_new(token_count)
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                    .context(ParseSnafu)?;
+                    .context(ParseSnafu {
+                        file_path: file_path.clone(),
+                    })?;
 
                 let context = RustDocContext::builder()
                     .item_name(item_name.clone())
@@ -297,10 +320,13 @@ impl ChunkingStrategy for RustDocChunker {
         use snafu::ResultExt;
 
         let content = input.content.as_ref();
+        let file_path = input.source.file_path.to_string();
 
         let syntax_tree: File = syn::parse_str(content)
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-            .context(ParseSnafu)?;
+            .context(ParseSnafu {
+                file_path: file_path.clone(),
+            })?;
 
         let mut chunks = Vec::new();
 
@@ -311,7 +337,9 @@ impl ChunkingStrategy for RustDocChunker {
                     &module_doc,
                     ItemName::try_new("module")
                         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                        .context(ParseSnafu)?,
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?,
                     Visibility::Public,
                     None,
                     input,

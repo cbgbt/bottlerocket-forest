@@ -276,9 +276,9 @@ mod test {
         let scanner = scanner_no_git(temp_dir.path());
         let files = scanner.scan().unwrap();
 
-        // Then It should find no files (Rust indexing currently disabled)
-        // TODO: Update this test when Rust indexing is re-enabled
-        assert_eq!(files.len(), 0);
+        // Then It should find rust files
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().all(|f| f.file_type == FileType::Rust));
     }
 
     #[test]

@@ -29,9 +29,7 @@ impl FileType {
 
     /// Check if this file type should be indexed
     pub fn is_indexable(&self) -> bool {
-        matches!(self, Self::Markdown)
-        // TODO: Re-enable Rust once we handle parse errors gracefully
-        // matches!(self, Self::Markdown | Self::Rust)
+        matches!(self, Self::Markdown | Self::Rust)
     }
 }
 
@@ -41,7 +39,7 @@ mod test {
     use test_case::test_case;
 
     #[test_case("README.md", FileType::Markdown, true ; "markdown file")]
-    #[test_case("src/main.rs", FileType::Rust, false ; "rust file")]
+    #[test_case("src/main.rs", FileType::Rust, true ; "rust file")]
     #[test_case("Cargo.toml", FileType::Unsupported, false ; "toml file")]
     #[test_case("LICENSE", FileType::Unsupported, false ; "no extension")]
     fn test_file_classification(path: &str, expected_type: FileType, expected_indexable: bool) {

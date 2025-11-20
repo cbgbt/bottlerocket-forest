@@ -78,19 +78,32 @@ impl<R: ChunkRepository> Indexer<R> {
 
         let results: Vec<_> = files
             .par_iter()
-            .map(|file| operations::process_file(file, &self.dispatcher, &*self.provider))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|file| {
+                operations::process_file_gracefully(file, &self.dispatcher, &*self.provider)
+            })
+            .collect();
 
         let mut files_added = 0;
+        let mut files_skipped = 0;
         let mut chunks_affected = 0;
 
-        for indexed_chunks in results {
-            if !indexed_chunks.is_empty() {
-                chunks_affected += indexed_chunks.len();
-                self.repository
-                    .save_batch(&indexed_chunks)
-                    .context(StorageFailedSnafu)?;
-                files_added += 1;
+        for result in results {
+            match result {
+                Ok(indexed_chunks) => {
+                    if !indexed_chunks.is_empty() {
+                        chunks_affected += indexed_chunks.len();
+                        self.repository
+                            .save_batch(&indexed_chunks)
+                            .context(StorageFailedSnafu)?;
+                        files_added += 1;
+                    }
+                }
+                Err(Ok(())) => {
+                    files_skipped += 1;
+                }
+                Err(Err(e)) => {
+                    return Err(e);
+                }
             }
         }
 
@@ -99,6 +112,7 @@ impl<R: ChunkRepository> Indexer<R> {
             .files_added(files_added)
             .files_updated(0)
             .files_removed(0)
+            .files_skipped(files_skipped)
             .chunks_affected(chunks_affected)
             .duration(start.elapsed())
             .mode(self.provider.mode())
@@ -117,6 +131,8 @@ impl<R: ChunkRepository> Indexer<R> {
     fn incremental(&mut self) -> Result<IndexResult, IndexingError> {
         use rayon::prelude::*;
         use types::indexing_error::*;
+
+        let start = Instant::now();
 
         let current_files = self.scanner.scan().context(ScanFailedSnafu)?;
         let indexed_files = self
@@ -161,36 +177,57 @@ impl<R: ChunkRepository> Indexer<R> {
 
         let results: Vec<_> = files_to_process
             .par_iter()
-            .map(|file| operations::process_file(file, &self.dispatcher, &*self.provider))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|file| {
+                operations::process_file_gracefully(file, &self.dispatcher, &*self.provider)
+            })
+            .collect();
 
-        for (file, indexed_chunks) in files_to_process.iter().zip(results.iter()) {
-            if modified
-                .iter()
-                .any(|m| m.relative_path == file.relative_path)
-            {
-                let removed = self
-                    .repository
-                    .delete_by_file(&file.relative_path)
-                    .context(StorageFailedSnafu)?;
-                chunks_affected += removed;
-            }
+        let mut files_skipped = 0;
+        let mut fatal_error = None;
 
-            if !indexed_chunks.is_empty() {
-                chunks_affected += indexed_chunks.len();
-                self.repository
-                    .save_batch(indexed_chunks)
-                    .context(StorageFailedSnafu)?;
+        for (file, result) in files_to_process.iter().zip(results.into_iter()) {
+            match result {
+                Ok(indexed_chunks) => {
+                    if modified
+                        .iter()
+                        .any(|m| m.relative_path == file.relative_path)
+                    {
+                        let removed = self
+                            .repository
+                            .delete_by_file(&file.relative_path)
+                            .context(StorageFailedSnafu)?;
+                        chunks_affected += removed;
+                    }
+
+                    if !indexed_chunks.is_empty() {
+                        chunks_affected += indexed_chunks.len();
+                        self.repository
+                            .save_batch(&indexed_chunks)
+                            .context(StorageFailedSnafu)?;
+                    }
+                }
+                Err(Ok(())) => {
+                    files_skipped += 1;
+                }
+                Err(Err(e)) => {
+                    fatal_error = Some(e);
+                    break;
+                }
             }
         }
 
+        if let Some(e) = fatal_error {
+            return Err(e);
+        }
+
         Ok(IndexResult::builder()
-            .files_processed(added.len() + modified.len())
+            .files_processed(added.len() + modified.len() - files_skipped)
             .files_added(added.len())
             .files_updated(modified.len())
             .files_removed(deleted.len())
+            .files_skipped(files_skipped)
             .chunks_affected(chunks_affected)
-            .duration(std::time::Duration::from_secs(0))
+            .duration(start.elapsed())
             .mode(self.provider.mode())
             .build())
     }
@@ -292,11 +329,18 @@ mod test {
         .unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        // Rust indexing is currently disabled, so no save should occur
-        mock_repo.expect_save_batch().times(0);
+        mock_repo.expect_save_batch().times(1).returning(|chunks| {
+            assert!(!chunks.is_empty());
+            Ok(())
+        });
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
+                bm25_terms: Default::default(),
+            }])
+        });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
         let mut indexer =
@@ -305,11 +349,11 @@ mod test {
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
 
-        // Then It should succeed but report no files (Rust indexing disabled)
+        // Then It should succeed and index the rust file
         assert!(result.is_ok());
         let index_result = result.unwrap();
-        assert_eq!(index_result.files_added, 0);
-        assert_eq!(index_result.chunks_affected, 0);
+        assert_eq!(index_result.files_added, 1);
+        assert!(index_result.chunks_affected > 0);
     }
 
     #[test]

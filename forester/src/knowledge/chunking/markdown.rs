@@ -34,7 +34,7 @@ impl MarkdownChunker {
 
         let tokenizer = Tokenizer::from_pretrained(&config.model_name, None)
             .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
-            .context(ParseSnafu)?;
+            .context(TokenizerInitSnafu)?;
 
         let splitter = MarkdownSplitter::new(
             ChunkConfig::new(config.max_tokens)

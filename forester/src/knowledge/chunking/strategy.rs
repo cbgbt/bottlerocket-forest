@@ -26,12 +26,22 @@ pub struct ChunkingInput {
 #[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub))]
 pub enum ChunkingError {
-    #[snafu(display("Failed to parse content"))]
+    #[snafu(display("Failed to initialize tokenizer"))]
+    #[diagnostic(
+        code(forester::chunking::tokenizer_init_error),
+        help("Check that the embedding model configuration is valid")
+    )]
+    TokenizerInitError {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
+    #[snafu(display("Failed to parse content from {file_path}"))]
     #[diagnostic(
         code(forester::chunking::parse_error),
-        help("The file may contain invalid syntax")
+        help("The file may contain unsupported syntax (e.g., negative trait impls)")
     )]
     ParseError {
+        file_path: String,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
