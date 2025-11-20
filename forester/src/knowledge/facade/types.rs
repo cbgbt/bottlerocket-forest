@@ -13,7 +13,7 @@ pub struct IndexStatus {
     /// Whether the index exists and is accessible
     pub exists: bool,
 
-    /// Index mode (Fast or Best)
+    /// Index mode
     pub mode: IndexMode,
 
     /// Total number of chunks in the index

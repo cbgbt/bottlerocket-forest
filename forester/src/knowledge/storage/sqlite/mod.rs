@@ -2,7 +2,7 @@
 //!
 //! - `serialization`: Converting between domain types and database formats
 //! - `queries`: CRUD operations for chunk storage
-//! - `search`: Semantic and BM25 search implementations
+//! - `search`: Semantic search implementation
 
 mod queries;
 mod search;

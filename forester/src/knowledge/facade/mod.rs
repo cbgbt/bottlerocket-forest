@@ -241,7 +241,7 @@ impl KnowledgeIndex {
 
     /// Search the index
     ///
-    /// Executes a search query using the index's mode (Fast or Best).
+    /// Executes a semantic search query using embeddings.
     /// The limit must be between 1 and 100.
     pub fn search(
         &self,
@@ -458,7 +458,7 @@ mod test {
 
     #[test]
     fn test_open_with_existing_index_same_mode_succeeds() {
-        // Given An existing index with Fast mode
+        // Given An existing index
         let temp_dir = TempDir::new().unwrap();
         let _index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
 

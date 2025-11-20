@@ -222,16 +222,7 @@ pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
 
 /// Get index metadata
 pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
-    let _mode_str: Option<String> = conn
-        .query_row(
-            "SELECT value FROM index_metadata WHERE key = 'mode'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()
-        .context(DatabaseSnafu)?;
-
-    // Always use Best mode (Fast mode has been removed)
+    // All indexes use Best mode (semantic search with embeddings)
     let mode = IndexMode::Best;
 
     let last_build_unix: i64 = conn
