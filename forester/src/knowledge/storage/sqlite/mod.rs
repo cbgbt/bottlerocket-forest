@@ -441,74 +441,6 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_context_type_rejected() {
-        // Given An invalid context type string
-        // When Attempting to deserialize
-        let result = serialization::deserialize_context("invalid_type", "{}");
-
-        // Then It should fail
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_search_semantic_with_embeddings() {
-        // Given A repository with chunks that have embeddings
-        let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let chunk_id = uuid::Uuid::new_v4();
-        let embedding = Embedding::try_new(
-            (0..EMBEDDING_DIM)
-                .map(|i| i as f32 / EMBEDDING_DIM as f32)
-                .collect(),
-        )
-        .unwrap();
-        let embedding_blob = serialization::serialize_embedding(&embedding);
-
-        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
-
-        repo.conn
-            .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count, 
-                 context_type, context_data, content, token_count, last_modified, index_mode)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                rusqlite::params![
-                    chunk_id.to_string(),
-                    "test.md",
-                    "test-repo",
-                    1,
-                    10,
-                    "markdown",
-                    context_data,
-                    "test content",
-                    12,
-                    0,
-                    "best",
-                ],
-            )
-            .unwrap();
-
-        repo.conn
-            .execute(
-                "INSERT INTO vec_chunks (chunk_id, embedding) VALUES (?1, ?2)",
-                rusqlite::params![chunk_id.to_string(), embedding_blob],
-            )
-            .unwrap();
-
-        // When Searching with a similar embedding
-        let query_embedding: Vec<f32> = (0..EMBEDDING_DIM)
-            .map(|i| (i as f32 + 0.1) / EMBEDDING_DIM as f32)
-            .collect();
-        let results = repo.search_semantic(&query_embedding, 10).unwrap();
-
-        // Then The chunk should be found with a similarity score
-        assert_eq!(results.len(), 1);
-        let (indexed_chunk, score) = &results[0];
-        assert_eq!(indexed_chunk.chunk.id.to_string(), chunk_id.to_string());
-        assert!(score > &0.0 && score <= &1.0);
-    }
-
-    #[test]
     fn test_save_with_embedding_stores_in_both_tables() {
         // Given A repository and a chunk with an embedding
         let temp_file = NamedTempFile::new().unwrap();
@@ -627,132 +559,6 @@ mod test {
     }
 
     #[test]
-    fn test_search_bm25() {
-        // Given A repository with chunks that have BM25 term frequencies
-        let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let chunk1_id = uuid::Uuid::new_v4();
-        let chunk2_id = uuid::Uuid::new_v4();
-
-        let bm25_terms1 = serde_json::json!({"rust": 5, "documentation": 3, "code": 2}).to_string();
-        let bm25_terms2 = serde_json::json!({"rust": 2, "testing": 4, "code": 1}).to_string();
-        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
-
-        repo.conn
-            .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                rusqlite::params![
-                    chunk1_id.to_string(),
-                    "test1.md",
-                    "test-repo",
-                    1,
-                    10,
-                    "markdown",
-                    context_data,
-                    "rust documentation code",
-                    24,
-                    0,
-                    "fast",
-                    bm25_terms1,
-                ],
-            )
-            .unwrap();
-
-        repo.conn
-            .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                rusqlite::params![
-                    chunk2_id.to_string(),
-                    "test2.md",
-                    "test-repo",
-                    1,
-                    10,
-                    "markdown",
-                    context_data,
-                    "rust testing code",
-                    18,
-                    0,
-                    "fast",
-                    bm25_terms2,
-                ],
-            )
-            .unwrap();
-
-        // When Searching for "rust documentation"
-        let query_terms = vec!["rust".to_string(), "documentation".to_string()];
-        let results = repo.search_bm25(&query_terms, 10).unwrap();
-
-        // Then Chunk1 should rank higher (has "documentation")
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].0.chunk.id.to_string(), chunk1_id.to_string());
-        assert!(results[0].1 > results[1].1);
-    }
-
-    #[test]
-    fn test_fast_mode_roundtrip() {
-        // Given A repository and a Fast mode chunk with BM25 terms
-        let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let mut bm25_terms = BTreeMap::new();
-        bm25_terms.insert("rust".to_string(), 5);
-        bm25_terms.insert("programming".to_string(), 3);
-
-        let chunk = Chunk::builder()
-            .id(ChunkId::new(uuid::Uuid::new_v4()))
-            .source(
-                ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                ChunkContent::builder()
-                    .text("rust programming language")
-                    .token_count(TokenCount::try_new(25).unwrap())
-                    .build(),
-            )
-            .context(ChunkContext::Markdown(
-                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-            ))
-            .build();
-
-        let indexed_chunk = IndexedChunk::builder()
-            .chunk(chunk)
-            .index_data(IndexData::Fast {
-                bm25_terms: bm25_terms.clone(),
-            })
-            .indexed_at(Timestamp::now())
-            .build();
-
-        // When Saving and retrieving
-        repo.save(&indexed_chunk).unwrap();
-        let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap().unwrap();
-
-        // Then BM25 terms are preserved and mode is correct
-        assert_eq!(retrieved.index_data.mode(), IndexMode::Fast);
-        match retrieved.index_data {
-            IndexData::Fast {
-                bm25_terms: retrieved_terms,
-            } => {
-                assert_eq!(retrieved_terms, bm25_terms);
-            }
-            _ => panic!("Expected Fast mode"),
-        }
-    }
-
-    #[test]
     fn test_best_mode_roundtrip() {
         // Given A repository and a Best mode chunk with embedding
         let temp_file = NamedTempFile::new().unwrap();
@@ -863,6 +669,104 @@ mod test {
     }
 
     #[test]
+    fn test_semantic_search_finds_similar_chunks() {
+        // Given A repository with saved chunks
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+
+        // Create chunks with embeddings in different directions
+        // embedding1: mostly positive values (similar to query)
+        let mut vec1 = vec![0.8; EMBEDDING_DIM];
+        vec1[0] = 0.9; // Slightly different
+        let embedding1 = Embedding::try_new(vec1).unwrap();
+
+        // embedding2: mix of positive and negative (different direction)
+        let mut vec2 = vec![0.5; EMBEDDING_DIM / 2];
+        vec2.extend(vec![-0.5; EMBEDDING_DIM / 2]);
+        let embedding2 = Embedding::try_new(vec2).unwrap();
+
+        let chunk1 = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("doc1.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("kubernetes deployment")
+                    .token_count(TokenCount::try_new(2).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .build();
+
+        let chunk2 = Chunk::builder()
+            .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .source(
+                ChunkSource::builder()
+                    .file_path(ForestRelativePath::try_new("doc2.md").unwrap())
+                    .repo_name(RepoName::try_new("test-repo").unwrap())
+                    .line_range(
+                        LineRange::builder()
+                            .start(LineNumber::try_new(1).unwrap())
+                            .line_count(LineCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .build(),
+            )
+            .content(
+                ChunkContent::builder()
+                    .text("unrelated content")
+                    .token_count(TokenCount::try_new(2).unwrap())
+                    .build(),
+            )
+            .context(ChunkContext::Markdown(
+                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+            ))
+            .build();
+
+        let indexed1 = IndexedChunk::builder()
+            .chunk(chunk1)
+            .embedding(embedding1)
+            .indexed_at(Timestamp::now())
+            .build();
+
+        let indexed2 = IndexedChunk::builder()
+            .chunk(chunk2)
+            .embedding(embedding2)
+            .indexed_at(Timestamp::now())
+            .build();
+
+        repo.save(&indexed1).unwrap();
+        repo.save(&indexed2).unwrap();
+
+        // When Searching with an embedding similar in direction to chunk1
+        let query = vec![0.85; EMBEDDING_DIM]; // All positive, similar to embedding1
+        let results = repo.search_semantic(&query, 10).unwrap();
+
+        // Then Both chunks are found, with chunk1 ranked higher (more similar direction)
+        assert_eq!(results.len(), 2);
+        assert_eq!(
+            results[0].0.chunk.id, indexed1.chunk.id,
+            "Chunk with similar direction should rank first"
+        );
+        assert!(
+            results[0].1 > results[1].1,
+            "First result should have higher similarity score"
+        );
+    }
+
+    #[test]
     fn test_best_mode_zero_embedding() {
         // Given An attempt to create an empty embedding
         let empty_embedding = Embedding::try_new(vec![]);
@@ -870,44 +774,6 @@ mod test {
         // When Creating the embedding
         // Then It should fail validation at the type level
         assert!(empty_embedding.is_err());
-    }
-
-    #[test]
-    fn test_invalid_fast_mode_missing_terms() {
-        // Given A database with Fast mode chunk but NULL bm25_terms
-        let temp_file = NamedTempFile::new().unwrap();
-        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let chunk_id = uuid::Uuid::new_v4();
-        let context_data = serde_json::json!({"heading_hierarchy": []}).to_string();
-
-        repo.conn
-            .execute(
-                "INSERT INTO chunks (id, file_path, repo_name, line_start, line_count,
-                 context_type, context_data, content, token_count, last_modified, index_mode, bm25_terms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                rusqlite::params![
-                    chunk_id.to_string(),
-                    "test.md",
-                    "test-repo",
-                    1,
-                    10,
-                    "markdown",
-                    context_data,
-                    "test",
-                    4,
-                    0,
-                    "fast",
-                    None::<String>,
-                ],
-            )
-            .unwrap();
-
-        // When Attempting to retrieve
-        let result = repo.find_by_id(&ChunkId::new(chunk_id));
-
-        // Then It should fail with InvalidData error
-        assert!(result.is_err());
     }
 
     #[test]

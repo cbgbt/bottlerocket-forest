@@ -60,7 +60,7 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     let create_vec_chunks = format!(
         "CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
             chunk_id TEXT PRIMARY KEY,
-            embedding FLOAT[{}]
+            embedding FLOAT[{}] distance_metric=cosine
         )",
         config.embedding_dim
     );
