@@ -1,0 +1,15 @@
+# Forester configuration for bottlerocket-forest
+#
+# This file configures which directories forester should index for semantic search.
+# Each target is scanned independently with its own gitignore context.
+
+targets = [
+    "docs",
+    "skills",
+    "bottlerocket",
+    "kits",
+    "twoliter",
+    "sdk",
+    "host-containers",
+    "bottlerocket-settings-sdk",
+]
