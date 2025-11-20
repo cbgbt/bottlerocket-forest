@@ -233,10 +233,6 @@ mod test {
         FileScanner::with_config(path, config).unwrap()
     }
 
-    fn create_test_git_repo(path: &Path) {
-        fs::create_dir(path.join(".git")).ok();
-    }
-
     #[test]
     fn test_scanner_rejects_nonexistent_root() {
         // Given A nonexistent directory

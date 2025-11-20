@@ -27,6 +27,7 @@ use super::bm25::calculate_bm25_terms;
 /// Implementations of this trait convert raw text into searchable index data.
 /// The specific format depends on the indexing strategy (BM25 terms, embeddings, etc.).
 #[cfg_attr(test, mockall::automock)]
+#[allow(clippy::needless_lifetimes)]
 pub trait IndexDataProvider: Send + Sync {
     /// Generate index data from text
     ///
@@ -37,7 +38,7 @@ pub trait IndexDataProvider: Send + Sync {
     ///
     /// Default implementation calls generate() for each text, but providers
     /// can override for more efficient batch processing.
-    fn generate_batch(&self, texts: &[&str]) -> Result<Vec<IndexData>, IndexDataError> {
+    fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<IndexData>, IndexDataError> {
         texts.iter().map(|text| self.generate(text)).collect()
     }
 
@@ -120,7 +121,8 @@ impl IndexDataProvider for EmbeddingDataProvider {
         Ok(IndexData::Best { embedding })
     }
 
-    fn generate_batch(&self, texts: &[&str]) -> Result<Vec<IndexData>, IndexDataError> {
+    #[allow(clippy::needless_lifetimes)]
+    fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<IndexData>, IndexDataError> {
         let text_strings: Vec<String> = texts.iter().map(|s| s.to_string()).collect();
 
         let embeddings = self

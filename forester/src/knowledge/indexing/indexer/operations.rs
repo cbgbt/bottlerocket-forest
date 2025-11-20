@@ -86,10 +86,9 @@ fn index_chunks(
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, IndexData,
-        MarkdownContext, RepoName, TokenCount,
+        ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, MarkdownContext,
+        RepoName, TokenCount,
     };
-    use crate::knowledge::indexing::provider::MockIndexDataProvider;
 
     fn create_test_chunk(file_path: &str, content: &str) -> Chunk {
         Chunk::builder()

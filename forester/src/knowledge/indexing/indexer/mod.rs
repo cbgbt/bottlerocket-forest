@@ -257,10 +257,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
@@ -325,11 +325,14 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().times(1).returning(|_| {
-            Ok(IndexData::Fast {
-                bm25_terms: Default::default(),
-            })
-        });
+        mock_provider
+            .expect_generate_batch()
+            .times(1)
+            .returning(|_| {
+                Ok(vec![IndexData::Fast {
+                    bm25_terms: Default::default(),
+                }])
+            });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
         let mut indexer =
@@ -353,7 +356,7 @@ mod test {
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
+        mock_provider.expect_generate_batch().returning(|_| {
             Err(crate::knowledge::indexing::IndexDataError::Bm25Failed {
                 source: Box::new(std::io::Error::other("test error")),
             })
@@ -390,10 +393,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
@@ -445,10 +448,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Best {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Best {
                 embedding: crate::knowledge::domain::Embedding::try_new(vec![0.1; 384]).unwrap(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Best);
 
@@ -476,10 +479,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
@@ -509,10 +512,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
@@ -555,10 +558,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
@@ -645,10 +648,10 @@ mod test {
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
+        mock_provider.expect_generate_batch().returning(|_| {
+            Ok(vec![IndexData::Fast {
                 bm25_terms: Default::default(),
-            })
+            }])
         });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
