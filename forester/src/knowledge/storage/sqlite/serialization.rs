@@ -169,9 +169,5 @@ pub fn deserialize_context(
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::knowledge::constants::EMBEDDING_DIM;
-    use test_case::test_case;
-}
+// Tests for these serialization functions are in the parent module's integration tests,
+// which verify correct behavior through full database round-trips (see mod.rs)

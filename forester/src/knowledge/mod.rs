@@ -8,7 +8,7 @@
 //! The knowledge index is organized into layers:
 //!
 //! * **Domain Layer** (`domain/`): Type-safe domain models
-//!   Defines core concepts like `Chunk`, `SearchQuery`, and `IndexMode`.
+//!   Defines core concepts like `Chunk` and `SearchQuery`.
 //!
 //! * **Storage Layer** (`storage/`): Knowledgebase persistence
 //!
@@ -17,21 +17,17 @@
 //!
 //! * **Indexing Layer** (`indexing/`): File scanning and index building
 //!
-//! * **Search Layer** (`search/`): Semantic search engine
+//! * **Search Layer** (`search/`): Semantic search engine using all-MiniLM-L6-v2 embeddings
 //!
 //! * **Facade Layer** (`facade/`): High-level API via [`KnowledgeIndex`]
-//!
-//! # Index Modes
-//!
-//! - **Best**: Semantic search using all-MiniLM-L6-v2 embeddings - understands meaning
 //!
 //! # Quick Start
 //!
 //! ```no_run
-//! use forester::knowledge::{KnowledgeIndex, IndexMode};
+//! use forester::knowledge::KnowledgeIndex;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut index = KnowledgeIndex::open("/path/to/forest", IndexMode::Best)?;
+//! let mut index = KnowledgeIndex::open("/path/to/forest")?;
 //! let result = index.build()?;
 //! let results = index.search("boot process", 10)?;
 //! # Ok(())
@@ -49,8 +45,8 @@ pub mod storage;
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
 pub use domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, Embedding,
-    EmbeddingModelConfig, FileType, ForestRelativePath, IndexMetadata, IndexMode, IndexedChunk,
-    LineRange, MarkdownContext, RepoName, RustDocContext, ScanConfig, SearchQuery, SearchResult,
+    EmbeddingModelConfig, FileType, ForestRelativePath, IndexMetadata, IndexedChunk, LineRange,
+    MarkdownContext, RepoName, RustDocContext, ScanConfig, SearchQuery, SearchResult,
     SearchResults, Timestamp,
 };
 pub use facade::{IndexError, IndexStatus, KnowledgeIndex};

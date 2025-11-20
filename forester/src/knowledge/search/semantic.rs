@@ -88,8 +88,8 @@ mod test {
     use super::*;
     use crate::knowledge::domain::{
         Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-        IndexMode, IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, QueryText,
-        RepoName, ResultLimit, Timestamp, TokenCount,
+        IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, QueryText, RepoName,
+        ResultLimit, Timestamp, TokenCount,
     };
     use crate::knowledge::search::embeddings::model::MockEmbeddingProvider;
     use crate::knowledge::storage::repository::MockChunkRepository;
@@ -151,7 +151,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test query").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -178,7 +177,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("nonexistent concept").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -213,7 +211,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("rust").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -253,7 +250,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(2).unwrap())
             .build();
 
@@ -280,7 +276,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -313,7 +308,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -345,7 +339,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -376,7 +369,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new(query_text).unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 
@@ -405,7 +397,6 @@ mod test {
         let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
         let query = SearchQuery::builder()
             .text(QueryText::try_new("rust").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build();
 

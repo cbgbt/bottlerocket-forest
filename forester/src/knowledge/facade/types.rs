@@ -4,7 +4,7 @@ use bon::Builder;
 use snafu::Snafu;
 use std::time::SystemTime;
 
-use crate::knowledge::domain::{EmbeddingModelConfig, IndexMode};
+use crate::knowledge::domain::EmbeddingModelConfig;
 
 /// Status information about the knowledge index
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -12,9 +12,6 @@ use crate::knowledge::domain::{EmbeddingModelConfig, IndexMode};
 pub struct IndexStatus {
     /// Whether the index exists and is accessible
     pub exists: bool,
-
-    /// Index mode
-    pub mode: IndexMode,
 
     /// Total number of chunks in the index
     pub chunk_count: usize,
@@ -97,20 +94,6 @@ pub enum IndexError {
         help("Run `forester index build` to create the index before searching")
     )]
     IndexNotFound,
-
-    #[snafu(display(
-        "Index mode mismatch: index uses {index_mode:?} mode but {requested_mode:?} mode was requested"
-    ))]
-    #[diagnostic(
-        code(forester::index::mode_mismatch),
-        help(
-            "Run `forester index rebuild --mode {requested_mode:?}` to recreate the index in the desired mode"
-        )
-    )]
-    ModeMismatch {
-        index_mode: IndexMode,
-        requested_mode: IndexMode,
-    },
 
     #[snafu(display("Failed to read database file metadata"))]
     #[diagnostic(

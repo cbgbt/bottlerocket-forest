@@ -5,8 +5,7 @@ use snafu::ResultExt;
 
 use super::serialization::{indexed_chunk_from_row, serialize_context, serialize_embedding};
 use crate::knowledge::domain::{
-    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexMode, IndexedChunk,
-    Timestamp,
+    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk, Timestamp,
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
@@ -222,9 +221,6 @@ pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
 
 /// Get index metadata
 pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
-    // All indexes use Best mode (semantic search with embeddings)
-    let mode = IndexMode::Best;
-
     let last_build_unix: i64 = conn
         .query_row(
             "SELECT value FROM index_metadata WHERE key = 'last_build'",
@@ -299,7 +295,6 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
     let last_build = std::time::UNIX_EPOCH + std::time::Duration::from_secs(last_build_unix as u64);
 
     Ok(IndexMetadata::builder()
-        .mode(mode)
         .last_build(last_build)
         .chunk_count(chunk_count)
         .file_count(file_count)
@@ -309,12 +304,6 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
 
 /// Set index metadata
 pub fn set_metadata(conn: &mut Connection, metadata: &IndexMetadata) -> Result<(), StorageError> {
-    conn.execute(
-        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('mode', :mode)",
-        rusqlite::named_params! { ":mode": metadata.mode.to_string() },
-    )
-    .context(DatabaseSnafu)?;
-
     let last_build_unix = metadata
         .last_build
         .duration_since(std::time::UNIX_EPOCH)

@@ -6,11 +6,11 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use forester::knowledge::{KnowledgeIndex, IndexMode};
+//! use forester::knowledge::KnowledgeIndex;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Open or create an index
-//! let mut index = KnowledgeIndex::open("/path/to/forest", IndexMode::Best)?;
+//! let mut index = KnowledgeIndex::open("/path/to/forest")?;
 //!
 //! // Build the index
 //! let result = index.build()?;
@@ -37,7 +37,7 @@ use bon::Builder;
 use snafu::ResultExt;
 use std::path::{Path, PathBuf};
 
-use crate::knowledge::domain::{EmbeddingModelConfig, IndexMode, SearchQuery, SearchResults};
+use crate::knowledge::domain::{EmbeddingModelConfig, SearchQuery, SearchResults};
 use crate::knowledge::indexing::IndexResult;
 use crate::knowledge::search::SearchEngine;
 use crate::knowledge::storage::ChunkRepository;
@@ -52,7 +52,6 @@ use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 pub struct KnowledgeIndex {
     forest_root: PathBuf,
     db_path: PathBuf,
-    mode: IndexMode,
     config: EmbeddingModelConfig,
     repository: SqliteChunkRepository,
 }
@@ -61,9 +60,8 @@ impl KnowledgeIndex {
     /// Open or create a knowledge index with default configuration
     ///
     /// Creates the `.forester/` directory and `knowledge.db` database if they don't exist.
-    /// If the index already exists, validates that its mode matches the requested mode.
-    pub fn open(forest_root: impl AsRef<Path>, mode: IndexMode) -> Result<Self, IndexError> {
-        Self::open_with_config(forest_root, mode, EmbeddingModelConfig::default())
+    pub fn open(forest_root: impl AsRef<Path>) -> Result<Self, IndexError> {
+        Self::open_with_config(forest_root, EmbeddingModelConfig::default())
     }
 
     /// Open or create a knowledge index with custom configuration
@@ -72,7 +70,6 @@ impl KnowledgeIndex {
     /// If the index already exists, validates that its configuration matches.
     pub fn open_with_config(
         forest_root: impl AsRef<Path>,
-        mode: IndexMode,
         config: EmbeddingModelConfig,
     ) -> Result<Self, IndexError> {
         use types::index_error::*;
@@ -98,7 +95,6 @@ impl KnowledgeIndex {
 
         if is_new_db {
             let metadata = crate::knowledge::domain::IndexMetadata::builder()
-                .mode(mode)
                 .last_build(std::time::SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -113,13 +109,6 @@ impl KnowledgeIndex {
             .get_metadata()
             .context(DatabaseAccessFailedSnafu)?;
 
-        if metadata.mode != mode {
-            return Err(IndexError::ModeMismatch {
-                index_mode: metadata.mode,
-                requested_mode: mode,
-            });
-        }
-
         if metadata.model_config != config {
             return Err(IndexError::DatabaseAccessFailed {
                 source: crate::knowledge::storage::StorageError::ConfigMismatch {
@@ -132,7 +121,6 @@ impl KnowledgeIndex {
         Ok(Self {
             forest_root: forest_root.to_path_buf(),
             db_path,
-            mode,
             config,
             repository,
         })
@@ -273,7 +261,6 @@ impl KnowledgeIndex {
                 ResultLimit::try_new(limit)
                     .map_err(|_| IndexError::InvalidResultLimit { limit })?,
             )
-            .mode(self.mode)
             .build();
 
         let engine = self.create_search_engine()?;
@@ -296,18 +283,12 @@ impl KnowledgeIndex {
 
         Ok(IndexStatus::builder()
             .exists(true)
-            .mode(self.mode)
             .chunk_count(metadata.chunk_count)
             .file_count(metadata.file_count)
             .last_build(metadata.last_build)
             .model_config(self.config.clone())
             .maybe_size_bytes(size_bytes)
             .build())
-    }
-
-    /// Get the index mode
-    pub fn mode(&self) -> IndexMode {
-        self.mode
     }
 
     /// Get the forest root path
@@ -397,7 +378,7 @@ mod test {
         let forest_root = temp_dir.path();
 
         // When Opening an index
-        let result = KnowledgeIndex::open(forest_root, IndexMode::Best);
+        let result = KnowledgeIndex::open(forest_root);
 
         // Then It should create .forester directory
         assert!(result.is_ok());
@@ -411,7 +392,7 @@ mod test {
         let forest_root = temp_dir.path();
 
         // When Opening an index
-        let result = KnowledgeIndex::open(forest_root, IndexMode::Best);
+        let result = KnowledgeIndex::open(forest_root);
 
         // Then It should create knowledge.db
         assert!(result.is_ok());
@@ -424,22 +405,10 @@ mod test {
         let nonexistent = std::path::Path::new("/nonexistent/forest");
 
         // When Opening an index
-        let result = KnowledgeIndex::open(nonexistent, IndexMode::Best);
+        let result = KnowledgeIndex::open(nonexistent);
 
         // Then It should fail with ForestRootNotFound
         assert!(matches!(result, Err(IndexError::ForestRootNotFound { .. })));
-    }
-
-    #[test]
-    fn test_open_returns_index_with_correct_mode() {
-        // Given A forest root
-        let temp_dir = TempDir::new().unwrap();
-
-        // When Opening with Best mode
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
-
-        // Then Index should have Best mode
-        assert_eq!(index.mode(), IndexMode::Best);
     }
 
     #[test]
@@ -449,7 +418,7 @@ mod test {
         let forest_root = temp_dir.path();
 
         // When Opening an index
-        let index = KnowledgeIndex::open(forest_root, IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(forest_root).unwrap();
 
         // Then Paths should be correct
         assert_eq!(index.forest_root(), forest_root);
@@ -460,10 +429,10 @@ mod test {
     fn test_open_with_existing_index_same_mode_succeeds() {
         // Given An existing index
         let temp_dir = TempDir::new().unwrap();
-        let _index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let _index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Opening with same mode
-        let result = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best);
+        let result = KnowledgeIndex::open(temp_dir.path());
 
         // Then It should succeed
         assert!(result.is_ok());
@@ -481,12 +450,8 @@ mod test {
             .build();
 
         // When Opening with custom config
-        let index = KnowledgeIndex::open_with_config(
-            temp_dir.path(),
-            IndexMode::Best,
-            custom_config.clone(),
-        )
-        .unwrap();
+        let index =
+            KnowledgeIndex::open_with_config(temp_dir.path(), custom_config.clone()).unwrap();
 
         // Then Index should use custom config
         assert_eq!(index.config(), &custom_config);
@@ -496,7 +461,7 @@ mod test {
     fn test_open_with_config_validates_existing_config() {
         // Given An existing index with default config
         let temp_dir = TempDir::new().unwrap();
-        let _index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let _index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Opening with different config
         let different_config = EmbeddingModelConfig::builder()
@@ -505,8 +470,7 @@ mod test {
             .max_tokens(512)
             .overlap_tokens(50)
             .build();
-        let result =
-            KnowledgeIndex::open_with_config(temp_dir.path(), IndexMode::Best, different_config);
+        let result = KnowledgeIndex::open_with_config(temp_dir.path(), different_config);
 
         // Then It should fail with DatabaseAccessFailed (config mismatch)
         assert!(matches!(
@@ -523,7 +487,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("README.md"), "# Test\n\nContent here").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
         let result = index.build();
@@ -536,27 +500,10 @@ mod test {
     }
 
     #[test]
-    fn test_build_returns_index_result_with_mode() {
-        // Given An index
-        let temp_dir = TempDir::new().unwrap();
-        let repo_dir = temp_dir.path().join("test-repo");
-        fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("test.md"), "# Test").unwrap();
-
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
-
-        // When Building
-        let result = index.build().unwrap();
-
-        // Then Result should have correct mode
-        assert_eq!(result.mode, IndexMode::Best);
-    }
-
-    #[test]
     fn test_build_handles_empty_forest() {
         // Given An empty forest
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building
         let result = index.build().unwrap();
@@ -574,7 +521,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Rebuilding
@@ -592,7 +539,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
         let result = index.rebuild().unwrap();
@@ -606,7 +553,7 @@ mod test {
     fn test_update_detects_new_files() {
         // Given An index with no files
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Adding a new file and updating
@@ -630,7 +577,7 @@ mod test {
         let file_path = repo_dir.join("test.md");
         fs::write(&file_path, "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Deleting the file and updating
@@ -650,7 +597,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Clearing the index
@@ -665,7 +612,7 @@ mod test {
     fn test_clear_on_empty_index_returns_zero() {
         // Given An empty index
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Clearing
         let result = index.clear().unwrap();
@@ -682,7 +629,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Boot Process\n\nHow boot works").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Searching
@@ -706,7 +653,7 @@ mod test {
         )
         .unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Searching with limit 2
@@ -720,7 +667,7 @@ mod test {
     fn test_search_validates_limit_minimum() {
         // Given An index
         let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Searching with limit 0
         let result = index.search("test", 0);
@@ -733,7 +680,7 @@ mod test {
     fn test_search_validates_limit_maximum() {
         // Given An index
         let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Searching with limit 101
         let result = index.search("test", 101);
@@ -746,7 +693,7 @@ mod test {
     fn test_search_validates_empty_query() {
         // Given An index
         let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Searching with empty query
         let result = index.search("", 10);
@@ -763,7 +710,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Getting status
@@ -773,7 +720,6 @@ mod test {
         assert!(result.is_ok());
         let status = result.unwrap();
         assert!(status.exists);
-        assert_eq!(status.mode, IndexMode::Best);
         assert!(status.chunk_count > 0);
         assert!(status.file_count > 0);
         assert!(status.last_build.is_some());
@@ -783,7 +729,7 @@ mod test {
     fn test_status_on_empty_index() {
         // Given An empty index
         let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Getting status
         let status = index.status().unwrap();
@@ -802,7 +748,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Getting status
@@ -826,24 +772,11 @@ mod test {
     }
 
     #[test]
-    fn test_mode_returns_index_mode() {
-        // Given An index with Best mode
-        let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
-
-        // When Getting mode
-        let mode = index.mode();
-
-        // Then It should return Best
-        assert_eq!(mode, IndexMode::Best);
-    }
-
-    #[test]
     fn test_forest_root_returns_correct_path() {
         // Given An index
         let temp_dir = TempDir::new().unwrap();
         let forest_root = temp_dir.path();
-        let index = KnowledgeIndex::open(forest_root, IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(forest_root).unwrap();
 
         // When Getting forest root
         let root = index.forest_root();
@@ -857,7 +790,7 @@ mod test {
         // Given An index
         let temp_dir = TempDir::new().unwrap();
         let forest_root = temp_dir.path();
-        let index = KnowledgeIndex::open(forest_root, IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(forest_root).unwrap();
 
         // When Getting db path
         let db_path = index.db_path();
@@ -877,12 +810,8 @@ mod test {
             .overlap_tokens(38)
             .build();
 
-        let index = KnowledgeIndex::open_with_config(
-            temp_dir.path(),
-            IndexMode::Best,
-            custom_config.clone(),
-        )
-        .unwrap();
+        let index =
+            KnowledgeIndex::open_with_config(temp_dir.path(), custom_config.clone()).unwrap();
 
         // When Getting config
         let config = index.config();
@@ -900,7 +829,7 @@ targets = ["docs", "bottlerocket"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Loading scan config
         let scan_config = index.load_scan_config().unwrap();
@@ -915,7 +844,7 @@ targets = ["docs", "bottlerocket"]
     fn test_load_scan_config_without_forester_toml() {
         // Given A forest root without .forester.toml
         let temp_dir = TempDir::new().unwrap();
-        let index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Loading scan config
         let scan_config = index.load_scan_config().unwrap();
@@ -928,22 +857,32 @@ targets = ["docs", "bottlerocket"]
     fn test_build_uses_configured_targets() {
         // Given A forest with .forester.toml specifying specific targets
         let temp_dir = TempDir::new().unwrap();
+        // Create .git at forest root so ignore crate works properly
+        fs::create_dir(temp_dir.path().join(".git")).unwrap();
         let docs_dir = temp_dir.path().join("docs");
         let bottlerocket_dir = temp_dir.path().join("bottlerocket");
         let ignored_dir = temp_dir.path().join("ignored");
         fs::create_dir(&docs_dir).unwrap();
         fs::create_dir(&bottlerocket_dir).unwrap();
         fs::create_dir(&ignored_dir).unwrap();
-        fs::write(docs_dir.join("guide.md"), "# Guide").unwrap();
-        fs::write(bottlerocket_dir.join("README.md"), "# BR").unwrap();
-        fs::write(ignored_dir.join("secret.md"), "# Secret").unwrap();
+        fs::write(
+            docs_dir.join("guide.md"),
+            "# Guide\n\nDocumentation content",
+        )
+        .unwrap();
+        fs::write(
+            bottlerocket_dir.join("README.md"),
+            "# Bottlerocket\n\nProject info",
+        )
+        .unwrap();
+        fs::write(ignored_dir.join("secret.md"), "# Secret\n\nSecret content").unwrap();
 
         let config_content = r#"
 targets = ["docs", "bottlerocket"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
         let result = index.build().unwrap();
@@ -958,19 +897,20 @@ targets = ["docs", "bottlerocket"]
     fn test_rebuild_uses_configured_targets() {
         // Given A forest with configured targets
         let temp_dir = TempDir::new().unwrap();
+        fs::create_dir(temp_dir.path().join(".git")).unwrap();
         let docs_dir = temp_dir.path().join("docs");
         let other_dir = temp_dir.path().join("other");
         fs::create_dir(&docs_dir).unwrap();
         fs::create_dir(&other_dir).unwrap();
-        fs::write(docs_dir.join("guide.md"), "# Guide").unwrap();
-        fs::write(other_dir.join("other.md"), "# Other").unwrap();
+        fs::write(docs_dir.join("guide.md"), "# Guide\n\nDocumentation").unwrap();
+        fs::write(other_dir.join("other.md"), "# Other\n\nOther content").unwrap();
 
         let config_content = r#"
 targets = ["docs"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
         let result = index.rebuild().unwrap();
@@ -993,7 +933,7 @@ targets = ["docs"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path(), IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().unwrap();
 
         // When Adding files to both directories and updating

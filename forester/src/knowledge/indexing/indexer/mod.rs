@@ -11,7 +11,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::knowledge::chunking::ChunkingDispatcher;
-use crate::knowledge::domain::{EmbeddingModelConfig, IndexMode, ScanConfig};
+use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig};
 use crate::knowledge::storage::ChunkRepository;
 
 use super::{FileScanner, IndexDataProvider};
@@ -117,7 +117,6 @@ impl<R: ChunkRepository> Indexer<R> {
             .files_skipped(files_skipped)
             .chunks_affected(chunks_affected)
             .duration(start.elapsed())
-            .mode(IndexMode::Best)
             .build())
     }
 
@@ -230,7 +229,6 @@ impl<R: ChunkRepository> Indexer<R> {
             .files_skipped(files_skipped)
             .chunks_affected(chunks_affected)
             .duration(start.elapsed())
-            .mode(IndexMode::Best)
             .build())
     }
 }
@@ -238,7 +236,7 @@ impl<R: ChunkRepository> Indexer<R> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::domain::{Embedding, ForestRelativePath, IndexMode, Timestamp};
+    use crate::knowledge::domain::{Embedding, ForestRelativePath, Timestamp};
     use crate::knowledge::indexing::provider::MockIndexDataProvider;
     use crate::knowledge::storage::StorageError;
     use crate::knowledge::storage::repository::MockChunkRepository;
@@ -276,7 +274,7 @@ mod test {
         let nonexistent = Path::new("/nonexistent/forest");
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
-        let mock_provider = MockIndexDataProvider::new();
+        let mut mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
         let result = Indexer::new(
@@ -329,7 +327,6 @@ mod test {
         assert_eq!(index_result.files_added, 1);
         assert_eq!(index_result.files_processed, 1);
         assert!(index_result.chunks_affected > 0);
-        assert_eq!(index_result.mode, IndexMode::Best);
     }
 
     #[test]
@@ -511,42 +508,6 @@ mod test {
         assert_eq!(result.files_added, 0);
         assert_eq!(result.files_processed, 0);
         assert_eq!(result.chunks_affected, 0);
-        assert_eq!(result.mode, IndexMode::Best);
-    }
-
-    #[test]
-    fn test_build_uses_provider_mode_in_result() {
-        // Given A provider with Best mode
-        let temp_dir = TempDir::new().unwrap();
-        let repo_dir = temp_dir.path().join("test-repo");
-        fs::create_dir(&repo_dir).unwrap();
-        fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
-
-        let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_save_batch().returning(|_| Ok(()));
-
-        let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate_batch().returning(|_| {
-            Ok(vec![
-                crate::knowledge::domain::Embedding::try_new(vec![0.1; 384]).unwrap(),
-            ])
-        });
-
-        let mut indexer = Indexer::new(
-            temp_dir.path(),
-            mock_repo,
-            &config,
-            Box::new(mock_provider),
-            ScanConfig::default(),
-        )
-        .unwrap();
-
-        // When Building the index
-        let result = indexer.index(IndexStrategy::Build).unwrap();
-
-        // Then Result should reflect provider mode
-        assert_eq!(result.mode, IndexMode::Best);
     }
 
     #[test]
@@ -785,7 +746,7 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
-        let mock_provider = MockIndexDataProvider::new();
+        let mut mock_provider = MockIndexDataProvider::new();
 
         let mut indexer = Indexer::new(
             temp_dir.path(),

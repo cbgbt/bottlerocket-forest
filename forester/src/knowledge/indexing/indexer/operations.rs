@@ -122,31 +122,4 @@ mod test {
         ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, MarkdownContext,
         RepoName, TokenCount,
     };
-
-    fn create_test_chunk(file_path: &str, content: &str) -> Chunk {
-        Chunk::builder()
-            .id(ChunkId::new(uuid::Uuid::new_v4()))
-            .source(
-                ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new(file_path).unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(1).unwrap())
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                ChunkContent::builder()
-                    .text(content.to_string())
-                    .token_count(TokenCount::try_new(content.split_whitespace().count()).unwrap())
-                    .build(),
-            )
-            .context(ChunkContext::Markdown(
-                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-            ))
-            .build()
-    }
 }

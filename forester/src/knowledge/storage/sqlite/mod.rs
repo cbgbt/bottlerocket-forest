@@ -151,9 +151,9 @@ mod test {
     use super::*;
     use crate::knowledge::constants::EMBEDDING_DIM;
     use crate::knowledge::domain::{
-        Chunk, ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, IndexMode,
-        ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
-        Signature, TokenCount, Visibility,
+        Chunk, ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, ItemName,
+        LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, Signature,
+        TokenCount, Visibility,
     };
     use crate::knowledge::domain::{EmbeddingModelConfig, Timestamp};
     use std::time::SystemTime;
@@ -335,7 +335,6 @@ mod test {
 
         // When Setting metadata
         let metadata = IndexMetadata::builder()
-            .mode(IndexMode::Best)
             .last_build(SystemTime::now())
             .chunk_count(10)
             .file_count(5)
@@ -346,7 +345,10 @@ mod test {
 
         // Then It should be retrievable
         let retrieved = repo.get_metadata().unwrap();
-        assert_eq!(retrieved.mode, IndexMode::Best);
+        // chunk_count and file_count are derived from chunks table, not stored in metadata
+        assert_eq!(retrieved.chunk_count, 0); // No chunks inserted yet
+        assert_eq!(retrieved.file_count, 0);
+        assert_eq!(retrieved.model_config, metadata.model_config);
     }
 
     #[test_case(
@@ -744,7 +746,6 @@ mod test {
             .build();
 
         let metadata = IndexMetadata::builder()
-            .mode(IndexMode::Best)
             .last_build(SystemTime::now())
             .chunk_count(42)
             .file_count(7)
@@ -777,7 +778,6 @@ mod test {
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let metadata = IndexMetadata::builder()
-            .mode(IndexMode::Best)
             .last_build(SystemTime::now())
             .chunk_count(0)
             .file_count(0)
@@ -816,7 +816,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(100)
                 .file_count(10)
@@ -852,7 +851,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -886,7 +884,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -929,7 +926,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -974,7 +970,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -1019,7 +1014,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -1064,7 +1058,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -1100,7 +1093,6 @@ mod test {
         {
             let mut repo = SqliteChunkRepository::open(&temp_path, &test_config()).unwrap();
             let metadata = IndexMetadata::builder()
-                .mode(IndexMode::Best)
                 .last_build(SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)

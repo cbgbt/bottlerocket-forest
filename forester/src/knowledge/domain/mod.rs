@@ -4,7 +4,6 @@
 
 pub mod chunk;
 pub mod file_type;
-pub mod index_mode;
 pub mod search;
 
 use bon::Builder;
@@ -20,7 +19,6 @@ pub use chunk::{
     Visibility,
 };
 pub use file_type::FileType;
-pub use index_mode::IndexMode;
 pub use search::{SearchQuery, SearchResult, SearchResults};
 
 /// Configuration for file scanning
@@ -280,7 +278,6 @@ impl Timestamp {
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IndexMetadata {
-    pub mode: IndexMode,
     pub last_build: std::time::SystemTime,
     pub chunk_count: usize,
     pub file_count: usize,

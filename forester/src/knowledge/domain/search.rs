@@ -3,7 +3,7 @@
 //! Types for representing search queries and results.
 //!
 //! The search flow:
-//! * [`SearchQuery`] specifies what to search for (text, mode, limit)
+//! * [`SearchQuery`] specifies what to search for (text, limit)
 //! * [`SearchResult`] represents a single matched chunk with score and matched terms
 //! * [`SearchResults`] aggregates all results with metadata about the search operation
 
@@ -11,7 +11,7 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::{Chunk, IndexMode, MatchedTerm, QueryText, RelevanceScore, ResultLimit};
+use super::{Chunk, MatchedTerm, QueryText, RelevanceScore, ResultLimit};
 
 /// A search query with parameters
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
@@ -19,7 +19,6 @@ use super::{Chunk, IndexMode, MatchedTerm, QueryText, RelevanceScore, ResultLimi
 #[non_exhaustive]
 pub struct SearchQuery {
     pub text: QueryText,
-    pub mode: IndexMode,
     pub limit: ResultLimit,
 }
 

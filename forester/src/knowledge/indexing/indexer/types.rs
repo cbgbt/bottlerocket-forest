@@ -4,7 +4,6 @@ use bon::Builder;
 use snafu::Snafu;
 use std::time::Duration;
 
-use crate::knowledge::domain::IndexMode;
 use crate::knowledge::storage::StorageError;
 
 use super::super::{DispatchError, IndexDataError, ScanError};
@@ -33,9 +32,6 @@ pub struct IndexResult {
 
     /// Time taken
     pub duration: Duration,
-
-    /// Index mode used
-    pub mode: IndexMode,
 }
 
 /// Errors that can occur during indexing

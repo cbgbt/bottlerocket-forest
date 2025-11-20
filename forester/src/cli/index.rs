@@ -2,8 +2,8 @@ use argh::FromArgs;
 use snafu::{ResultExt, Snafu};
 use std::path::PathBuf;
 
+use crate::knowledge::KnowledgeIndex;
 use crate::knowledge::storage::ChunkRepository;
-use crate::knowledge::{IndexMode, KnowledgeIndex};
 
 /// Manage the knowledge index
 #[derive(FromArgs)]
@@ -112,8 +112,7 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mut index =
-        KnowledgeIndex::open(&forest_root, IndexMode::Best).context(KnowledgeIndexSnafu)?;
+    let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let result = index.build().context(KnowledgeIndexSnafu)?;
 
@@ -129,8 +128,7 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mut index =
-        KnowledgeIndex::open(&forest_root, IndexMode::Best).context(KnowledgeIndexSnafu)?;
+    let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let result = index.rebuild().context(KnowledgeIndexSnafu)?;
 
@@ -242,7 +240,7 @@ fn open_existing_index(forest_root: &std::path::Path) -> Result<KnowledgeIndex, 
             source: crate::knowledge::facade::IndexError::DatabaseAccessFailed { source: e },
         })?;
 
-    KnowledgeIndex::open_with_config(forest_root, metadata.mode, metadata.model_config)
+    KnowledgeIndex::open_with_config(forest_root, metadata.model_config)
         .context(KnowledgeIndexSnafu)
 }
 
@@ -262,7 +260,6 @@ fn format_build_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("  Files processed: {}", result.files_processed);
     println!("  Chunks created: {}", result.chunks_affected);
     println!("  Duration: {:.2}s", result.duration.as_secs_f64());
-    println!("  Mode: {:?}", result.mode);
 }
 
 fn format_update_result(result: &crate::knowledge::indexing::IndexResult) {
@@ -328,7 +325,6 @@ fn format_search_results_json(
 fn format_status(status: &crate::knowledge::facade::IndexStatus) {
     println!("Knowledge Index Status");
     println!("  Exists: {}", status.exists);
-    println!("  Mode: {:?}", status.mode);
     println!("  Chunks: {}", status.chunk_count);
     println!("  Files: {}", status.file_count);
 
@@ -484,7 +480,7 @@ mod test {
         std::fs::create_dir_all(&forester_dir).unwrap();
 
         // Create a valid index
-        let mut index = KnowledgeIndex::open(forest_root, IndexMode::Best).unwrap();
+        let mut index = KnowledgeIndex::open(forest_root).unwrap();
         index.build().unwrap();
 
         // When Opening the existing index
@@ -505,7 +501,6 @@ mod test {
             .files_skipped(0)
             .chunks_affected(50)
             .duration(Duration::from_secs(5))
-            .mode(IndexMode::Best)
             .build();
 
         // When Formatting the build result
@@ -524,7 +519,6 @@ mod test {
             .files_skipped(0)
             .chunks_affected(12)
             .duration(Duration::from_secs(2))
-            .mode(IndexMode::Best)
             .build();
 
         // When Formatting the update result
@@ -601,7 +595,6 @@ mod test {
         // Given An IndexStatus with metadata
         let status = IndexStatus::builder()
             .exists(true)
-            .mode(IndexMode::Best)
             .chunk_count(100)
             .file_count(20)
             .last_build(SystemTime::now())
@@ -663,7 +656,6 @@ mod test {
         use crate::knowledge::domain::{QueryText, ResultLimit};
         SearchQuery::builder()
             .text(QueryText::try_new("test query").unwrap())
-            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build()
     }
