@@ -1,6 +1,6 @@
 //! Storage layer for chunk persistence
 //!
-//! This module implements dual-mode indexing for documentation chunks using SQLite.
+//! This module implements semantic indexing for documentation chunks using SQLite.
 //!
 //! # Architecture
 //!
@@ -11,8 +11,7 @@
 //!
 //! * **SQLite Implementation** (`sqlite`): Concrete implementation using SQLite with:
 //!   - Regular table for chunk metadata (content, source, context)
-//!   - Virtual table (sqlite-vec) for vector embeddings (Best mode)
-//!   - BM25 term storage in JSON (Fast mode)
+//!   - Virtual table (sqlite-vec) for vector embeddings
 //!
 
 pub mod repository;

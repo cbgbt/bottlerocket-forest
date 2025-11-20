@@ -1,4 +1,4 @@
-//! Search implementations for semantic and BM25 search
+//! Search implementation for semantic search
 
 use rusqlite::Connection;
 use snafu::ResultExt;
