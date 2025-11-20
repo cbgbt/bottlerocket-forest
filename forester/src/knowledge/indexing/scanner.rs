@@ -56,9 +56,34 @@ impl FileScanner {
         &self,
         filter_repo: Option<&RepoName>,
     ) -> Result<Vec<IndexableFile>, ScanError> {
+        if self.config.targets.is_empty() {
+            self.scan_from_root(filter_repo)
+        } else {
+            let mut all_files = Vec::new();
+            for target in &self.config.targets {
+                let target_path = self.forest_root.join(target);
+                if !target_path.exists() {
+                    continue;
+                }
+                let files = self.scan_target(&target_path, filter_repo)?;
+                all_files.extend(files);
+            }
+            Ok(all_files)
+        }
+    }
+
+    fn scan_from_root(&self, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
+        self.scan_with_builder(&self.forest_root, filter_repo)
+    }
+
+    fn scan_target(&self, target_path: &Path, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
+        self.scan_with_builder(target_path, filter_repo)
+    }
+
+    fn scan_with_builder(&self, root: &Path, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
         let mut files = Vec::new();
 
-        let mut builder = ignore::WalkBuilder::new(&self.forest_root);
+        let mut builder = ignore::WalkBuilder::new(root);
         builder
             .follow_links(false)
             .git_ignore(self.config.respect_gitignore)
@@ -434,6 +459,7 @@ mod test {
         // Then It should have expected defaults
         assert!(config.respect_gitignore);
         assert!(config.use_foresterignore);
+        assert!(config.targets.is_empty());
     }
 
     #[test]
@@ -497,6 +523,187 @@ mod test {
 
         // Then Both files should be found
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn test_scan_with_empty_targets_uses_default_behavior() {
+        // Given A ScanConfig with empty targets vector
+        let temp_dir = TempDir::new().unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test").unwrap();
+
+        let config = ScanConfig::builder().targets(vec![]).build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then It should scan from forest root
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn test_scan_with_single_target() {
+        // Given A forest with multiple directories and config targeting one
+        let temp_dir = TempDir::new().unwrap();
+        let docs_dir = temp_dir.path().join("docs");
+        let bottlerocket_dir = temp_dir.path().join("bottlerocket");
+        fs::create_dir(&docs_dir).unwrap();
+        fs::create_dir(&bottlerocket_dir).unwrap();
+        fs::write(docs_dir.join("guide.md"), "# Guide").unwrap();
+        fs::write(bottlerocket_dir.join("README.md"), "# BR").unwrap();
+
+        let config = ScanConfig::builder()
+            .targets(vec![PathBuf::from("docs")])
+            .build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Only files from target directory should be returned
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("docs"));
+    }
+
+    #[test]
+    fn test_scan_with_multiple_targets() {
+        // Given A forest with several directories and config with multiple targets
+        let temp_dir = TempDir::new().unwrap();
+        let docs_dir = temp_dir.path().join("docs");
+        let skills_dir = temp_dir.path().join("skills");
+        let bottlerocket_dir = temp_dir.path().join("bottlerocket");
+        fs::create_dir(&docs_dir).unwrap();
+        fs::create_dir(&skills_dir).unwrap();
+        fs::create_dir(&bottlerocket_dir).unwrap();
+        fs::write(docs_dir.join("guide.md"), "# Guide").unwrap();
+        fs::write(skills_dir.join("skill.md"), "# Skill").unwrap();
+        fs::write(bottlerocket_dir.join("README.md"), "# BR").unwrap();
+
+        let config = ScanConfig::builder()
+            .targets(vec![PathBuf::from("docs"), PathBuf::from("skills")])
+            .build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Files from all specified targets should be returned
+        assert_eq!(files.len(), 2);
+        assert!(
+            files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("docs"))
+        );
+        assert!(
+            files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("skills"))
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("bottlerocket"))
+        );
+    }
+
+    #[test]
+    fn test_scan_with_nonexistent_target() {
+        // Given A ScanConfig with a target that doesn't exist
+        let temp_dir = TempDir::new().unwrap();
+        let docs_dir = temp_dir.path().join("docs");
+        fs::create_dir(&docs_dir).unwrap();
+        fs::write(docs_dir.join("guide.md"), "# Guide").unwrap();
+
+        let config = ScanConfig::builder()
+            .targets(vec![PathBuf::from("docs"), PathBuf::from("nonexistent")])
+            .build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then It should skip nonexistent target and return files from valid target
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("docs"));
+    }
+
+    #[test]
+    fn test_scan_with_overlapping_targets() {
+        // Given Targets that overlap
+        let temp_dir = TempDir::new().unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir_all(repo_dir.join("subdir")).unwrap();
+        fs::write(repo_dir.join("top.md"), "# Top").unwrap();
+        fs::write(repo_dir.join("subdir/nested.md"), "# Nested").unwrap();
+
+        let config = ScanConfig::builder()
+            .targets(vec![PathBuf::from("repo"), PathBuf::from("repo/subdir")])
+            .build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then It should handle both targets
+        assert!(files.len() >= 2);
+    }
+
+    #[test]
+    fn test_scan_respects_target_specific_gitignore() {
+        // Given Multiple targets each with their own .gitignore
+        let temp_dir = TempDir::new().unwrap();
+        let repo1_dir = temp_dir.path().join("repo1");
+        let repo2_dir = temp_dir.path().join("repo2");
+        fs::create_dir(&repo1_dir).unwrap();
+        fs::create_dir(&repo2_dir).unwrap();
+
+        // Create .git directories
+        fs::create_dir(repo1_dir.join(".git")).unwrap();
+        fs::create_dir(repo2_dir.join(".git")).unwrap();
+
+        // repo1 ignores "ignored.md"
+        fs::write(repo1_dir.join(".gitignore"), "ignored.md\n").unwrap();
+        fs::write(repo1_dir.join("included.md"), "# Included").unwrap();
+        fs::write(repo1_dir.join("ignored.md"), "# Ignored").unwrap();
+
+        // repo2 ignores "secret.md"
+        fs::write(repo2_dir.join(".gitignore"), "secret.md\n").unwrap();
+        fs::write(repo2_dir.join("public.md"), "# Public").unwrap();
+        fs::write(repo2_dir.join("secret.md"), "# Secret").unwrap();
+
+        let config = ScanConfig::builder()
+            .respect_gitignore(true)
+            .targets(vec![PathBuf::from("repo1"), PathBuf::from("repo2")])
+            .build();
+
+        // When Scanning
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Each target should respect its own gitignore
+        assert_eq!(files.len(), 2);
+        assert!(
+            files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("included.md"))
+        );
+        assert!(
+            files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("public.md"))
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("ignored.md"))
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("secret.md"))
+        );
     }
 
     #[test]

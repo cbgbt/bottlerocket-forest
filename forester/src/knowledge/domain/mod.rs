@@ -10,7 +10,7 @@ pub mod search;
 use bon::Builder;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::knowledge::constants;
@@ -20,7 +20,7 @@ pub use chunk::{
     Visibility,
 };
 pub use file_type::FileType;
-pub use index_mode::{IndexMode, InvalidIndexMode};
+pub use index_mode::IndexMode;
 pub use search::{SearchQuery, SearchResult, SearchResults};
 
 /// Configuration for file scanning
@@ -35,6 +35,13 @@ pub struct ScanConfig {
     /// Use .foresterignore files
     #[builder(default = true)]
     pub use_foresterignore: bool,
+
+    /// Scan targets relative to forest root
+    ///
+    /// Empty vector means scan from forest root.
+    /// Non-empty means scan only specified targets.
+    #[builder(default)]
+    pub targets: Vec<PathBuf>,
 }
 
 impl Default for ScanConfig {
@@ -42,6 +49,7 @@ impl Default for ScanConfig {
         Self {
             respect_gitignore: true,
             use_foresterignore: true,
+            targets: Vec::new(),
         }
     }
 }
@@ -230,35 +238,13 @@ impl Default for EmbeddingModelConfig {
 
 /// A chunk with index-specific metadata
 ///
-/// Wraps a domain `Chunk` with indexing data (embeddings or BM25 terms) and
-/// a timestamp indicating when it was indexed.
+/// Wraps a domain `Chunk` with embedding data and a timestamp indicating when it was indexed.
 #[derive(Debug, Clone, Builder)]
 #[non_exhaustive]
 pub struct IndexedChunk {
     pub chunk: Chunk,
-    pub index_data: IndexData,
+    pub embedding: Embedding,
     pub indexed_at: Timestamp,
-}
-
-/// Index-specific data for a chunk
-///
-/// Represents either BM25 term frequencies (Fast mode) or semantic embeddings
-/// (Best mode). This type ensures chunks are indexed with the correct data
-/// for their mode.
-#[derive(Debug, Clone)]
-pub enum IndexData {
-    Fast { bm25_terms: BTreeMap<String, u32> },
-    Best { embedding: Embedding },
-}
-
-impl IndexData {
-    /// Returns the index mode for this data
-    pub fn mode(&self) -> IndexMode {
-        match self {
-            IndexData::Fast { .. } => IndexMode::Fast,
-            IndexData::Best { .. } => IndexMode::Best,
-        }
-    }
 }
 
 /// Unix timestamp in seconds
@@ -383,26 +369,5 @@ mod test {
         // When Creating the newtype
         // Then It should succeed
         assert!(valid.is_ok());
-    }
-
-    #[test]
-    fn test_index_data_mode_returns_correct_mode() {
-        // Given Fast mode index data
-        let fast_data = IndexData::Fast {
-            bm25_terms: BTreeMap::new(),
-        };
-
-        // When Getting the mode
-        // Then It should return Fast
-        assert_eq!(fast_data.mode(), IndexMode::Fast);
-
-        // Given Best mode index data
-        let best_data = IndexData::Best {
-            embedding: Embedding::try_new(vec![0.1, 0.2, 0.3]).unwrap(),
-        };
-
-        // When Getting the mode
-        // Then It should return Best
-        assert_eq!(best_data.mode(), IndexMode::Best);
     }
 }
