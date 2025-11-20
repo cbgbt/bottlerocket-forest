@@ -2,6 +2,7 @@
 
 use snafu::ResultExt;
 
+use crate::knowledge::constants::EMBEDDING_DIM;
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
     IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
@@ -33,8 +34,10 @@ pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, Stora
 
     let context = deserialize_context(&context_type, &context_data)?;
 
-    // Embedding is fetched separately from vec_chunks table
-    let embedding = Embedding::try_new(vec![0.0; 384])
+    // NOTE: Embeddings are not fetched during retrieval because they're only needed
+    // during indexing. Search results extract the Chunk and discard the embedding.
+    // This dummy embedding satisfies the IndexedChunk type requirement.
+    let embedding = Embedding::try_new(vec![0.0; EMBEDDING_DIM])
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         .context(InvalidFieldSnafu {
             field: "embedding".to_string(),

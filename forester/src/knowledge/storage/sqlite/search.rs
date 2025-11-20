@@ -30,7 +30,7 @@ pub fn search_semantic(
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count,
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified,
-                    v.embedding, v.distance
+                    v.distance
              FROM vec_chunks v
              JOIN chunks c ON v.chunk_id = c.id
              WHERE v.embedding MATCH :embedding AND k = :limit
@@ -46,7 +46,7 @@ pub fn search_semantic(
         |row| {
             let chunk = indexed_chunk_from_row(row)
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-            let distance: f32 = row.get(11)?;
+            let distance: f32 = row.get(10)?;
             let similarity = 1.0 - distance;
             Ok((chunk, similarity))
         },
