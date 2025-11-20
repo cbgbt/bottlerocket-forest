@@ -30,6 +30,8 @@ toml = "0.8"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
+assert_cmd = "2"
 mockall = "0.13"
+serial_test = "3"
 tempfile = "3"
 test-case = "3"

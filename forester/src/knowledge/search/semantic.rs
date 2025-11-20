@@ -10,6 +10,7 @@
 use snafu::ResultExt;
 
 use crate::knowledge::domain::{SearchQuery, SearchResults};
+use crate::knowledge::scoring::ScoreBooster;
 use crate::knowledge::storage::ChunkRepository;
 
 use super::{EmbeddingProvider, SearchEngine, SearchError};
@@ -21,6 +22,7 @@ use super::{EmbeddingProvider, SearchEngine, SearchError};
 pub struct SemanticSearchEngine<R: ChunkRepository> {
     repository: R,
     embedding_provider: Box<dyn EmbeddingProvider>,
+    score_booster: ScoreBooster,
 }
 
 impl<R: ChunkRepository> SemanticSearchEngine<R> {
@@ -29,6 +31,7 @@ impl<R: ChunkRepository> SemanticSearchEngine<R> {
         Self {
             repository,
             embedding_provider,
+            score_booster: ScoreBooster::default(),
         }
     }
 }
@@ -66,9 +69,18 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
                         score: normalized_score,
                     })?;
 
+                // Apply score boosting based on file characteristics
+                let boosted_score = self
+                    .score_booster
+                    .apply_boost(relevance_score, &indexed_chunk.chunk)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                    .context(InvalidScoreSnafu {
+                        score: relevance_score.into_inner(),
+                    })?;
+
                 Ok(SearchResult::builder()
                     .chunk(indexed_chunk.chunk)
-                    .score(relevance_score)
+                    .score(boosted_score)
                     .matched_terms(vec![])
                     .build())
             })
@@ -208,7 +220,13 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.8; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        // Use empty boost rules to test raw score ordering
+        let score_booster = crate::knowledge::scoring::ScoreBooster::new(vec![]);
+        let engine = SemanticSearchEngine {
+            repository: mock_repo,
+            embedding_provider: Box::new(mock_provider),
+            score_booster,
+        };
         let query = SearchQuery::builder()
             .text(QueryText::try_new("rust").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())

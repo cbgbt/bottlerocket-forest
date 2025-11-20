@@ -39,6 +39,7 @@ pub mod constants;
 pub mod domain;
 pub mod facade;
 pub mod indexing;
+pub mod scoring;
 pub mod search;
 pub mod storage;
 
@@ -54,5 +55,6 @@ pub use indexing::{
     FileScanner, ForesterConfig, ForesterConfigError, IndexResult, IndexStrategy, IndexableFile,
     Indexer, IndexingError, ScanError, load_forester_config,
 };
+pub use scoring::{BoostMultiplier, BoostPattern, BoostRule, ScoreBooster, default_boost_rules};
 pub use search::{SearchEngine, SearchError, SemanticSearchEngine};
 pub use storage::{ChunkRepository, StorageError};
