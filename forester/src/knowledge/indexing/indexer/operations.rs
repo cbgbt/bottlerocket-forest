@@ -62,13 +62,13 @@ fn index_chunks(
     }
 
     let texts: Vec<_> = chunks.iter().map(|c| c.content.text.as_ref()).collect();
-    
+
     let index_data_list = provider
         .generate_batch(&texts)
         .context(IndexDataGenerationFailedSnafu)?;
 
     let timestamp = Timestamp::now();
-    
+
     Ok(chunks
         .into_iter()
         .zip(index_data_list)

@@ -292,18 +292,11 @@ mod test {
         .unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_save_batch().times(1).returning(|chunks| {
-            assert!(!chunks.is_empty());
-            Ok(())
-        });
+        // Rust indexing is currently disabled, so no save should occur
+        mock_repo.expect_save_batch().times(0);
 
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate().returning(|_| {
-            Ok(IndexData::Fast {
-                bm25_terms: Default::default(),
-            })
-        });
         mock_provider.expect_mode().return_const(IndexMode::Fast);
 
         let mut indexer =
@@ -312,11 +305,11 @@ mod test {
         // When Building the index
         let result = indexer.index(IndexStrategy::Build);
 
-        // Then It should succeed and report indexed files
+        // Then It should succeed but report no files (Rust indexing disabled)
         assert!(result.is_ok());
         let index_result = result.unwrap();
-        assert_eq!(index_result.files_added, 1);
-        assert!(index_result.chunks_affected > 0);
+        assert_eq!(index_result.files_added, 0);
+        assert_eq!(index_result.chunks_affected, 0);
     }
 
     #[test]

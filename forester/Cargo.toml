@@ -11,6 +11,7 @@ dirs = "5"
 dotenvy = "0.15"
 envy = "0.4"
 fastembed = "4"
+ignore = "0.4"
 miette = { version = "7", features = ["fancy"] }
 nutype = { version = "0.5", features = ["serde"] }
 pulldown-cmark = "0.13"
@@ -26,7 +27,6 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 text-splitter = { version = "0.28", features = ["markdown", "tokenizers"] }
 tokenizers = { version = "0.22", features = ["http"] }
 uuid = { version = "1", features = ["v4", "serde"] }
-walkdir = "2"
 
 [dev-dependencies]
 assert_cmd = "2"

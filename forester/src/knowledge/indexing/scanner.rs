@@ -1,20 +1,31 @@
 //! File scanning for discovering indexable documentation
 
 use bon::Builder;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
 
-use crate::knowledge::domain::{AbsolutePath, FileType, ForestRelativePath, RepoName, Timestamp};
+use crate::knowledge::domain::{
+    AbsolutePath, FileType, ForestRelativePath, RepoName, ScanConfig, Timestamp,
+};
 
 /// Scans directories for indexable files
 #[derive(Debug)]
 pub struct FileScanner {
     forest_root: PathBuf,
+    config: ScanConfig,
 }
 
 impl FileScanner {
     /// Create a scanner for the given forest root directory
     pub fn new(forest_root: impl AsRef<Path>) -> Result<Self, ScanError> {
+        Self::with_config(forest_root, ScanConfig::default())
+    }
+
+    /// Create a scanner with custom configuration
+    pub fn with_config(
+        forest_root: impl AsRef<Path>,
+        config: ScanConfig,
+    ) -> Result<Self, ScanError> {
         use scan_error::*;
 
         let forest_root = forest_root.as_ref();
@@ -27,6 +38,7 @@ impl FileScanner {
 
         Ok(Self {
             forest_root: forest_root.to_path_buf(),
+            config,
         })
     }
 
@@ -46,45 +58,27 @@ impl FileScanner {
     ) -> Result<Vec<IndexableFile>, ScanError> {
         let mut files = Vec::new();
 
-        for entry in walkdir::WalkDir::new(&self.forest_root)
+        let mut builder = ignore::WalkBuilder::new(&self.forest_root);
+        builder
             .follow_links(false)
-            .into_iter()
-            .filter_entry(|e| {
-                // Skip common directories that shouldn't be indexed
-                let file_name = e.file_name().to_string_lossy();
-                !matches!(
-                    file_name.as_ref(),
-                    ".git" | "target" | "vendor" | ".cargo" | "node_modules" | ".forester"
-                ) && !file_name.starts_with('.')
-            })
-        {
-            let entry = entry.map_err(|e| {
-                if e.io_error()
-                    .map(|io| io.kind() == std::io::ErrorKind::PermissionDenied)
-                    .unwrap_or(false)
-                {
-                    ScanError::PermissionDenied {
-                        path: e
-                            .path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_default(),
-                    }
-                } else {
-                    ScanError::IoError {
-                        path: e
-                            .path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_default(),
-                        source: e
-                            .into_io_error()
-                            .unwrap_or_else(|| std::io::Error::other("unknown error")),
-                    }
-                }
-            })?;
+            .git_ignore(self.config.respect_gitignore)
+            .filter_entry(|entry| {
+                let file_name = entry.file_name().to_string_lossy();
+                file_name != ".forester"
+            });
+
+        if self.config.use_foresterignore {
+            builder.add_custom_ignore_filename(".foresterignore");
+        }
+
+        for result in builder.build() {
+            use scan_error::*;
+
+            let entry = result.context(WalkSnafu)?;
 
             let path = entry.path();
 
-            if !entry.file_type().is_file() {
+            if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
                 continue;
             }
 
@@ -184,6 +178,13 @@ pub enum ScanError {
     )]
     ForestRootNotFound { path: String },
 
+    #[snafu(display("Error walking directory tree"))]
+    #[diagnostic(
+        code(forester::scanner::walk_error),
+        help("Check file permissions and filesystem health")
+    )]
+    Walk { source: ignore::Error },
+
     #[snafu(display("Permission denied: {path}"))]
     #[diagnostic(
         code(forester::scanner::permission_denied),
@@ -224,6 +225,18 @@ mod test {
     use std::fs;
     use tempfile::TempDir;
 
+    fn scanner_no_git(path: impl AsRef<Path>) -> FileScanner {
+        let config = ScanConfig::builder()
+            .respect_gitignore(false)
+            .use_foresterignore(false)
+            .build();
+        FileScanner::with_config(path, config).unwrap()
+    }
+
+    fn create_test_git_repo(path: &Path) {
+        fs::create_dir(path.join(".git")).ok();
+    }
+
     #[test]
     fn test_scanner_rejects_nonexistent_root() {
         // Given A nonexistent directory
@@ -263,13 +276,13 @@ mod test {
         fs::write(repo_dir.join("src/main.rs"), "fn main() {}").unwrap();
         fs::write(repo_dir.join("src/lib.rs"), "pub fn test() {}").unwrap();
 
-        // When Scanning
-        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        // When Scanning without gitignore
+        let scanner = scanner_no_git(temp_dir.path());
         let files = scanner.scan().unwrap();
 
-        // Then It should find rust files
-        assert_eq!(files.len(), 2);
-        assert!(files.iter().all(|f| f.file_type == FileType::Rust));
+        // Then It should find no files (Rust indexing currently disabled)
+        // TODO: Update this test when Rust indexing is re-enabled
+        assert_eq!(files.len(), 0);
     }
 
     #[test]
@@ -398,5 +411,176 @@ mod test {
             files[0].relative_path,
             ForestRelativePath::try_new("bottlerocket/docs/guide.md").unwrap()
         );
+    }
+
+    #[test]
+    fn test_always_ignores_forester_directory() {
+        // Given A forest with .forester directory containing indexable files
+        let temp_dir = TempDir::new().unwrap();
+        let forester_dir = temp_dir.path().join(".forester");
+        fs::create_dir(&forester_dir).unwrap();
+        fs::write(forester_dir.join("index.db"), "data").unwrap();
+        fs::write(forester_dir.join("notes.md"), "# Notes").unwrap();
+
+        // When Scanning
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then .forester directory should never be scanned
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_scan_config_default_values() {
+        // Given Default ScanConfig
+        let config = ScanConfig::default();
+
+        // Then It should have expected defaults
+        assert!(config.respect_gitignore);
+        assert!(config.use_foresterignore);
+    }
+
+    #[test]
+    fn test_scanner_with_custom_config() {
+        // Given A custom ScanConfig
+        let config = ScanConfig::builder()
+            .respect_gitignore(false)
+            .use_foresterignore(false)
+            .build();
+
+        let temp_dir = TempDir::new().unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test").unwrap();
+
+        // When Creating scanner with custom config
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Scanner should be created successfully
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn test_gitignore_respected_by_default() {
+        // Given A forest with .gitignore in a git repo
+        let temp_dir = TempDir::new().unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+
+        // Create .git directory (required for .gitignore to work)
+        fs::create_dir(repo_dir.join(".git")).unwrap();
+
+        fs::write(repo_dir.join(".gitignore"), "ignored.md\n").unwrap();
+        fs::write(repo_dir.join("included.md"), "# Included").unwrap();
+        fs::write(repo_dir.join("ignored.md"), "# Ignored").unwrap();
+
+        // When Scanning with default config
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Gitignored file should not be found (only included.md)
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("included.md"));
+    }
+
+    #[test]
+    fn test_gitignore_can_be_disabled() {
+        // Given A forest with .gitignore
+        let temp_dir = TempDir::new().unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join(".gitignore"), "ignored.md\n").unwrap();
+        fs::write(repo_dir.join("included.md"), "# Included").unwrap();
+        fs::write(repo_dir.join("ignored.md"), "# Ignored").unwrap();
+
+        // When Scanning with gitignore disabled
+        let config = ScanConfig::builder().respect_gitignore(false).build();
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Both files should be found
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn test_foresterignore_excludes_files() {
+        // Given A forest with .foresterignore
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join(".foresterignore"), "excluded/\n").unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir_all(repo_dir.join("excluded")).unwrap();
+        fs::create_dir_all(repo_dir.join("included")).unwrap();
+        fs::write(repo_dir.join("excluded/doc.md"), "# Excluded").unwrap();
+        fs::write(repo_dir.join("included/doc.md"), "# Included").unwrap();
+
+        // When Scanning
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Only included file should be found
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("included"));
+    }
+
+    #[test]
+    fn test_foresterignore_can_be_disabled() {
+        // Given A forest with .foresterignore
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join(".foresterignore"), "excluded/\n").unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir_all(repo_dir.join("excluded")).unwrap();
+        fs::write(repo_dir.join("excluded/doc.md"), "# Excluded").unwrap();
+
+        // When Scanning with foresterignore disabled
+        let config = ScanConfig::builder().use_foresterignore(false).build();
+        let scanner = FileScanner::with_config(temp_dir.path(), config).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then File should be found
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn test_foresterignore_with_subdirectories() {
+        // Given A forest with .foresterignore excluding a subdirectory
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create .git directory to prevent global gitignore interference
+        fs::create_dir(temp_dir.path().join(".git")).unwrap();
+
+        fs::write(temp_dir.path().join(".foresterignore"), "*/vendor/\n").unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir_all(repo_dir.join("vendor")).unwrap();
+        fs::create_dir_all(repo_dir.join("docs")).unwrap();
+        fs::write(repo_dir.join("vendor/doc.md"), "# Vendor").unwrap();
+        fs::write(repo_dir.join("docs/doc.md"), "# Docs").unwrap();
+
+        // When Scanning
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Only docs file should be found (vendor excluded)
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("docs"));
+    }
+
+    #[test]
+    fn test_foresterignore_wildcard_patterns() {
+        // Given A forest with .foresterignore using wildcards
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join(".foresterignore"), "*.tmp.md\n").unwrap();
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join("keep.md"), "# Keep").unwrap();
+        fs::write(repo_dir.join("ignore.tmp.md"), "# Ignore").unwrap();
+
+        // When Scanning
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Only non-matching file should be found
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("keep.md"));
     }
 }

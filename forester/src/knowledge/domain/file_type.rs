@@ -41,7 +41,7 @@ mod test {
     use test_case::test_case;
 
     #[test_case("README.md", FileType::Markdown, true ; "markdown file")]
-    #[test_case("src/main.rs", FileType::Rust, true ; "rust file")]
+    #[test_case("src/main.rs", FileType::Rust, false ; "rust file")]
     #[test_case("Cargo.toml", FileType::Unsupported, false ; "toml file")]
     #[test_case("LICENSE", FileType::Unsupported, false ; "no extension")]
     fn test_file_classification(path: &str, expected_type: FileType, expected_indexable: bool) {

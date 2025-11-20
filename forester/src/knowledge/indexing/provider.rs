@@ -122,7 +122,7 @@ impl IndexDataProvider for EmbeddingDataProvider {
 
     fn generate_batch(&self, texts: &[&str]) -> Result<Vec<IndexData>, IndexDataError> {
         let text_strings: Vec<String> = texts.iter().map(|s| s.to_string()).collect();
-        
+
         let embeddings = self
             .embedding_provider
             .embed_batch(text_strings)

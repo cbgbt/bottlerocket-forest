@@ -69,7 +69,9 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
                 let normalized_score = (score + 1.0) / 2.0;
                 let relevance_score = RelevanceScore::try_new(normalized_score)
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-                    .context(InvalidScoreSnafu { score: normalized_score })?;
+                    .context(InvalidScoreSnafu {
+                        score: normalized_score,
+                    })?;
 
                 Ok(SearchResult::builder()
                     .chunk(indexed_chunk.chunk)

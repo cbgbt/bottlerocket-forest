@@ -23,6 +23,29 @@ pub use file_type::FileType;
 pub use index_mode::{IndexMode, InvalidIndexMode};
 pub use search::{SearchQuery, SearchResult, SearchResults};
 
+/// Configuration for file scanning
+#[derive(Debug, Clone, Builder)]
+#[builder(on(_, into))]
+#[non_exhaustive]
+pub struct ScanConfig {
+    /// Respect .gitignore files
+    #[builder(default = true)]
+    pub respect_gitignore: bool,
+
+    /// Use .foresterignore files
+    #[builder(default = true)]
+    pub use_foresterignore: bool,
+}
+
+impl Default for ScanConfig {
+    fn default() -> Self {
+        Self {
+            respect_gitignore: true,
+            use_foresterignore: true,
+        }
+    }
+}
+
 /// Unique identifier for a documentation chunk
 ///
 /// Each chunk in the index has a unique UUID to enable efficient lookups
