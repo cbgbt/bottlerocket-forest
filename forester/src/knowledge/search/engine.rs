@@ -2,16 +2,13 @@
 
 use snafu::Snafu;
 
-use crate::knowledge::domain::{IndexMode, SearchQuery, SearchResults};
+use crate::knowledge::domain::{SearchQuery, SearchResults};
 
 /// Search engine for querying the knowledge index
 #[cfg_attr(test, mockall::automock)]
 pub trait SearchEngine {
     /// Execute a search query
     fn search(&self, query: &SearchQuery) -> Result<SearchResults, SearchError>;
-
-    /// Get the index mode this engine supports
-    fn mode(&self) -> IndexMode;
 }
 
 /// Errors that can occur during search operations
@@ -25,18 +22,6 @@ pub enum SearchError {
     )]
     Storage {
         source: crate::knowledge::storage::StorageError,
-    },
-
-    #[snafu(display(
-        "Search mode mismatch: query uses {query_mode:?} mode but search engine is configured for {engine_mode:?} mode"
-    ))]
-    #[diagnostic(
-        code(forester::search::mode_mismatch),
-        help("Ensure the query mode matches the index mode")
-    )]
-    ModeMismatch {
-        query_mode: IndexMode,
-        engine_mode: IndexMode,
     },
 
     #[snafu(display("Failed to generate embedding vector for search query"))]

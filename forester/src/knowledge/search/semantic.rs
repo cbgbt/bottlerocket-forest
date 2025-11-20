@@ -9,7 +9,7 @@
 
 use snafu::ResultExt;
 
-use crate::knowledge::domain::{IndexMode, SearchQuery, SearchResults};
+use crate::knowledge::domain::{SearchQuery, SearchResults};
 use crate::knowledge::storage::ChunkRepository;
 
 use super::{EmbeddingProvider, SearchEngine, SearchError};
@@ -37,13 +37,6 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
     fn search(&self, query: &SearchQuery) -> Result<SearchResults, SearchError> {
         use super::engine::search_error::*;
         use std::time::Instant;
-
-        if query.mode != IndexMode::Best {
-            return Err(SearchError::ModeMismatch {
-                query_mode: query.mode,
-                engine_mode: IndexMode::Best,
-            });
-        }
 
         let start = Instant::now();
 
@@ -88,10 +81,6 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
             .search_duration(search_duration)
             .build())
     }
-
-    fn mode(&self) -> IndexMode {
-        IndexMode::Best
-    }
 }
 
 #[cfg(test)]
@@ -99,7 +88,7 @@ mod test {
     use super::*;
     use crate::knowledge::domain::{
         Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-        IndexData, IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, QueryText,
+        IndexMode, IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, QueryText,
         RepoName, ResultLimit, Timestamp, TokenCount,
     };
     use crate::knowledge::search::embeddings::model::MockEmbeddingProvider;
@@ -140,23 +129,9 @@ mod test {
                     ))
                     .build(),
             )
-            .index_data(IndexData::Best { embedding })
+            .embedding(embedding)
             .indexed_at(Timestamp::now())
             .build()
-    }
-
-    #[test]
-    fn test_semantic_engine_mode_returns_best() {
-        // Given A semantic search engine
-        let mock_repo = MockChunkRepository::new();
-        let mock_provider = MockEmbeddingProvider::new();
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
-
-        // When Getting the mode
-        let mode = engine.mode();
-
-        // Then It should return Best
-        assert_eq!(mode, IndexMode::Best);
     }
 
     #[test]
@@ -287,30 +262,6 @@ mod test {
 
         // Then Only 2 results should be returned
         assert_eq!(results.results.len(), 2);
-    }
-
-    #[test]
-    fn test_semantic_search_rejects_fast_mode_query() {
-        // Given A semantic engine (Best mode)
-        let mock_repo = MockChunkRepository::new();
-        let mock_provider = MockEmbeddingProvider::new();
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
-
-        let query = SearchQuery::builder()
-            .text(QueryText::try_new("test").unwrap())
-            .mode(IndexMode::Fast)
-            .limit(ResultLimit::try_new(10).unwrap())
-            .build();
-
-        // When Searching with Fast mode query
-        let result = engine.search(&query);
-
-        // Then It should return ModeMismatch error
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            SearchError::ModeMismatch { .. }
-        ));
     }
 
     #[test]

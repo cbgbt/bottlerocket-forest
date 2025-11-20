@@ -31,10 +31,6 @@ struct BuildArgs {
     /// path to forest root (defaults to current directory)
     #[argh(option)]
     forest_root: Option<PathBuf>,
-
-    /// index mode: fast or best (defaults to best)
-    #[argh(option)]
-    mode: Option<String>,
 }
 
 /// Rebuild the knowledge index from scratch
@@ -44,10 +40,6 @@ struct RebuildArgs {
     /// path to forest root (defaults to current directory)
     #[argh(option)]
     forest_root: Option<PathBuf>,
-
-    /// index mode: fast or best (defaults to best)
-    #[argh(option)]
-    mode: Option<String>,
 }
 
 /// Update the knowledge index incrementally
@@ -120,9 +112,8 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mode = parse_mode(args.mode.as_deref())?;
-
-    let mut index = KnowledgeIndex::open(&forest_root, mode).context(KnowledgeIndexSnafu)?;
+    let mut index =
+        KnowledgeIndex::open(&forest_root, IndexMode::Best).context(KnowledgeIndexSnafu)?;
 
     let result = index.build().context(KnowledgeIndexSnafu)?;
 
@@ -138,9 +129,8 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mode = parse_mode(args.mode.as_deref())?;
-
-    let mut index = KnowledgeIndex::open(&forest_root, mode).context(KnowledgeIndexSnafu)?;
+    let mut index =
+        KnowledgeIndex::open(&forest_root, IndexMode::Best).context(KnowledgeIndexSnafu)?;
 
     let result = index.rebuild().context(KnowledgeIndexSnafu)?;
 
@@ -254,17 +244,6 @@ fn open_existing_index(forest_root: &std::path::Path) -> Result<KnowledgeIndex, 
 
     KnowledgeIndex::open_with_config(forest_root, metadata.mode, metadata.model_config)
         .context(KnowledgeIndexSnafu)
-}
-
-fn parse_mode(mode_str: Option<&str>) -> Result<IndexMode, IndexError> {
-    match mode_str {
-        Some("fast") => Ok(IndexMode::Fast),
-        Some("best") => Ok(IndexMode::Best),
-        None => Ok(IndexMode::Best),
-        Some(mode) => Err(IndexError::InvalidMode {
-            mode: mode.to_string(),
-        }),
-    }
 }
 
 fn parse_output_format(format_str: Option<&str>) -> Result<OutputFormat, IndexError> {
@@ -406,10 +385,6 @@ pub enum IndexError {
     )]
     IndexNotFound { path: String },
 
-    #[snafu(display("Invalid mode: {mode}"))]
-    #[diagnostic(code(forester::cli::invalid_mode), help("Must be 'fast' or 'best'"))]
-    InvalidMode { mode: String },
-
     #[snafu(display("Invalid output format: {format}"))]
     #[diagnostic(
         code(forester::cli::invalid_output_format),
@@ -443,46 +418,6 @@ mod test {
     use crate::knowledge::facade::IndexStatus;
     use crate::knowledge::indexing::IndexResult;
     use std::time::{Duration, SystemTime};
-
-    #[test]
-    fn test_parse_mode_fast() {
-        // Given A mode string "fast"
-        // When Parsing the mode
-        let result = parse_mode(Some("fast"));
-
-        // Then It should return IndexMode::Fast
-        assert!(matches!(result, Ok(IndexMode::Fast)));
-    }
-
-    #[test]
-    fn test_parse_mode_best() {
-        // Given A mode string "best"
-        // When Parsing the mode
-        let result = parse_mode(Some("best"));
-
-        // Then It should return IndexMode::Best
-        assert!(matches!(result, Ok(IndexMode::Best)));
-    }
-
-    #[test]
-    fn test_parse_mode_default() {
-        // Given No mode string (None)
-        // When Parsing the mode
-        let result = parse_mode(None);
-
-        // Then It should default to IndexMode::Best
-        assert!(matches!(result, Ok(IndexMode::Best)));
-    }
-
-    #[test]
-    fn test_parse_mode_invalid() {
-        // Given An invalid mode string
-        // When Parsing the mode
-        let result = parse_mode(Some("invalid"));
-
-        // Then It should return InvalidMode error
-        assert!(matches!(result, Err(IndexError::InvalidMode { .. })));
-    }
 
     #[test]
     fn test_parse_output_format_human() {
@@ -549,7 +484,7 @@ mod test {
         std::fs::create_dir_all(&forester_dir).unwrap();
 
         // Create a valid index
-        let mut index = KnowledgeIndex::open(forest_root, IndexMode::Fast).unwrap();
+        let mut index = KnowledgeIndex::open(forest_root, IndexMode::Best).unwrap();
         index.build().unwrap();
 
         // When Opening the existing index
@@ -570,7 +505,7 @@ mod test {
             .files_skipped(0)
             .chunks_affected(50)
             .duration(Duration::from_secs(5))
-            .mode(IndexMode::Fast)
+            .mode(IndexMode::Best)
             .build();
 
         // When Formatting the build result
@@ -589,7 +524,7 @@ mod test {
             .files_skipped(0)
             .chunks_affected(12)
             .duration(Duration::from_secs(2))
-            .mode(IndexMode::Fast)
+            .mode(IndexMode::Best)
             .build();
 
         // When Formatting the update result
@@ -728,7 +663,7 @@ mod test {
         use crate::knowledge::domain::{QueryText, ResultLimit};
         SearchQuery::builder()
             .text(QueryText::try_new("test query").unwrap())
-            .mode(IndexMode::Fast)
+            .mode(IndexMode::Best)
             .limit(ResultLimit::try_new(10).unwrap())
             .build()
     }

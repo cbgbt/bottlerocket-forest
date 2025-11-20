@@ -136,4 +136,13 @@ pub enum IndexError {
     IndexDataProviderCreationFailed {
         source: crate::knowledge::indexing::IndexDataError,
     },
+
+    #[snafu(display("Failed to load forester configuration"))]
+    #[diagnostic(
+        code(forester::index::config_load_failed),
+        help("Check that .forester.toml is valid TOML and contains valid target paths")
+    )]
+    ConfigLoadFailed {
+        source: crate::knowledge::indexing::ForesterConfigError,
+    },
 }

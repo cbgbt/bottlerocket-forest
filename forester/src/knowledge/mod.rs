@@ -50,13 +50,14 @@ pub mod storage;
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
 pub use domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, Embedding,
-    EmbeddingModelConfig, FileType, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
-    IndexedChunk, LineRange, MarkdownContext, RepoName, RustDocContext, SearchQuery, SearchResult,
+    EmbeddingModelConfig, FileType, ForestRelativePath, IndexMetadata, IndexMode, IndexedChunk,
+    LineRange, MarkdownContext, RepoName, RustDocContext, ScanConfig, SearchQuery, SearchResult,
     SearchResults, Timestamp,
 };
 pub use facade::{IndexError, IndexStatus, KnowledgeIndex};
 pub use indexing::{
-    FileScanner, IndexResult, IndexStrategy, IndexableFile, Indexer, IndexingError, ScanError,
+    FileScanner, ForesterConfig, ForesterConfigError, IndexResult, IndexStrategy, IndexableFile,
+    Indexer, IndexingError, ScanError, load_forester_config,
 };
-pub use search::{Bm25SearchEngine, SearchEngine, SearchError, SemanticSearchEngine};
+pub use search::{SearchEngine, SearchError, SemanticSearchEngine};
 pub use storage::{ChunkRepository, StorageError};

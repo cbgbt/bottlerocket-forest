@@ -144,14 +144,6 @@ impl ChunkRepository for SqliteChunkRepository {
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
         search::search_semantic(&self.conn, query_embedding, limit)
     }
-
-    fn search_bm25(
-        &self,
-        query_terms: &[String],
-        limit: usize,
-    ) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
-        search::search_bm25(&self.conn, query_terms, limit)
-    }
 }
 
 #[cfg(test)]
@@ -163,8 +155,7 @@ mod test {
         ItemName, LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext,
         Signature, TokenCount, Visibility,
     };
-    use crate::knowledge::domain::{EmbeddingModelConfig, IndexData, Timestamp};
-    use std::collections::BTreeMap;
+    use crate::knowledge::domain::{EmbeddingModelConfig, Timestamp};
     use std::time::SystemTime;
     use tempfile::NamedTempFile;
     use test_case::test_case;
@@ -201,9 +192,7 @@ mod test {
 
         IndexedChunk::builder()
             .chunk(chunk)
-            .index_data(IndexData::Fast {
-                bm25_terms: BTreeMap::new(),
-            })
+            .embedding(Embedding::try_new(vec![0.1; EMBEDDING_DIM]).unwrap())
             .indexed_at(Timestamp::now())
             .build()
     }
@@ -236,9 +225,7 @@ mod test {
 
         IndexedChunk::builder()
             .chunk(chunk)
-            .index_data(IndexData::Best {
-                embedding: Embedding::try_new(vec![0.1; EMBEDDING_DIM]).unwrap(),
-            })
+            .embedding(Embedding::try_new(vec![0.1; EMBEDDING_DIM]).unwrap())
             .indexed_at(Timestamp::now())
             .build()
     }
@@ -426,9 +413,7 @@ mod test {
 
         let indexed_chunk = IndexedChunk::builder()
             .chunk(chunk)
-            .index_data(IndexData::Fast {
-                bm25_terms: BTreeMap::new(),
-            })
+            .embedding(Embedding::try_new(vec![0.1; EMBEDDING_DIM]).unwrap())
             .indexed_at(Timestamp::now())
             .build();
 
@@ -479,7 +464,7 @@ mod test {
 
         let indexed_chunk = IndexedChunk::builder()
             .chunk(chunk)
-            .index_data(IndexData::Best { embedding })
+            .embedding(embedding)
             .indexed_at(Timestamp::now())
             .build();
 
@@ -506,36 +491,6 @@ mod test {
             )
             .unwrap();
         assert!(vec_chunk_exists);
-    }
-
-    #[test]
-    fn test_save_without_embedding_skips_vec_chunks() {
-        // Given A repository and a chunk without an embedding
-        let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let indexed_chunk = create_test_chunk();
-
-        // When Saving the chunk
-        repo.save(&indexed_chunk).unwrap();
-
-        // Then It should be in chunks but not vec_chunks
-        let chunk_exists: bool = repo
-            .conn
-            .query_row(
-                "SELECT 1 FROM chunks WHERE id = ?1",
-                rusqlite::params![indexed_chunk.chunk.id.to_string()],
-                |_| Ok(true),
-            )
-            .unwrap();
-        assert!(chunk_exists);
-
-        let vec_chunk_result: Result<bool, _> = repo.conn.query_row(
-            "SELECT 1 FROM vec_chunks WHERE chunk_id = ?1",
-            rusqlite::params![indexed_chunk.chunk.id.to_string()],
-            |_| Ok(true),
-        );
-        assert!(vec_chunk_result.is_err());
     }
 
     #[test]
@@ -598,9 +553,7 @@ mod test {
 
         let indexed_chunk = IndexedChunk::builder()
             .chunk(chunk)
-            .index_data(IndexData::Best {
-                embedding: embedding.clone(),
-            })
+            .embedding(embedding.clone())
             .indexed_at(Timestamp::now())
             .build();
 
@@ -608,64 +561,8 @@ mod test {
         repo.save(&indexed_chunk).unwrap();
         let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap().unwrap();
 
-        // Then Mode is correct (embedding not retrieved in regular queries)
-        assert_eq!(retrieved.index_data.mode(), IndexMode::Best);
-        match retrieved.index_data {
-            IndexData::Best { embedding: _ } => {}
-            _ => panic!("Expected Best mode"),
-        }
-    }
-
-    #[test]
-    fn test_fast_mode_empty_terms() {
-        // Given A Fast mode chunk with empty BM25 terms
-        let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let chunk = Chunk::builder()
-            .id(ChunkId::new(uuid::Uuid::new_v4()))
-            .source(
-                ChunkSource::builder()
-                    .file_path(ForestRelativePath::try_new("test.md").unwrap())
-                    .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
-                    .build(),
-            )
-            .content(
-                ChunkContent::builder()
-                    .text("the a an")
-                    .token_count(TokenCount::try_new(8).unwrap())
-                    .build(),
-            )
-            .context(ChunkContext::Markdown(
-                MarkdownContext::builder().heading_hierarchy(vec![]).build(),
-            ))
-            .build();
-
-        let indexed_chunk = IndexedChunk::builder()
-            .chunk(chunk)
-            .index_data(IndexData::Fast {
-                bm25_terms: BTreeMap::new(),
-            })
-            .indexed_at(Timestamp::now())
-            .build();
-
-        // When Saving and retrieving
-        repo.save(&indexed_chunk).unwrap();
-        let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap().unwrap();
-
-        // Then Empty terms are preserved
-        match retrieved.index_data {
-            IndexData::Fast { bm25_terms } => {
-                assert!(bm25_terms.is_empty());
-            }
-            _ => panic!("Expected Fast mode"),
-        }
+        // Then Embedding is stored (not retrieved in regular queries, but stored in vec_chunks)
+        assert_eq!(retrieved.chunk.id, indexed_chunk.chunk.id);
     }
 
     #[test]
@@ -832,35 +729,6 @@ mod test {
     }
 
     #[test]
-    fn test_delete_by_file_with_mixed_modes() {
-        // Given A repository with both Fast and Best mode chunks for the same file
-        let temp_file = NamedTempFile::new().unwrap();
-        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-
-        let chunk_fast = create_test_chunk_fast("test.md", "test-repo");
-        let chunk_best = create_test_chunk_best("test.md", "test-repo");
-        repo.save(&chunk_fast).unwrap();
-        repo.save(&chunk_best).unwrap();
-
-        let vec_count_before: i64 = repo
-            .conn
-            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(vec_count_before, 1);
-
-        // When Deleting chunks by file
-        repo.delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
-            .unwrap();
-
-        // Then Only the Best mode embedding should be deleted
-        let vec_count_after: i64 = repo
-            .conn
-            .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(vec_count_after, 0);
-    }
-
-    #[test]
     fn test_metadata_model_config_roundtrip() {
         use crate::knowledge::domain::EmbeddingModelConfig;
 
@@ -909,7 +777,7 @@ mod test {
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let metadata = IndexMetadata::builder()
-            .mode(IndexMode::Fast)
+            .mode(IndexMode::Best)
             .last_build(SystemTime::now())
             .chunk_count(0)
             .file_count(0)

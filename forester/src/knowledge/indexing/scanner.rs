@@ -72,15 +72,26 @@ impl FileScanner {
         }
     }
 
-    fn scan_from_root(&self, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
+    fn scan_from_root(
+        &self,
+        filter_repo: Option<&RepoName>,
+    ) -> Result<Vec<IndexableFile>, ScanError> {
         self.scan_with_builder(&self.forest_root, filter_repo)
     }
 
-    fn scan_target(&self, target_path: &Path, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
+    fn scan_target(
+        &self,
+        target_path: &Path,
+        filter_repo: Option<&RepoName>,
+    ) -> Result<Vec<IndexableFile>, ScanError> {
         self.scan_with_builder(target_path, filter_repo)
     }
 
-    fn scan_with_builder(&self, root: &Path, filter_repo: Option<&RepoName>) -> Result<Vec<IndexableFile>, ScanError> {
+    fn scan_with_builder(
+        &self,
+        root: &Path,
+        filter_repo: Option<&RepoName>,
+    ) -> Result<Vec<IndexableFile>, ScanError> {
         let mut files = Vec::new();
 
         let mut builder = ignore::WalkBuilder::new(root);

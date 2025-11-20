@@ -105,10 +105,10 @@ fn index_chunks(
     Ok(chunks
         .into_iter()
         .zip(index_data_list)
-        .map(|(chunk, index_data)| {
+        .map(|(chunk, embedding)| {
             IndexedChunk::builder()
                 .chunk(chunk)
-                .index_data(index_data)
+                .embedding(embedding)
                 .indexed_at(timestamp)
                 .build()
         })

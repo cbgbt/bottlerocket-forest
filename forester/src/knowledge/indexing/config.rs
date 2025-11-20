@@ -42,11 +42,9 @@ pub fn load_forester_config(
 
     let config: ForesterConfig = toml::from_str(&content).context(ParseSnafu)?;
 
-    let forest_root_canonical = forest_root
-        .canonicalize()
-        .context(IoSnafu {
-            path: forest_root.display().to_string(),
-        })?;
+    let forest_root_canonical = forest_root.canonicalize().context(IoSnafu {
+        path: forest_root.display().to_string(),
+    })?;
 
     for target in &config.targets {
         if target.is_absolute() {
@@ -56,7 +54,7 @@ pub fn load_forester_config(
         }
 
         let target_path = forest_root.join(target).clean();
-        
+
         if let Ok(canonical) = target_path.canonicalize() {
             if !canonical.starts_with(&forest_root_canonical) {
                 return Err(ForesterConfigError::PathEscapesRoot {

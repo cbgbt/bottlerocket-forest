@@ -3,12 +3,10 @@
 use rusqlite::{Connection, OptionalExtension};
 use snafu::ResultExt;
 
-use super::serialization::{
-    indexed_chunk_from_row, serialize_bm25_terms, serialize_context, serialize_embedding,
-};
+use super::serialization::{indexed_chunk_from_row, serialize_context, serialize_embedding};
 use crate::knowledge::domain::{
-    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexData, IndexMetadata, IndexMode,
-    IndexedChunk, Timestamp,
+    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexMode, IndexedChunk,
+    Timestamp,
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
@@ -16,25 +14,14 @@ use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), StorageError> {
     let chunk = &indexed_chunk.chunk;
     let (context_type, context_data) = serialize_context(&chunk.context)?;
-    let mode = indexed_chunk.index_data.mode();
-
-    let (bm25_terms, embedding_blob) = match &indexed_chunk.index_data {
-        IndexData::Fast { bm25_terms } => {
-            let terms_json = serialize_bm25_terms(bm25_terms)?;
-            (Some(terms_json), None)
-        }
-        IndexData::Best { embedding } => {
-            let blob = serialize_embedding(embedding);
-            (None, Some(blob))
-        }
-    };
+    let embedding_blob = serialize_embedding(&indexed_chunk.embedding);
 
     conn.execute(
         "INSERT OR REPLACE INTO chunks 
         (id, file_path, repo_name, line_start, line_count, 
-         context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
+         context_type, context_data, content, token_count, last_modified)
         VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
-                :context_type, :context_data, :content, :token_count, :last_modified, :bm25_terms, :index_mode)",
+                :context_type, :context_data, :content, :token_count, :last_modified)",
         rusqlite::named_params! {
             ":id": chunk.id.to_string(),
             ":file_path": chunk.source.file_path.to_string(),
@@ -46,58 +33,37 @@ pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), S
             ":content": chunk.content.text,
             ":token_count": chunk.content.token_count.into_inner() as i64,
             ":last_modified": indexed_chunk.indexed_at.as_secs(),
-            ":bm25_terms": bm25_terms,
-            ":index_mode": mode.to_string(),
         },
     )
     .context(DatabaseSnafu)?;
 
-    if let Some(blob) = embedding_blob {
-        conn.execute(
-            "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
-            rusqlite::named_params! {
-                ":chunk_id": chunk.id.to_string(),
-                ":embedding": blob,
-            },
-        )
-        .context(DatabaseSnafu)?;
-    }
+    conn.execute(
+        "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
+        rusqlite::named_params! {
+            ":chunk_id": chunk.id.to_string(),
+            ":embedding": embedding_blob,
+        },
+    )
+    .context(DatabaseSnafu)?;
 
     Ok(())
 }
 
 /// Save multiple indexed chunks in a transaction
-///
-/// If an error occurs during the batch operation, the transaction is automatically
-/// rolled back when `tx` is dropped (Rust's RAII pattern), ensuring atomicity.
-pub fn save_batch(
-    conn: &mut Connection,
-    indexed_chunks: &[IndexedChunk],
-) -> Result<(), StorageError> {
+pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
-    for indexed_chunk in indexed_chunks {
+    for indexed_chunk in chunks {
         let chunk = &indexed_chunk.chunk;
         let (context_type, context_data) = serialize_context(&chunk.context)?;
-        let mode = indexed_chunk.index_data.mode();
-
-        let (bm25_terms, embedding_blob) = match &indexed_chunk.index_data {
-            IndexData::Fast { bm25_terms } => {
-                let terms_json = serialize_bm25_terms(bm25_terms)?;
-                (Some(terms_json), None)
-            }
-            IndexData::Best { embedding } => {
-                let blob = serialize_embedding(embedding);
-                (None, Some(blob))
-            }
-        };
+        let embedding_blob = serialize_embedding(&indexed_chunk.embedding);
 
         tx.execute(
             "INSERT OR REPLACE INTO chunks 
             (id, file_path, repo_name, line_start, line_count, 
-             context_type, context_data, content, token_count, last_modified, bm25_terms, index_mode)
+             context_type, context_data, content, token_count, last_modified)
             VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
-                    :context_type, :context_data, :content, :token_count, :last_modified, :bm25_terms, :index_mode)",
+                    :context_type, :context_data, :content, :token_count, :last_modified)",
             rusqlite::named_params! {
                 ":id": chunk.id.to_string(),
                 ":file_path": chunk.source.file_path.to_string(),
@@ -109,22 +75,18 @@ pub fn save_batch(
                 ":content": chunk.content.text,
                 ":token_count": chunk.content.token_count.into_inner() as i64,
                 ":last_modified": indexed_chunk.indexed_at.as_secs(),
-                ":bm25_terms": bm25_terms,
-                ":index_mode": mode.to_string(),
             },
         )
         .context(DatabaseSnafu)?;
 
-        if let Some(blob) = embedding_blob {
-            tx.execute(
-                "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
-                rusqlite::named_params! {
-                    ":chunk_id": chunk.id.to_string(),
-                    ":embedding": blob,
-                },
-            )
-            .context(DatabaseSnafu)?;
-        }
+        tx.execute(
+            "INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (:chunk_id, :embedding)",
+            rusqlite::named_params! {
+                ":chunk_id": chunk.id.to_string(),
+                ":embedding": embedding_blob,
+            },
+        )
+        .context(DatabaseSnafu)?;
     }
 
     tx.commit().context(DatabaseSnafu)?;
@@ -137,10 +99,8 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
-                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
-                    c.bm25_terms, c.index_mode, v.embedding
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified
              FROM chunks c
-             LEFT JOIN vec_chunks v ON c.id = v.chunk_id
              WHERE c.id = :id",
         )
         .context(DatabaseSnafu)?;
@@ -161,10 +121,8 @@ pub fn find_by_file(
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
-                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
-                    c.bm25_terms, c.index_mode, v.embedding
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified
              FROM chunks c
-             LEFT JOIN vec_chunks v ON c.id = v.chunk_id
              WHERE c.file_path = :file_path",
         )
         .context(DatabaseSnafu)?;
@@ -186,10 +144,8 @@ pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
             "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
-                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified, 
-                    c.bm25_terms, c.index_mode, v.embedding
-             FROM chunks c
-             LEFT JOIN vec_chunks v ON c.id = v.chunk_id",
+                    c.context_type, c.context_data, c.content, c.token_count, c.last_modified
+             FROM chunks c",
         )
         .context(DatabaseSnafu)?;
 
@@ -266,22 +222,17 @@ pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
 
 /// Get index metadata
 pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
-    let mode_str: String = conn
+    let _mode_str: Option<String> = conn
         .query_row(
             "SELECT value FROM index_metadata WHERE key = 'mode'",
             [],
             |row| row.get(0),
         )
         .optional()
-        .context(DatabaseSnafu)?
-        .unwrap_or_else(|| "fast".to_string());
+        .context(DatabaseSnafu)?;
 
-    let mode = mode_str.parse::<IndexMode>().map_err(|e| {
-        InvalidDataSnafu {
-            message: e.to_string(),
-        }
-        .build()
-    })?;
+    // Always use Best mode (Fast mode has been removed)
+    let mode = IndexMode::Best;
 
     let last_build_unix: i64 = conn
         .query_row(

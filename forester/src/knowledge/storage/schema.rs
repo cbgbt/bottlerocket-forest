@@ -32,16 +32,12 @@ CREATE TABLE IF NOT EXISTS chunks (
     context_data TEXT NOT NULL,
     content TEXT NOT NULL,
     token_count INTEGER NOT NULL,
-    last_modified INTEGER NOT NULL,
-    embedding BLOB,
-    bm25_terms TEXT,
-    index_mode TEXT NOT NULL CHECK(index_mode IN ('fast', 'best'))
+    last_modified INTEGER NOT NULL
 )
 "#;
 
 const CREATE_INDEX_FILE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_file ON chunks(file_path)";
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
-const CREATE_INDEX_MODE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_mode ON chunks(index_mode)";
 
 /// Creates all tables and indexes in the database
 pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result<()> {
@@ -53,8 +49,6 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     conn.execute(CREATE_INDEX_FILE, [])
         .context(SqlExecutionSnafu)?;
     conn.execute(CREATE_INDEX_REPO, [])
-        .context(SqlExecutionSnafu)?;
-    conn.execute(CREATE_INDEX_MODE, [])
         .context(SqlExecutionSnafu)?;
 
     let create_vec_chunks = format!(

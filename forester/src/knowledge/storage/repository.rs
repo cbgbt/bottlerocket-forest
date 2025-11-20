@@ -55,15 +55,6 @@ pub trait ChunkRepository {
         query_embedding: &[f32],
         limit: usize,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
-
-    /// Search chunks using BM25 keyword matching
-    ///
-    /// Returns indexed chunks ranked by BM25 relevance to the query terms, with scores.
-    fn search_bm25(
-        &self,
-        query_terms: &[String],
-        limit: usize,
-    ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
 }
 
 /// Errors that can occur during storage operations
