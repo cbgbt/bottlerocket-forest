@@ -69,18 +69,22 @@ impl<R: ChunkRepository> Indexer<R> {
 
     /// Build index from scratch (don't clear existing)
     fn build(&mut self) -> Result<IndexResult, IndexingError> {
+        use rayon::prelude::*;
         use types::indexing_error::*;
 
         let start = Instant::now();
-        let mut files_added = 0;
-        let mut chunks_affected = 0;
 
         let files = self.scanner.scan().context(ScanFailedSnafu)?;
 
-        for file in files {
-            let indexed_chunks =
-                operations::process_file(&file, &self.dispatcher, &*self.provider)?;
+        let results: Vec<_> = files
+            .par_iter()
+            .map(|file| operations::process_file(file, &self.dispatcher, &*self.provider))
+            .collect::<Result<Vec<_>, _>>()?;
 
+        let mut files_added = 0;
+        let mut chunks_affected = 0;
+
+        for indexed_chunks in results {
             if !indexed_chunks.is_empty() {
                 chunks_affected += indexed_chunks.len();
                 self.repository
@@ -111,6 +115,7 @@ impl<R: ChunkRepository> Indexer<R> {
 
     /// Update only changed files
     fn incremental(&mut self) -> Result<IndexResult, IndexingError> {
+        use rayon::prelude::*;
         use types::indexing_error::*;
 
         let current_files = self.scanner.scan().context(ScanFailedSnafu)?;
@@ -152,7 +157,14 @@ impl<R: ChunkRepository> Indexer<R> {
             chunks_affected += removed;
         }
 
-        for file in added.iter().chain(modified.iter()) {
+        let files_to_process: Vec<_> = added.iter().chain(modified.iter()).copied().collect();
+
+        let results: Vec<_> = files_to_process
+            .par_iter()
+            .map(|file| operations::process_file(file, &self.dispatcher, &*self.provider))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (file, indexed_chunks) in files_to_process.iter().zip(results.iter()) {
             if modified
                 .iter()
                 .any(|m| m.relative_path == file.relative_path)
@@ -164,12 +176,10 @@ impl<R: ChunkRepository> Indexer<R> {
                 chunks_affected += removed;
             }
 
-            let indexed_chunks = operations::process_file(file, &self.dispatcher, &*self.provider)?;
-
             if !indexed_chunks.is_empty() {
                 chunks_affected += indexed_chunks.len();
                 self.repository
-                    .save_batch(&indexed_chunks)
+                    .save_batch(indexed_chunks)
                     .context(StorageFailedSnafu)?;
             }
         }

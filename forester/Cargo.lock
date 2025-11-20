@@ -938,6 +938,7 @@ dependencies = [
  "nutype",
  "pulldown-cmark",
  "quote",
+ "rayon",
  "reqwest",
  "rusqlite",
  "serde",

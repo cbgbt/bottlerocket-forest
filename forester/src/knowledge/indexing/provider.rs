@@ -33,6 +33,14 @@ pub trait IndexDataProvider: Send + Sync {
     /// Processes the input text and returns index-specific data wrapped in [`IndexData`].
     fn generate(&self, text: &str) -> Result<IndexData, IndexDataError>;
 
+    /// Generate index data for multiple texts in batch
+    ///
+    /// Default implementation calls generate() for each text, but providers
+    /// can override for more efficient batch processing.
+    fn generate_batch(&self, texts: &[&str]) -> Result<Vec<IndexData>, IndexDataError> {
+        texts.iter().map(|text| self.generate(text)).collect()
+    }
+
     /// Returns the index mode for this provider
     fn mode(&self) -> IndexMode;
 }
@@ -110,6 +118,20 @@ impl IndexDataProvider for EmbeddingDataProvider {
             .map_err(|e| index_data_error::EmbeddingFailedSnafu.into_error(Box::new(e)))?;
 
         Ok(IndexData::Best { embedding })
+    }
+
+    fn generate_batch(&self, texts: &[&str]) -> Result<Vec<IndexData>, IndexDataError> {
+        let text_strings: Vec<String> = texts.iter().map(|s| s.to_string()).collect();
+        
+        let embeddings = self
+            .embedding_provider
+            .embed_batch(text_strings)
+            .map_err(|e| index_data_error::EmbeddingFailedSnafu.into_error(Box::new(e)))?;
+
+        Ok(embeddings
+            .into_iter()
+            .map(|embedding| IndexData::Best { embedding })
+            .collect())
     }
 
     fn mode(&self) -> IndexMode {

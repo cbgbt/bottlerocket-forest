@@ -7,7 +7,7 @@ use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent};
 
 /// Strategy for chunking file content into searchable units
 #[cfg_attr(test, mockall::automock)]
-pub trait ChunkingStrategy {
+pub trait ChunkingStrategy: Send + Sync {
     /// Check if this strategy supports the given file
     fn supports(&self, file_path: &Path) -> bool;
 
