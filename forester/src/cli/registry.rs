@@ -22,6 +22,8 @@ enum RegistrySubcommand {
     Clean,
     /// Show registry logs
     Logs(LogsArgs),
+    /// List images in the registry
+    List,
 }
 
 /// Show registry logs
@@ -43,6 +45,7 @@ pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
         RegistrySubcommand::Status => status(&config),
         RegistrySubcommand::Clean => clean(&config),
         RegistrySubcommand::Logs(args) => logs(&config, args.follow),
+        RegistrySubcommand::List => list(&config),
     }
 }
 
@@ -112,6 +115,46 @@ fn logs(config: &registry::RegistryConfig, follow: bool) -> Result<(), RegistryE
     registry::logs(config, follow).context(OperationSnafu)
 }
 
+/// List all images in the registry
+fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+    use registry_error::*;
+
+    let status = registry::status(config).context(OperationSnafu)?;
+
+    let url = match status.state {
+        registry::RegistryState::Running { url } => url,
+        registry::RegistryState::Stopped => {
+            return Err(RegistryError::RegistryNotRunning {
+                message: "Registry is stopped. Start it with 'forester registry start'".to_string(),
+            });
+        }
+        registry::RegistryState::NotCreated => {
+            return Err(RegistryError::RegistryNotRunning {
+                message: "Registry not created. Start it with 'forester registry start'".to_string(),
+            });
+        }
+    };
+
+    let images = registry::list_images(&url).context(CatalogSnafu)?;
+
+    if images.is_empty() {
+        println!("{}", "No images found in registry".dimmed());
+        return Ok(());
+    }
+
+    println!("{} images found:\n", images.len().to_string().cyan().bold());
+
+    for image in images {
+        println!(
+            "  {} {}",
+            image.repository.as_ref().bright_white(),
+            format!(":{}", image.tag.as_ref()).blue()
+        );
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum RegistryError {
@@ -128,4 +171,18 @@ pub enum RegistryError {
         help("Check the error details above for specific guidance")
     )]
     Operation { source: registry::RegistryError },
+
+    #[snafu(display("Failed to list registry images"))]
+    #[diagnostic(
+        code(forester::registry::catalog_failed),
+        help("Ensure the registry is running and accessible")
+    )]
+    Catalog { source: registry::CatalogError },
+
+    #[snafu(display("Registry is not running"))]
+    #[diagnostic(
+        code(forester::registry::not_running),
+        help("{message}")
+    )]
+    RegistryNotRunning { message: String },
 }
