@@ -149,7 +149,7 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
         repos
             .entry(image.repository.clone())
             .or_default()
-            .push(image.tag);
+            .push(image);
     }
 
     println!(
@@ -165,22 +165,36 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     );
 
     let repo_count = repos.len();
-    for (idx, (repo, tags)) in repos.iter().enumerate() {
+    for (idx, (repo, images)) in repos.iter().enumerate() {
         let is_last_repo = idx == repo_count - 1;
-        let repo_prefix = if is_last_repo { "└──" } else { "├──" };
+        let repo_prefix = if is_last_repo {
+            "└──"
+        } else {
+            "├──"
+        };
         let tag_prefix = if is_last_repo { "    " } else { "│   " };
 
         println!("{} {}", repo_prefix.dimmed(), repo.as_ref().bright_white());
 
-        let tag_count = tags.len();
-        for (tag_idx, tag) in tags.iter().enumerate() {
-            let is_last_tag = tag_idx == tag_count - 1;
-            let tag_symbol = if is_last_tag { "└──" } else { "├──" };
+        let image_count = images.len();
+        for (img_idx, image) in images.iter().enumerate() {
+            let is_last_image = img_idx == image_count - 1;
+            let img_symbol = if is_last_image {
+                "└──"
+            } else {
+                "├──"
+            };
+
+            let size_mb = image.size_bytes as f64 / 1_000_000.0;
+            let digest_short = &image.digest.chars().take(19).collect::<String>();
+
             println!(
-                "{}{} {}",
+                "{}{} {} {} {}",
                 tag_prefix.dimmed(),
-                tag_symbol.dimmed(),
-                format!(":{}", tag.as_ref()).blue()
+                img_symbol.dimmed(),
+                format!(":{}", image.tag.as_ref()).blue(),
+                format!("{:.1}MB", size_mb).yellow(),
+                digest_short.dimmed()
             );
         }
     }
