@@ -16,7 +16,7 @@ pub fn check_ready(url: &RegistryUrl) -> Result<(), HealthError> {
         .context(ClientBuildSnafu)?;
 
     let response = client
-        .get(format!("http://{}/v2/", url))
+        .get(format!("{}/v2/", url))
         .send()
         .context(ConnectionFailedSnafu)?;
 
