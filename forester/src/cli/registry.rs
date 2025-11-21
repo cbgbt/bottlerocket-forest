@@ -143,14 +143,46 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
         return Ok(());
     }
 
-    println!("{} images found:\n", images.len().to_string().cyan().bold());
-
+    // Group images by repository
+    let mut repos: std::collections::BTreeMap<_, Vec<_>> = std::collections::BTreeMap::new();
     for image in images {
-        println!(
-            "  {} {}",
-            image.repository.as_ref().bright_white(),
-            format!(":{}", image.tag.as_ref()).blue()
-        );
+        repos
+            .entry(image.repository.clone())
+            .or_default()
+            .push(image.tag);
+    }
+
+    println!(
+        "{} {} with {} {}:\n",
+        "Registry".cyan().bold(),
+        url.to_string().dimmed(),
+        repos.len().to_string().cyan(),
+        if repos.len() == 1 {
+            "repository"
+        } else {
+            "repositories"
+        }
+    );
+
+    let repo_count = repos.len();
+    for (idx, (repo, tags)) in repos.iter().enumerate() {
+        let is_last_repo = idx == repo_count - 1;
+        let repo_prefix = if is_last_repo { "└──" } else { "├──" };
+        let tag_prefix = if is_last_repo { "    " } else { "│   " };
+
+        println!("{} {}", repo_prefix.dimmed(), repo.as_ref().bright_white());
+
+        let tag_count = tags.len();
+        for (tag_idx, tag) in tags.iter().enumerate() {
+            let is_last_tag = tag_idx == tag_count - 1;
+            let tag_symbol = if is_last_tag { "└──" } else { "├──" };
+            println!(
+                "{}{} {}",
+                tag_prefix.dimmed(),
+                tag_symbol.dimmed(),
+                format!(":{}", tag.as_ref()).blue()
+            );
+        }
     }
 
     Ok(())
