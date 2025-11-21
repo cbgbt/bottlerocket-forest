@@ -75,7 +75,7 @@ mod test {
     use crate::knowledge::chunking::strategy::MockChunkingStrategy;
     use crate::knowledge::domain::{
         ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, ForestRelativePath,
-        LineCount, LineNumber, LineRange, MarkdownContext, RepoName, TokenCount,
+        MarkdownContext, RepoName, TokenCount,
     };
     use test_case::test_case;
 
@@ -85,12 +85,6 @@ mod test {
             source: ChunkSource::builder()
                 .file_path(ForestRelativePath::try_new(file_path).unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
-                .line_range(
-                    LineRange::builder()
-                        .start(LineNumber::try_new(1).unwrap())
-                        .line_count(LineCount::try_new(2).unwrap())
-                        .build(),
-                )
                 .build(),
         }
     }
@@ -102,12 +96,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(1).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(

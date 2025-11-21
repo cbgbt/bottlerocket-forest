@@ -296,13 +296,6 @@ fn format_search_results_human(results: &crate::knowledge::domain::SearchResults
             result.score,
             result.chunk.source.file_path
         );
-        let end_line = result.chunk.source.line_range.start.into_inner()
-            + result.chunk.source.line_range.line_count.into_inner()
-            - 1;
-        println!(
-            "   Lines {}-{}",
-            result.chunk.source.line_range.start, end_line
-        );
         let preview = if result.chunk.content.text.len() > 150 {
             format!("{}...", &result.chunk.content.text[..150])
         } else {
@@ -408,8 +401,8 @@ mod test {
     use super::*;
     use crate::knowledge::domain::{
         Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, EmbeddingModelConfig,
-        ForestRelativePath, LineCount, LineNumber, LineRange, MarkdownContext, RelevanceScore,
-        RepoName, SearchQuery, SearchResult, SearchResults, TokenCount,
+        ForestRelativePath, MarkdownContext, RelevanceScore, RepoName, SearchQuery, SearchResult,
+        SearchResults, TokenCount,
     };
     use crate::knowledge::facade::IndexStatus;
     use crate::knowledge::indexing::IndexResult;
@@ -536,12 +529,10 @@ mod test {
                 SearchResult {
                     chunk: chunk.clone(),
                     score: RelevanceScore::try_new(0.95).unwrap(),
-                    matched_terms: vec![],
                 },
                 SearchResult {
                     chunk,
                     score: RelevanceScore::try_new(0.85).unwrap(),
-                    matched_terms: vec![],
                 },
             ])
             .total_chunks_searched(100usize)
@@ -577,7 +568,6 @@ mod test {
             .results(vec![SearchResult {
                 chunk,
                 score: RelevanceScore::try_new(0.95).unwrap(),
-                matched_terms: vec![],
             }])
             .total_chunks_searched(100usize)
             .search_duration(Duration::from_millis(50))
@@ -632,12 +622,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(

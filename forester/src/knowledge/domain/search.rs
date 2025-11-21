@@ -11,7 +11,7 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::{Chunk, MatchedTerm, QueryText, RelevanceScore, ResultLimit};
+use super::{Chunk, QueryText, RelevanceScore, ResultLimit};
 
 /// A search query with parameters
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
@@ -29,7 +29,6 @@ pub struct SearchQuery {
 pub struct SearchResult {
     pub chunk: Chunk,
     pub score: RelevanceScore,
-    pub matched_terms: Vec<MatchedTerm>,
 }
 
 /// Results from a search operation

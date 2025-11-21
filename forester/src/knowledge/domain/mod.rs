@@ -15,8 +15,7 @@ use uuid::Uuid;
 use crate::knowledge::constants;
 
 pub use chunk::{
-    Chunk, ChunkContent, ChunkContext, ChunkSource, LineRange, MarkdownContext, RustDocContext,
-    Visibility,
+    Chunk, ChunkContent, ChunkContext, ChunkSource, MarkdownContext, RustDocContext, Visibility,
 };
 pub use file_type::FileType;
 pub use search::{SearchQuery, SearchResult, SearchResults};
@@ -125,26 +124,6 @@ pub struct AbsolutePath(String);
 )]
 pub struct TokenCount(usize);
 
-/// Line number in a source file
-///
-/// Used to specify the location of chunks within files for precise navigation.
-/// Must be greater than 0 (1-indexed).
-#[nutype(
-    validate(greater = 0),
-    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
-)]
-pub struct LineNumber(usize);
-
-/// Number of lines in a chunk
-///
-/// Used to specify how many lines a chunk spans.
-/// Must be greater than 0.
-#[nutype(
-    validate(greater = 0),
-    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
-)]
-pub struct LineCount(usize);
-
 /// Maximum number of search results to return
 ///
 /// Bounded between 1 and 100 to prevent excessive result sets.
@@ -172,15 +151,6 @@ pub struct ResultLimit(usize);
     )
 )]
 pub struct RelevanceScore(f32);
-
-/// A term that matched in a search query
-///
-/// Used for highlighting matched terms in search results.
-#[nutype(
-    validate(not_empty),
-    derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
-)]
-pub struct MatchedTerm(String);
 
 /// Function or type signature from Rust source
 ///

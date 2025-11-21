@@ -28,7 +28,7 @@ pub fn search_semantic(
 
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count,
+            "SELECT c.id, c.file_path, c.repo_name,
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified,
                     v.distance
              FROM vec_chunks v
@@ -46,7 +46,7 @@ pub fn search_semantic(
         |row| {
             let chunk = indexed_chunk_from_row(row)
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-            let distance: f32 = row.get(10)?;
+            let distance: f32 = row.get(8)?;
             let similarity = 1.0 - distance;
             Ok((chunk, similarity))
         },

@@ -360,8 +360,8 @@ mod test {
     use super::*;
     use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::domain::{
-        ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, LineCount,
-        LineNumber, LineRange, RepoName, Visibility,
+        ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, RepoName,
+        Visibility,
     };
     use test_case::test_case;
 
@@ -375,12 +375,6 @@ mod test {
             source: ChunkSource::builder()
                 .file_path(ForestRelativePath::try_new("test.rs").unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
-                .line_range(
-                    LineRange::builder()
-                        .start(LineNumber::try_new(1).unwrap())
-                        .line_count(LineCount::try_new(10).unwrap())
-                        .build(),
-                )
                 .build(),
         }
     }

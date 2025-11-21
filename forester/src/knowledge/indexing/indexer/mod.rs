@@ -253,7 +253,7 @@ mod test {
 
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
         let result = Indexer::new(
@@ -274,7 +274,7 @@ mod test {
         let nonexistent = Path::new("/nonexistent/forest");
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
         let result = Indexer::new(
@@ -490,7 +490,7 @@ mod test {
         mock_repo.expect_save_batch().times(0);
 
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -655,7 +655,7 @@ mod test {
             .returning(|_| Ok(2));
 
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -746,7 +746,7 @@ mod test {
         });
 
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -775,7 +775,7 @@ mod test {
             .returning(|| Ok(HashMap::new()));
 
         let config = EmbeddingModelConfig::default();
-        let mut mock_provider = MockIndexDataProvider::new();
+        let mock_provider = MockIndexDataProvider::new();
 
         let mut indexer = Indexer::new(
             temp_dir.path(),

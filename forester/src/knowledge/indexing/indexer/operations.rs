@@ -5,9 +5,7 @@ use snafu::ResultExt;
 use super::super::{IndexDataProvider, IndexableFile};
 use super::types::IndexingError;
 use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingError, ChunkingInput, DispatchError};
-use crate::knowledge::domain::{
-    Chunk, ChunkSource, ChunkableContent, IndexedChunk, LineCount, LineNumber, LineRange, Timestamp,
-};
+use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, IndexedChunk, Timestamp};
 
 /// Process a file with graceful error handling for parse failures
 ///
@@ -66,12 +64,6 @@ pub(super) fn process_file(
         source: ChunkSource::builder()
             .file_path(file.relative_path.clone())
             .repo_name(file.repo_name.clone())
-            .line_range(
-                LineRange::builder()
-                    .start(LineNumber::try_new(1).expect("1 is valid line number"))
-                    .line_count(LineCount::try_new(1).expect("1 is valid line count"))
-                    .build(),
-            )
             .build(),
     };
 
@@ -116,10 +108,4 @@ fn index_chunks(
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-    use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath, MarkdownContext,
-        RepoName, TokenCount,
-    };
-}
+mod test {}

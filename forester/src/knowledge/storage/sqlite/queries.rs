@@ -17,16 +17,14 @@ pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), S
 
     conn.execute(
         "INSERT OR REPLACE INTO chunks 
-        (id, file_path, repo_name, line_start, line_count, 
+        (id, file_path, repo_name, 
          context_type, context_data, content, token_count, last_modified)
-        VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
+        VALUES (:id, :file_path, :repo_name, 
                 :context_type, :context_data, :content, :token_count, :last_modified)",
         rusqlite::named_params! {
             ":id": chunk.id.to_string(),
             ":file_path": chunk.source.file_path.to_string(),
             ":repo_name": chunk.source.repo_name.to_string(),
-            ":line_start": chunk.source.line_range.start.into_inner() as i64,
-            ":line_count": chunk.source.line_range.line_count.into_inner() as i64,
             ":context_type": context_type,
             ":context_data": context_data,
             ":content": chunk.content.text,
@@ -59,16 +57,14 @@ pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), 
 
         tx.execute(
             "INSERT OR REPLACE INTO chunks 
-            (id, file_path, repo_name, line_start, line_count, 
+            (id, file_path, repo_name, 
              context_type, context_data, content, token_count, last_modified)
-            VALUES (:id, :file_path, :repo_name, :line_start, :line_count, 
+            VALUES (:id, :file_path, :repo_name, 
                     :context_type, :context_data, :content, :token_count, :last_modified)",
             rusqlite::named_params! {
                 ":id": chunk.id.to_string(),
                 ":file_path": chunk.source.file_path.to_string(),
                 ":repo_name": chunk.source.repo_name.to_string(),
-                ":line_start": chunk.source.line_range.start.into_inner() as i64,
-                ":line_count": chunk.source.line_range.line_count.into_inner() as i64,
                 ":context_type": context_type,
                 ":context_data": context_data,
                 ":content": chunk.content.text,
@@ -97,7 +93,7 @@ pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), 
 pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+            "SELECT c.id, c.file_path, c.repo_name, 
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified
              FROM chunks c
              WHERE c.id = :id",
@@ -119,7 +115,7 @@ pub fn find_by_file(
 ) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+            "SELECT c.id, c.file_path, c.repo_name, 
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified
              FROM chunks c
              WHERE c.file_path = :file_path",
@@ -142,7 +138,7 @@ pub fn find_by_file(
 pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name, c.line_start, c.line_count, 
+            "SELECT c.id, c.file_path, c.repo_name, 
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified
              FROM chunks c",
         )

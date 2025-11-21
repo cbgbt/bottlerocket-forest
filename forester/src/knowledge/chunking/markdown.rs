@@ -163,10 +163,7 @@ impl ChunkingStrategy for MarkdownChunker {
 mod test {
     use super::*;
     use crate::knowledge::domain::EmbeddingModelConfig;
-    use crate::knowledge::domain::{
-        ChunkSource, ChunkableContent, ForestRelativePath, LineCount, LineNumber, LineRange,
-        RepoName,
-    };
+    use crate::knowledge::domain::{ChunkSource, ChunkableContent, ForestRelativePath, RepoName};
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {
@@ -179,12 +176,6 @@ mod test {
             source: ChunkSource::builder()
                 .file_path(ForestRelativePath::try_new("test.md").unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
-                .line_range(
-                    LineRange::builder()
-                        .start(LineNumber::try_new(1).unwrap())
-                        .line_count(LineCount::try_new(10).unwrap())
-                        .build(),
-                )
                 .build(),
         }
     }

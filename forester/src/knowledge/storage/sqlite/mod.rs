@@ -152,8 +152,7 @@ mod test {
     use crate::knowledge::constants::EMBEDDING_DIM;
     use crate::knowledge::domain::{
         Chunk, ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, ItemName,
-        LineCount, LineNumber, LineRange, MarkdownContext, RepoName, RustDocContext, Signature,
-        TokenCount, Visibility,
+        MarkdownContext, RepoName, RustDocContext, Signature, TokenCount, Visibility,
     };
     use crate::knowledge::domain::{EmbeddingModelConfig, Timestamp};
     use std::time::SystemTime;
@@ -171,12 +170,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new(file_path).unwrap())
                     .repo_name(RepoName::try_new(repo_name).unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -204,12 +197,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new(file_path).unwrap())
                     .repo_name(RepoName::try_new(repo_name).unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -396,12 +383,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -445,12 +426,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -534,12 +509,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -590,12 +559,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("doc1.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(
@@ -615,12 +578,6 @@ mod test {
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("doc2.md").unwrap())
                     .repo_name(RepoName::try_new("test-repo").unwrap())
-                    .line_range(
-                        LineRange::builder()
-                            .start(LineNumber::try_new(1).unwrap())
-                            .line_count(LineCount::try_new(10).unwrap())
-                            .build(),
-                    )
                     .build(),
             )
             .content(

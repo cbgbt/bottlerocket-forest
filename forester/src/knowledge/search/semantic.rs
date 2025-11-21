@@ -81,7 +81,6 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
                 Ok(SearchResult::builder()
                     .chunk(indexed_chunk.chunk)
                     .score(boosted_score)
-                    .matched_terms(vec![])
                     .build())
             })
             .collect::<Result<Vec<_>, SearchError>>()?;
@@ -100,8 +99,7 @@ mod test {
     use super::*;
     use crate::knowledge::domain::{
         Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-        IndexedChunk, LineCount, LineNumber, LineRange, MarkdownContext, QueryText, RepoName,
-        ResultLimit, Timestamp, TokenCount,
+        IndexedChunk, MarkdownContext, QueryText, RepoName, ResultLimit, Timestamp, TokenCount,
     };
     use crate::knowledge::search::embeddings::model::MockEmbeddingProvider;
     use crate::knowledge::storage::repository::MockChunkRepository;
@@ -122,12 +120,6 @@ mod test {
                                 ForestRelativePath::try_new(format!("test/{}.md", id)).unwrap(),
                             )
                             .repo_name(RepoName::try_new("test").unwrap())
-                            .line_range(
-                                LineRange::builder()
-                                    .start(LineNumber::try_new(1).unwrap())
-                                    .line_count(LineCount::try_new(10).unwrap())
-                                    .build(),
-                            )
                             .build(),
                     )
                     .content(
@@ -398,7 +390,7 @@ mod test {
     }
 
     #[test]
-    fn test_semantic_search_includes_empty_matched_terms() {
+    fn test_semantic_search_returns_results() {
         // Given A repository with matching chunks
         let chunk = create_test_chunk("1", "rust content", create_test_embedding(vec![0.5; 384]));
 
@@ -421,8 +413,7 @@ mod test {
         // When Searching
         let results = engine.search(&query).unwrap();
 
-        // Then Matched terms should be empty for semantic search
+        // Then Results should be returned
         assert_eq!(results.results.len(), 1);
-        assert!(results.results[0].matched_terms.is_empty());
     }
 }
