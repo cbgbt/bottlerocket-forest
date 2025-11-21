@@ -3,7 +3,7 @@ mod docker;
 mod health;
 pub mod types;
 
-pub use catalog::{list_images, CatalogError, ImageTag, RegistryImage, RepositoryName};
+pub use catalog::{CatalogError, ImageTag, RegistryImage, RepositoryName, list_images};
 use docker::{Container, ContainerDiscovered};
 use snafu::{ResultExt, Snafu};
 use std::time::Duration;

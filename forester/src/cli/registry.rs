@@ -130,7 +130,8 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
         }
         registry::RegistryState::NotCreated => {
             return Err(RegistryError::RegistryNotRunning {
-                message: "Registry not created. Start it with 'forester registry start'".to_string(),
+                message: "Registry not created. Start it with 'forester registry start'"
+                    .to_string(),
             });
         }
     };
@@ -161,28 +162,25 @@ pub enum RegistryError {
     #[snafu(display("Failed to load configuration"))]
     #[diagnostic(
         code(forester::registry::config_failed),
-        help("Check that the configuration file is valid and accessible")
+        help("Check that FORESTER_REGISTRY_XXX environment variables are correct")
     )]
     Config { source: config::ConfigError },
 
     #[snafu(display("Registry operation failed"))]
     #[diagnostic(
         code(forester::registry::operation_failed),
-        help("Check the error details above for specific guidance")
+        help("Ensure Docker is installed and running: sudo systemctl start docker")
     )]
     Operation { source: registry::RegistryError },
 
     #[snafu(display("Failed to list registry images"))]
     #[diagnostic(
         code(forester::registry::catalog_failed),
-        help("Ensure the registry is running and accessible")
+        help("Ensure the registry is running with 'forester registry start'")
     )]
     Catalog { source: registry::CatalogError },
 
     #[snafu(display("Registry is not running"))]
-    #[diagnostic(
-        code(forester::registry::not_running),
-        help("{message}")
-    )]
+    #[diagnostic(code(forester::registry::not_running), help("{message}"))]
     RegistryNotRunning { message: String },
 }

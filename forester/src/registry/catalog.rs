@@ -7,13 +7,33 @@ use snafu::{ResultExt, Snafu};
 
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, AsRef)
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Serialize,
+        Deserialize,
+        AsRef
+    )
 )]
 pub struct RepositoryName(String);
 
 #[nutype(
     validate(not_empty),
-    derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, AsRef)
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Serialize,
+        Deserialize,
+        AsRef
+    )
 )]
 pub struct ImageTag(String);
 
@@ -29,8 +49,6 @@ pub struct RegistryImage {
 ///
 /// Queries the registry catalog API to discover all repositories and their tags.
 pub fn list_images(registry_url: &RegistryUrl) -> Result<Vec<RegistryImage>, CatalogError> {
-    use catalog_error::*;
-
     let client = Client::new();
 
     let repositories = fetch_catalog(&client, registry_url)?;
@@ -79,9 +97,11 @@ fn fetch_catalog(
     catalog
         .repositories
         .into_iter()
-        .map(|name| RepositoryName::try_new(name).map_err(|e| CatalogError::InvalidRepositoryName {
-            name: e.to_string(),
-        }))
+        .map(|name| {
+            RepositoryName::try_new(name).map_err(|e| CatalogError::InvalidRepositoryName {
+                name: e.to_string(),
+            })
+        })
         .collect()
 }
 
@@ -109,9 +129,9 @@ fn fetch_tags(
         .tags
         .unwrap_or_default()
         .into_iter()
-        .map(|tag| ImageTag::try_new(tag).map_err(|e| CatalogError::InvalidTag {
-            tag: e.to_string(),
-        }))
+        .map(|tag| {
+            ImageTag::try_new(tag).map_err(|e| CatalogError::InvalidTag { tag: e.to_string() })
+        })
         .collect()
 }
 
@@ -122,6 +142,7 @@ struct CatalogResponse {
 
 #[derive(Deserialize)]
 struct TagsListResponse {
+    #[allow(dead_code)]
     name: String,
     tags: Option<Vec<String>>,
 }
