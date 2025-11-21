@@ -324,7 +324,7 @@ impl RustDocChunker {
         use snafu::ResultExt;
 
         if let Some(filter) = &self.filter
-            && !filter.should_index(&visibility, &item_type, doc_text.len())
+            && !filter.should_index(&visibility, &item_type, doc_text.lines().count())
         {
             return Ok(vec![]);
         }
@@ -988,13 +988,13 @@ pub fn my_function() {}
     }
 
     #[test]
-    fn test_chunker_respects_min_doc_length_filter() {
+    fn test_chunker_respects_min_doc_lines_filter() {
         use crate::knowledge::domain::Visibility;
         use crate::knowledge::indexing::{RustFilter, RustItemType};
 
-        // Given A chunker with minimum doc length of 30
+        // Given A chunker with minimum doc lines of 3
         let config = test_config();
-        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 30);
+        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 3);
         let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
 
         let input = create_test_input(
@@ -1002,7 +1002,9 @@ pub fn my_function() {}
 /// Short doc
 pub fn short() {}
 
-/// This is a longer documentation comment that exceeds the minimum length
+/// This is a longer documentation comment
+/// that spans multiple lines
+/// and exceeds the minimum line count
 pub fn long() {}
 "#,
         );
@@ -1022,30 +1024,34 @@ pub fn long() {}
         use crate::knowledge::domain::Visibility;
         use crate::knowledge::indexing::{RustFilter, RustItemType};
 
-        // Given A chunker with multiple filter criteria
+        // Given A chunker with multiple filter criteria (min 2 lines)
         let config = test_config();
         let filter = RustFilter::new(
             vec![Visibility::Public],
             vec![RustItemType::Struct, RustItemType::Enum],
-            20,
+            2,
         );
         let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
 
         let input = create_test_input(
             r#"
-/// A public struct with sufficient documentation
+/// A public struct with
+/// sufficient documentation
 pub struct PublicStruct {}
 
 /// Short
 pub struct ShortDoc {}
 
-/// A private struct with sufficient documentation
+/// A private struct with
+/// sufficient documentation
 struct PrivateStruct {}
 
-/// A public enum with sufficient documentation
+/// A public enum with
+/// sufficient documentation
 pub enum PublicEnum { A, B }
 
-/// A public function with sufficient documentation
+/// A public function with
+/// sufficient documentation
 pub fn public_function() {}
 "#,
         );

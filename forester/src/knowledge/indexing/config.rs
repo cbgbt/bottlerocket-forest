@@ -78,9 +78,9 @@ pub struct RustConfig {
     #[serde(default = "default_rust_items", deserialize_with = "deserialize_items")]
     items: Vec<RustItemType>,
 
-    /// Minimum doc comment length in characters
+    /// Minimum doc comment length in lines
     #[serde(default)]
-    pub min_doc_length: usize,
+    pub min_doc_lines: usize,
 }
 
 fn deserialize_items<'de, D>(deserializer: D) -> Result<Vec<RustItemType>, D::Error>
@@ -117,7 +117,7 @@ impl RustConfig {
         Ok(RustFilter::new(
             self.visibility.clone(),
             self.items.clone(),
-            self.min_doc_length,
+            self.min_doc_lines,
         ))
     }
 }
@@ -127,7 +127,7 @@ impl Default for RustConfig {
         Self {
             visibility: default_rust_visibility(),
             items: default_rust_items(),
-            min_doc_length: 0,
+            min_doc_lines: 0,
         }
     }
 }
@@ -355,7 +355,7 @@ targets = ["docs"]
 [file-types.rust]
 visibility = ["public", "crate"]
 items = ["modules", "structs"]
-min-doc-length = 30
+min-doc-lines = 30
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
@@ -373,7 +373,7 @@ min-doc-length = 30
             config.file_types.rust.visibility,
             vec![Visibility::Public, Visibility::Crate]
         );
-        assert_eq!(config.file_types.rust.min_doc_length, 30);
+        assert_eq!(config.file_types.rust.min_doc_lines, 30);
     }
 
     #[test]
@@ -386,7 +386,7 @@ min-doc-length = 30
                 rust: RustConfig {
                     visibility: vec![Visibility::Public],
                     items: vec![RustItemType::Struct],
-                    min_doc_length: 20,
+                    min_doc_lines: 20,
                 },
             },
         };
@@ -408,7 +408,7 @@ min-doc-length = 30
         let config = RustConfig {
             visibility: vec![Visibility::Public],
             items: default_rust_items(),
-            min_doc_length: 0,
+            min_doc_lines: 0,
         };
 
         // When Converting to filter

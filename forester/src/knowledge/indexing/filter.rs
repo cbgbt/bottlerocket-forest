@@ -34,7 +34,7 @@ pub enum RustItemType {
 pub struct RustFilter {
     visibility: Vec<Visibility>,
     items: Vec<RustItemType>,
-    min_doc_length: usize,
+    min_doc_lines: usize,
 }
 
 impl RustFilter {
@@ -42,12 +42,12 @@ impl RustFilter {
     pub fn new(
         visibility: Vec<Visibility>,
         items: Vec<RustItemType>,
-        min_doc_length: usize,
+        min_doc_lines: usize,
     ) -> Self {
         Self {
             visibility,
             items,
-            min_doc_length,
+            min_doc_lines,
         }
     }
 
@@ -56,9 +56,9 @@ impl RustFilter {
         &self,
         visibility: &Visibility,
         item_type: &RustItemType,
-        doc_length: usize,
+        doc_lines: usize,
     ) -> bool {
-        if doc_length < self.min_doc_length {
+        if doc_lines < self.min_doc_lines {
             return false;
         }
 
@@ -133,13 +133,13 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_rust_filter_should_index_checks_doc_length() {
-        // Given A filter with minimum doc length
-        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 30);
+    fn test_rust_filter_should_index_checks_doc_lines() {
+        // Given A filter with minimum doc lines
+        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 3);
 
-        // When Checking items with different doc lengths
-        let short_doc = filter.should_index(&Visibility::Public, &RustItemType::Function, 20);
-        let long_doc = filter.should_index(&Visibility::Public, &RustItemType::Function, 50);
+        // When Checking items with different doc line counts
+        let short_doc = filter.should_index(&Visibility::Public, &RustItemType::Function, 2);
+        let long_doc = filter.should_index(&Visibility::Public, &RustItemType::Function, 5);
 
         // Then Only long docs should pass
         assert!(!short_doc);
