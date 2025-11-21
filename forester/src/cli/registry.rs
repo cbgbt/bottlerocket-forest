@@ -1,5 +1,6 @@
 use crate::{config, registry};
 use clap::{Parser, Subcommand};
+use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
 
 /// Manage local OCI registry
@@ -50,8 +51,8 @@ fn start(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let url = registry::start(config).context(OperationSnafu)?;
-    println!("Registry started successfully");
-    println!("Available at: {}", url);
+    println!("{} Registry started successfully", "✓".green().bold());
+    println!("  Available at: {}", url.to_string().cyan().underline());
     Ok(())
 }
 
@@ -60,7 +61,7 @@ fn stop(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::stop(config).context(OperationSnafu)?;
-    println!("Registry stopped");
+    println!("{} Registry stopped", "✓".green().bold());
     Ok(())
 }
 
@@ -72,23 +73,23 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
     match status.state {
         registry::RegistryState::NotCreated => {
-            println!("Registry: Not created");
+            println!("Registry: {}", "Not created".dimmed());
         }
         registry::RegistryState::Stopped => {
-            println!("Registry: Stopped");
+            println!("Registry: {}", "Stopped".yellow());
         }
         registry::RegistryState::Running { url } => {
-            println!("Registry: Running");
-            println!("URL: {}", url);
+            println!("Registry: {} 🚀", "Running".green().bold());
+            println!("  URL: {}", url.to_string().cyan().underline());
         }
     }
 
     println!(
         "Volume: {}",
         if status.volume_exists {
-            "exists"
+            "exists".green().to_string()
         } else {
-            "not found"
+            "not found".red().to_string()
         }
     );
 
@@ -100,7 +101,7 @@ fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::clean(config).context(OperationSnafu)?;
-    println!("Registry cleaned");
+    println!("{} Registry cleaned", "✓".green().bold());
     Ok(())
 }
 
