@@ -1,51 +1,33 @@
 use crate::{config, registry};
-use argh::FromArgs;
+use clap::{Parser, Subcommand};
 use snafu::{ResultExt, Snafu};
 
 /// Manage local OCI registry
-#[derive(FromArgs)]
-#[argh(subcommand, name = "registry")]
+#[derive(Parser)]
 pub struct RegistryCommand {
-    #[argh(subcommand)]
+    #[command(subcommand)]
     subcommand: RegistrySubcommand,
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand)]
+#[derive(Subcommand)]
 enum RegistrySubcommand {
-    Start(StartArgs),
-    Stop(StopArgs),
-    Status(StatusArgs),
-    Clean(CleanArgs),
+    /// Start the local registry
+    Start,
+    /// Stop the local registry
+    Stop,
+    /// Check registry status
+    Status,
+    /// Remove registry data
+    Clean,
+    /// Show registry logs
     Logs(LogsArgs),
 }
 
-/// Start the local registry
-#[derive(FromArgs)]
-#[argh(subcommand, name = "start")]
-struct StartArgs {}
-
-/// Stop the local registry
-#[derive(FromArgs)]
-#[argh(subcommand, name = "stop")]
-struct StopArgs {}
-
-/// Check registry status
-#[derive(FromArgs)]
-#[argh(subcommand, name = "status")]
-struct StatusArgs {}
-
-/// Remove registry data
-#[derive(FromArgs)]
-#[argh(subcommand, name = "clean")]
-struct CleanArgs {}
-
 /// Show registry logs
-#[derive(FromArgs)]
-#[argh(subcommand, name = "logs")]
+#[derive(Parser)]
 struct LogsArgs {
     /// follow log output
-    #[argh(switch, short = 'f')]
+    #[arg(short = 'f', long)]
     follow: bool,
 }
 
@@ -55,10 +37,10 @@ pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
     let config = config::load_config().context(ConfigSnafu)?;
 
     match cmd.subcommand {
-        RegistrySubcommand::Start(_) => start(&config),
-        RegistrySubcommand::Stop(_) => stop(&config),
-        RegistrySubcommand::Status(_) => status(&config),
-        RegistrySubcommand::Clean(_) => clean(&config),
+        RegistrySubcommand::Start => start(&config),
+        RegistrySubcommand::Stop => stop(&config),
+        RegistrySubcommand::Status => status(&config),
+        RegistrySubcommand::Clean => clean(&config),
         RegistrySubcommand::Logs(args) => logs(&config, args.follow),
     }
 }

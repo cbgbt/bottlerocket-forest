@@ -1,4 +1,5 @@
-use argh::FromArgs;
+use clap::{Parser, Subcommand};
+use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,95 +12,92 @@ use crate::knowledge::domain::{
 use crate::knowledge::storage::ChunkRepository;
 
 /// Manage the knowledge index
-#[derive(FromArgs)]
-#[argh(subcommand, name = "index")]
+#[derive(Parser)]
 pub struct IndexCommand {
-    #[argh(subcommand)]
+    #[command(subcommand)]
     subcommand: IndexSubcommand,
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand)]
+#[derive(Subcommand)]
 enum IndexSubcommand {
+    /// Build the knowledge index
     Build(BuildArgs),
+    /// Rebuild the knowledge index from scratch
     Rebuild(RebuildArgs),
+    /// Update the knowledge index incrementally
     Update(UpdateArgs),
+    /// Clear all chunks from the index
     Clear(ClearArgs),
+    /// Search the knowledge index
     Search(SearchArgs),
+    /// Show index status and statistics
     Status(StatusArgs),
 }
 
 /// Build the knowledge index
-#[derive(FromArgs)]
-#[argh(subcommand, name = "build")]
+#[derive(Parser)]
 struct BuildArgs {
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
 /// Rebuild the knowledge index from scratch
-#[derive(FromArgs)]
-#[argh(subcommand, name = "rebuild")]
+#[derive(Parser)]
 struct RebuildArgs {
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
 /// Update the knowledge index incrementally
-#[derive(FromArgs)]
-#[argh(subcommand, name = "update")]
+#[derive(Parser)]
 struct UpdateArgs {
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
 /// Clear all chunks from the index
-#[derive(FromArgs)]
-#[argh(subcommand, name = "clear")]
+#[derive(Parser)]
 struct ClearArgs {
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 
     /// skip confirmation prompt
-    #[argh(switch, short = 'y')]
+    #[arg(short = 'y', long)]
     yes: bool,
 }
 
 /// Search the knowledge index
-#[derive(FromArgs)]
-#[argh(subcommand, name = "search")]
+#[derive(Parser)]
 struct SearchArgs {
     /// search query
-    #[argh(positional)]
     query: String,
 
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 
     /// maximum number of results (1-100, defaults to 10)
-    #[argh(option, short = 'n')]
+    #[arg(short = 'n', long)]
     limit: Option<usize>,
 
     /// output format: human or json (defaults to human)
-    #[argh(option, short = 'f')]
+    #[arg(short = 'f', long)]
     format: Option<String>,
 
     /// show individual chunk matches under each file
-    #[argh(switch)]
+    #[arg(long)]
     show_chunks: bool,
 }
 
 /// Show index status and statistics
-#[derive(FromArgs)]
-#[argh(subcommand, name = "status")]
+#[derive(Parser)]
 struct StatusArgs {
     /// path to forest root (defaults to current directory)
-    #[argh(option)]
+    #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
@@ -339,15 +337,21 @@ fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: boo
         return;
     }
 
-    println!("Found {} unique files:\n", file_results.len());
+    println!(
+        "Found {} unique files:\n",
+        file_results.len().to_string().cyan()
+    );
 
     for (i, file_result) in file_results.iter().enumerate() {
+        let score_value = file_result.best_score.into_inner();
+        let score_colored = colorize_score(score_value);
+
         println!(
-            "{}. [Matches: {}, Best Score: {:.3}] {}",
-            i + 1,
-            file_result.match_count,
-            file_result.best_score,
-            file_result.file_path
+            "{}. [Matches: {}, Best Score: {}] {}",
+            (i + 1).to_string().bright_blue(),
+            file_result.match_count.to_string().cyan(),
+            score_colored,
+            file_result.file_path.to_string().bright_white()
         );
 
         if show_chunks {
@@ -357,13 +361,30 @@ fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: boo
                 } else {
                     chunk_result.chunk.content.text.to_string()
                 };
+                let chunk_score = chunk_result.score.into_inner();
                 println!(
-                    "   - [Score: {:.3}] {}\n",
-                    chunk_result.score,
-                    preview.replace('\n', " ")
+                    "   - [Score: {}] {}\n",
+                    colorize_score(chunk_score),
+                    preview.replace('\n', " ").dimmed()
                 );
             }
         }
+    }
+}
+
+/// Returns a colorized score string based on relevance thresholds.
+///
+/// Colors automatically disable when output is not a TTY.
+fn colorize_score(score: f32) -> String {
+    let formatted = format!("{:.3}", score);
+    if score >= 0.8 {
+        formatted.green().to_string()
+    } else if score >= 0.6 {
+        formatted.yellow().to_string()
+    } else if score >= 0.4 {
+        formatted.truecolor(255, 165, 0).to_string() // orange
+    } else {
+        formatted.red().to_string()
     }
 }
 

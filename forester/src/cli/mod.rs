@@ -2,18 +2,18 @@ mod index;
 mod index_progress;
 mod registry;
 
-use argh::FromArgs;
+use clap::{Parser, Subcommand};
 use snafu::{ResultExt, Snafu};
 
 /// Bottlerocket development orchestration tool
-#[derive(FromArgs)]
+#[derive(Parser)]
+#[command(version, about)]
 pub struct Args {
-    #[argh(subcommand)]
+    #[command(subcommand)]
     command: Command,
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand)]
+#[derive(Subcommand)]
 enum Command {
     Index(index::IndexCommand),
     Registry(registry::RegistryCommand),
@@ -22,7 +22,7 @@ enum Command {
 pub fn run() -> Result<(), CliError> {
     use cli_error::*;
 
-    let args: Args = argh::from_env();
+    let args = Args::parse();
 
     match args.command {
         Command::Index(cmd) => index::run(cmd).context(IndexSnafu)?,

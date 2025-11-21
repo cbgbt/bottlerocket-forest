@@ -5,16 +5,18 @@ edition = "2024"
 license = "Apache-2.0 OR MIT"
 
 [dependencies]
-argh = "0.1"
 bon = "3"
+clap = { version = "4", features = ["derive"] }
 dirs = "5"
 dotenvy = "0.15"
 envy = "0.4"
 fastembed = "4"
+globset = "0.4"
 ignore = "0.4"
 indicatif = "0.17"
 miette = { version = "7", features = ["fancy"] }
 nutype = { version = "0.5", features = ["serde"] }
+owo-colors = "4"
 path-clean = "1"
 quote = "1"
 rayon = "1"
