@@ -7,7 +7,7 @@ use snafu::{ResultExt, Snafu};
 
 /// Bottlerocket development orchestration tool
 #[derive(Parser)]
-#[command(version, about)]
+#[command(version, about, styles = clap_cargo::style::CLAP_STYLING)]
 pub struct Args {
     #[command(subcommand)]
     command: Command,

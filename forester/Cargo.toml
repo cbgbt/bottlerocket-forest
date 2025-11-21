@@ -6,7 +6,8 @@ license = "Apache-2.0 OR MIT"
 
 [dependencies]
 bon = "3"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "color"] }
+clap-cargo = "0.14"
 dirs = "5"
 dotenvy = "0.15"
 envy = "0.4"
