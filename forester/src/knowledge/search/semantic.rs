@@ -419,4 +419,119 @@ mod test {
         // Then Results should be returned
         assert_eq!(results.results.len(), 1);
     }
+
+    #[test]
+    fn test_semantic_search_reorders_after_boosting() {
+        // Given Two chunks where boosting will reverse their order
+        // chunk1: .rs file with higher raw score (0.9)
+        // chunk2: .md file with lower raw score (0.7) but gets 1.5x boost
+        let chunk1 = IndexedChunk::builder()
+            .chunk(
+                Chunk::builder()
+                    .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .source(
+                        ChunkSource::builder()
+                            .file_path(ForestRelativePath::try_new("src/main.rs").unwrap())
+                            .repo_name(RepoName::try_new("test").unwrap())
+                            .build(),
+                    )
+                    .content(
+                        ChunkContent::builder()
+                            .text("rust code")
+                            .token_count(TokenCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .context(ChunkContext::Markdown(
+                        MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+                    ))
+                    .build(),
+            )
+            .embedding(create_test_embedding(vec![0.9; 384]))
+            .indexed_at(Timestamp::now())
+            .build();
+
+        let chunk2 = IndexedChunk::builder()
+            .chunk(
+                Chunk::builder()
+                    .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .source(
+                        ChunkSource::builder()
+                            .file_path(ForestRelativePath::try_new("docs/guide.md").unwrap())
+                            .repo_name(RepoName::try_new("test").unwrap())
+                            .build(),
+                    )
+                    .content(
+                        ChunkContent::builder()
+                            .text("documentation")
+                            .token_count(TokenCount::try_new(10).unwrap())
+                            .build(),
+                    )
+                    .context(ChunkContext::Markdown(
+                        MarkdownContext::builder().heading_hierarchy(vec![]).build(),
+                    ))
+                    .build(),
+            )
+            .embedding(create_test_embedding(vec![0.7; 384]))
+            .indexed_at(Timestamp::now())
+            .build();
+
+        let mut mock_repo = MockChunkRepository::new();
+        mock_repo.expect_search_semantic().returning(move |_, _| {
+            // Repository returns in raw score order (chunk1 first)
+            Ok(vec![(chunk1.clone(), 0.9), (chunk2.clone(), 0.7)])
+        });
+
+        let mut mock_provider = MockEmbeddingProvider::new();
+        mock_provider
+            .expect_embed()
+            .returning(|_| Ok(create_test_embedding(vec![0.8; 384])));
+
+        // Boost markdown files by 1.5x
+        let boost_rules = vec![
+            crate::knowledge::scoring::BoostRule::builder()
+                .description("Markdown files")
+                .pattern(crate::knowledge::scoring::BoostPattern::Extension(
+                    "md".to_string(),
+                ))
+                .multiplier(crate::knowledge::scoring::BoostMultiplier::try_new(1.5).unwrap())
+                .build(),
+        ];
+        let score_booster = crate::knowledge::scoring::ScoreBooster::new(boost_rules);
+        let engine = SemanticSearchEngine {
+            repository: mock_repo,
+            embedding_provider: Box::new(mock_provider),
+            score_booster,
+        };
+
+        let query = SearchQuery::builder()
+            .text(QueryText::try_new("test").unwrap())
+            .limit(ResultLimit::try_new(10).unwrap())
+            .build();
+
+        // When Searching
+        let results = engine.search(&query).unwrap();
+
+        // Then Results should be reordered by boosted score
+        // chunk2 (.md): 0.85 * 1.5 = 1.0 (clamped)
+        // chunk1 (.rs): 0.95 * 1.0 = 0.95
+        assert_eq!(results.results.len(), 2);
+        assert!(
+            results.results[0]
+                .chunk
+                .source
+                .file_path
+                .to_string()
+                .ends_with(".md")
+        );
+        assert!(
+            results.results[1]
+                .chunk
+                .source
+                .file_path
+                .to_string()
+                .ends_with(".rs")
+        );
+        assert_eq!(results.results[0].score.into_inner(), 1.0);
+        assert_eq!(results.results[1].score.into_inner(), 0.95);
+    }
 }
