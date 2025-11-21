@@ -66,7 +66,7 @@ impl RegistryUrl {
 
 impl fmt::Display for RegistryUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.host, self.port.into_inner())
+        write!(f, "http://{}:{}", self.host, self.port.into_inner())
     }
 }
 
