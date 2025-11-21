@@ -8,13 +8,14 @@ pub use types::{IndexResult, IndexingError};
 use snafu::ResultExt;
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::knowledge::chunking::ChunkingDispatcher;
 use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig};
 use crate::knowledge::storage::ChunkRepository;
 
-use super::{FileScanner, IndexDataProvider, IndexingFilter};
+use super::{FileScanner, IndexDataProvider, IndexingFilter, ProgressReporter};
 
 /// Strategy for index operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +36,7 @@ pub struct Indexer<R: ChunkRepository> {
     dispatcher: ChunkingDispatcher,
     repository: R,
     provider: Box<dyn IndexDataProvider>,
+    progress: Option<Arc<dyn ProgressReporter>>,
 }
 
 impl<R: ChunkRepository> Indexer<R> {
@@ -47,10 +49,32 @@ impl<R: ChunkRepository> Indexer<R> {
         scan_config: ScanConfig,
         filter: IndexingFilter,
     ) -> Result<Self, IndexingError> {
+        Self::with_progress(
+            forest_root,
+            repository,
+            config,
+            provider,
+            scan_config,
+            filter,
+            None,
+        )
+    }
+
+    /// Create a new indexer with optional progress reporting
+    pub fn with_progress(
+        forest_root: impl AsRef<Path>,
+        repository: R,
+        config: &EmbeddingModelConfig,
+        provider: Box<dyn IndexDataProvider>,
+        scan_config: ScanConfig,
+        filter: IndexingFilter,
+        progress: Option<Arc<dyn ProgressReporter>>,
+    ) -> Result<Self, IndexingError> {
         use types::indexing_error::*;
 
-        let scanner = FileScanner::with_config_and_filter(forest_root, scan_config, filter.clone())
-            .context(ScanFailedSnafu)?;
+        let scanner =
+            FileScanner::with_progress(forest_root, scan_config, filter.clone(), progress.clone())
+                .context(ScanFailedSnafu)?;
         let dispatcher = ChunkingDispatcher::with_defaults_and_filter(config, &filter)
             .context(ChunkingFailedSnafu)?;
 
@@ -59,6 +83,7 @@ impl<R: ChunkRepository> Indexer<R> {
             dispatcher,
             repository,
             provider,
+            progress,
         })
     }
 
@@ -80,16 +105,43 @@ impl<R: ChunkRepository> Indexer<R> {
 
         let files = self.scanner.scan().context(ScanFailedSnafu)?;
 
+        if let Some(progress) = &self.progress {
+            progress.chunking_started(files.len());
+        }
+
         let results: Vec<_> = files
             .par_iter()
             .map(|file| {
-                operations::process_file_gracefully(file, &self.dispatcher, &*self.provider)
+                let progress_ref = self.progress.as_ref().map(|p| p.as_ref());
+                let result = operations::process_file_gracefully(
+                    file,
+                    &self.dispatcher,
+                    &*self.provider,
+                    progress_ref,
+                );
+                if let Ok(ref chunks) = result
+                    && let Some(progress) = &self.progress
+                {
+                    progress.file_chunked(Path::new(&file.absolute_path.to_string()), chunks.len());
+                }
+                result
             })
             .collect();
 
         let mut files_added = 0;
         let mut files_skipped = 0;
         let mut chunks_affected = 0;
+
+        // Count total chunks for progress reporting
+        let mut total_chunks = 0;
+        for chunks in results.iter().flatten() {
+            total_chunks += chunks.len();
+        }
+
+        if let Some(progress) = &self.progress {
+            progress.chunking_completed(total_chunks);
+            progress.embedding_started(total_chunks);
+        }
 
         for result in results {
             match result {
@@ -109,6 +161,11 @@ impl<R: ChunkRepository> Indexer<R> {
                     return Err(e);
                 }
             }
+        }
+
+        if let Some(progress) = &self.progress {
+            progress.embedding_completed();
+            progress.indexing_completed();
         }
 
         Ok(IndexResult::builder()
@@ -178,15 +235,42 @@ impl<R: ChunkRepository> Indexer<R> {
 
         let files_to_process: Vec<_> = added.iter().chain(modified.iter()).copied().collect();
 
+        if let Some(progress) = &self.progress {
+            progress.chunking_started(files_to_process.len());
+        }
+
         let results: Vec<_> = files_to_process
             .par_iter()
             .map(|file| {
-                operations::process_file_gracefully(file, &self.dispatcher, &*self.provider)
+                let progress_ref = self.progress.as_ref().map(|p| p.as_ref());
+                let result = operations::process_file_gracefully(
+                    file,
+                    &self.dispatcher,
+                    &*self.provider,
+                    progress_ref,
+                );
+                if let Ok(ref chunks) = result
+                    && let Some(progress) = &self.progress
+                {
+                    progress.file_chunked(Path::new(&file.absolute_path.to_string()), chunks.len());
+                }
+                result
             })
             .collect();
 
         let mut files_skipped = 0;
         let mut fatal_error = None;
+        let mut total_chunks = 0;
+
+        // Count chunks for progress
+        for chunks in results.iter().flatten() {
+            total_chunks += chunks.len();
+        }
+
+        if let Some(progress) = &self.progress {
+            progress.chunking_completed(total_chunks);
+            progress.embedding_started(total_chunks);
+        }
 
         for (file, result) in files_to_process.iter().zip(results.into_iter()) {
             match result {
@@ -221,6 +305,11 @@ impl<R: ChunkRepository> Indexer<R> {
 
         if let Some(e) = fatal_error {
             return Err(e);
+        }
+
+        if let Some(progress) = &self.progress {
+            progress.embedding_completed();
+            progress.indexing_completed();
         }
 
         Ok(IndexResult::builder()
@@ -310,8 +399,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -355,8 +444,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -392,9 +481,9 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
+            .expect_generate_batch_with_progress()
             .times(1)
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -424,13 +513,15 @@ mod test {
         let mock_repo = MockChunkRepository::new();
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
-        mock_provider.expect_generate_batch().returning(|_| {
-            Err(
-                crate::knowledge::indexing::IndexDataError::EmbeddingFailed {
-                    source: Box::new(std::io::Error::other("test error")),
-                },
-            )
-        });
+        mock_provider
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| {
+                Err(
+                    crate::knowledge::indexing::IndexDataError::EmbeddingFailed {
+                        source: Box::new(std::io::Error::other("test error")),
+                    },
+                )
+            });
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -470,8 +561,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -535,8 +626,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -572,8 +663,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -622,8 +713,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),
@@ -722,8 +813,8 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mut mock_provider = MockIndexDataProvider::new();
         mock_provider
-            .expect_generate_batch()
-            .returning(|_| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
+            .expect_generate_batch_with_progress()
+            .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
         let mut indexer = Indexer::new(
             temp_dir.path(),

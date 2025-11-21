@@ -934,6 +934,7 @@ dependencies = [
  "envy",
  "fastembed",
  "ignore",
+ "indicatif",
  "miette",
  "mockall",
  "nutype",

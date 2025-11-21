@@ -2,7 +2,7 @@
 
 use snafu::ResultExt;
 
-use super::super::{IndexDataProvider, IndexableFile};
+use super::super::{IndexDataProvider, IndexableFile, ProgressReporter};
 use super::types::IndexingError;
 use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingError, ChunkingInput, DispatchError};
 use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, IndexedChunk, Timestamp};
@@ -17,8 +17,9 @@ pub(super) fn process_file_gracefully(
     file: &IndexableFile,
     dispatcher: &ChunkingDispatcher,
     provider: &dyn IndexDataProvider,
+    progress: Option<&dyn ProgressReporter>,
 ) -> Result<Vec<IndexedChunk>, Result<(), IndexingError>> {
-    match process_file(file, dispatcher, provider) {
+    match process_file(file, dispatcher, provider, progress) {
         Ok(chunks) => Ok(chunks),
         Err(e) => {
             if is_skippable_parse_error(&e) {
@@ -49,6 +50,7 @@ pub(super) fn process_file(
     file: &IndexableFile,
     dispatcher: &ChunkingDispatcher,
     provider: &dyn IndexDataProvider,
+    progress: Option<&dyn ProgressReporter>,
 ) -> Result<Vec<IndexedChunk>, IndexingError> {
     use super::types::indexing_error::*;
 
@@ -72,13 +74,14 @@ pub(super) fn process_file(
         None => return Ok(vec![]),
     };
 
-    index_chunks(chunks, provider)
+    index_chunks(chunks, provider, progress)
 }
 
 /// Index multiple chunks, using batch operations when available
 fn index_chunks(
     chunks: Vec<Chunk>,
     provider: &dyn IndexDataProvider,
+    progress: Option<&dyn ProgressReporter>,
 ) -> Result<Vec<IndexedChunk>, IndexingError> {
     use super::types::indexing_error::*;
 
@@ -89,7 +92,7 @@ fn index_chunks(
     let texts: Vec<_> = chunks.iter().map(|c| c.content.text.as_ref()).collect();
 
     let index_data_list = provider
-        .generate_batch(&texts)
+        .generate_batch_with_progress(&texts, progress)
         .context(IndexDataGenerationFailedSnafu)?;
 
     let timestamp = Timestamp::now();

@@ -3,27 +3,43 @@
 use bon::Builder;
 use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use super::IndexingFilter;
+use super::{IndexingFilter, ProgressReporter};
 use crate::knowledge::domain::{
     AbsolutePath, FileType, ForestRelativePath, RepoName, ScanConfig, Timestamp,
 };
 
 /// Scans directories for indexable files
-#[derive(Debug)]
 pub struct FileScanner {
     forest_root: PathBuf,
     config: ScanConfig,
     filter: IndexingFilter,
+    progress: Option<Arc<dyn ProgressReporter>>,
+}
+
+impl std::fmt::Debug for FileScanner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileScanner")
+            .field("forest_root", &self.forest_root)
+            .field("config", &self.config)
+            .field("filter", &self.filter)
+            .field(
+                "progress",
+                &self.progress.as_ref().map(|_| "Some(ProgressReporter)"),
+            )
+            .finish()
+    }
 }
 
 impl FileScanner {
     /// Create a scanner for the given forest root directory
     pub fn new(forest_root: impl AsRef<Path>) -> Result<Self, ScanError> {
-        Self::with_config_and_filter(
+        Self::with_progress(
             forest_root,
             ScanConfig::default(),
             IndexingFilter::default(),
+            None,
         )
     }
 
@@ -32,7 +48,7 @@ impl FileScanner {
         forest_root: impl AsRef<Path>,
         config: ScanConfig,
     ) -> Result<Self, ScanError> {
-        Self::with_config_and_filter(forest_root, config, IndexingFilter::default())
+        Self::with_progress(forest_root, config, IndexingFilter::default(), None)
     }
 
     /// Create a scanner with custom configuration and filter
@@ -40,6 +56,16 @@ impl FileScanner {
         forest_root: impl AsRef<Path>,
         config: ScanConfig,
         filter: IndexingFilter,
+    ) -> Result<Self, ScanError> {
+        Self::with_progress(forest_root, config, filter, None)
+    }
+
+    /// Create a scanner with optional progress reporting
+    pub fn with_progress(
+        forest_root: impl AsRef<Path>,
+        config: ScanConfig,
+        filter: IndexingFilter,
+        progress: Option<Arc<dyn ProgressReporter>>,
     ) -> Result<Self, ScanError> {
         use scan_error::*;
 
@@ -55,17 +81,42 @@ impl FileScanner {
             forest_root: forest_root.to_path_buf(),
             config,
             filter,
+            progress,
         })
     }
 
     /// Scan for all indexable files in the forest
     pub fn scan(&self) -> Result<Vec<IndexableFile>, ScanError> {
-        self.scan_internal(None)
+        if let Some(progress) = &self.progress {
+            progress.scanning_started();
+        }
+
+        let result = self.scan_internal(None);
+
+        if let Ok(files) = &result
+            && let Some(progress) = &self.progress
+        {
+            progress.scanning_completed(files.len());
+        }
+
+        result
     }
 
     /// Scan a specific repository directory
     pub fn scan_repo(&self, repo_name: &RepoName) -> Result<Vec<IndexableFile>, ScanError> {
-        self.scan_internal(Some(repo_name))
+        if let Some(progress) = &self.progress {
+            progress.scanning_started();
+        }
+
+        let result = self.scan_internal(Some(repo_name));
+
+        if let Ok(files) = &result
+            && let Some(progress) = &self.progress
+        {
+            progress.scanning_completed(files.len());
+        }
+
+        result
     }
 
     fn scan_internal(
@@ -197,15 +248,19 @@ impl FileScanner {
                     source: Box::new(e) as Box<dyn std::error::Error + Send + Sync>,
                 })?;
 
-            files.push(
-                IndexableFile::builder()
-                    .absolute_path(absolute_path)
-                    .relative_path(relative_path)
-                    .repo_name(repo_name)
-                    .file_type(file_type)
-                    .last_modified(Timestamp::from_secs(last_modified))
-                    .build(),
-            );
+            let indexable_file = IndexableFile::builder()
+                .absolute_path(absolute_path)
+                .relative_path(relative_path)
+                .repo_name(repo_name)
+                .file_type(file_type)
+                .last_modified(Timestamp::from_secs(last_modified))
+                .build();
+
+            if let Some(progress) = &self.progress {
+                progress.file_discovered(path);
+            }
+
+            files.push(indexable_file);
         }
 
         Ok(files)

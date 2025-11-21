@@ -10,6 +10,7 @@
 //! * [`provider`] - Embedding generation for semantic search
 //! * [`config`] - Configuration loading from `.forester.toml`
 //! * [`filter`] - Filtering logic for controlling what gets indexed
+//! * [`progress`] - Progress reporting abstraction
 //!
 //! # Workflow
 //!
@@ -21,16 +22,24 @@
 //!
 //! For incremental updates, the indexer compares current files against
 //! indexed files to identify additions, modifications, and deletions.
+//!
+//! # Progress Reporting
+//!
+//! Progress can be reported via the [`ProgressReporter`] trait. Use
+//! [`SilentReporter`] for no-op progress or implement custom reporters
+//! for different UIs.
 
 pub mod config;
 pub mod filter;
 pub mod indexer;
+pub mod progress;
 pub mod provider;
 pub mod scanner;
 
 pub use config::{ForesterConfig, ForesterConfigError, load_forester_config};
 pub use filter::{IndexingFilter, RustFilter, RustItemType};
 pub use indexer::{IndexResult, IndexStrategy, Indexer, IndexingError};
+pub use progress::{ProgressReporter, SilentReporter};
 pub use provider::{IndexDataError, IndexDataProvider};
 pub use scanner::{FileScanner, IndexableFile, ScanError};
 

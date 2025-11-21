@@ -4,6 +4,7 @@
 
 use snafu::{IntoError, Snafu};
 
+use super::ProgressReporter;
 use crate::knowledge::domain::Embedding;
 use crate::knowledge::search::embeddings::EmbeddingProvider;
 
@@ -17,6 +18,38 @@ pub trait IndexDataProvider: Send + Sync {
     /// Generate embeddings for multiple texts in batch
     fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<Embedding>, IndexDataError> {
         texts.iter().map(|text| self.generate(text)).collect()
+    }
+
+    /// Generate embedding with optional progress reporting
+    ///
+    /// Default implementation calls `generate()` and reports progress.
+    /// Implementations can override for batch-aware progress reporting.
+    fn generate_with_progress<'a>(
+        &self,
+        text: &str,
+        progress: Option<&'a dyn ProgressReporter>,
+    ) -> Result<Embedding, IndexDataError> {
+        let result = self.generate(text)?;
+        if let Some(progress) = progress {
+            progress.embeddings_generated(1);
+        }
+        Ok(result)
+    }
+
+    /// Generate embeddings for multiple texts with optional progress reporting
+    ///
+    /// Default implementation calls `generate_batch()` and reports progress.
+    /// Implementations can override for fine-grained batch progress reporting.
+    fn generate_batch_with_progress<'a, 'b>(
+        &self,
+        texts: &[&'b str],
+        progress: Option<&'a dyn ProgressReporter>,
+    ) -> Result<Vec<Embedding>, IndexDataError> {
+        let result = self.generate_batch(texts)?;
+        if let Some(progress) = progress {
+            progress.embeddings_generated(texts.len());
+        }
+        Ok(result)
     }
 }
 

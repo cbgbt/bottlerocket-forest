@@ -131,6 +131,14 @@ impl KnowledgeIndex {
     /// Scans all files in the forest and indexes them. If chunks already exist,
     /// they are not removed. Use [`rebuild`](Self::rebuild) to start fresh.
     pub fn build(&mut self) -> Result<IndexResult, IndexError> {
+        self.build_with_progress(None)
+    }
+
+    /// Build the index with optional progress reporting
+    pub fn build_with_progress(
+        &mut self,
+        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+    ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
         let provider = self.create_provider()?;
@@ -139,13 +147,16 @@ impl KnowledgeIndex {
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::new(
+        let progress_arc = progress.map(std::sync::Arc::from);
+
+        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
             &self.config,
             provider,
             scan_config,
             filter,
+            progress_arc,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -163,6 +174,14 @@ impl KnowledgeIndex {
     ///
     /// Removes all existing chunks, then scans and indexes all files in the forest.
     pub fn rebuild(&mut self) -> Result<IndexResult, IndexError> {
+        self.rebuild_with_progress(None)
+    }
+
+    /// Rebuild the index with optional progress reporting
+    pub fn rebuild_with_progress(
+        &mut self,
+        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+    ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
         let provider = self.create_provider()?;
@@ -171,13 +190,16 @@ impl KnowledgeIndex {
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::new(
+        let progress_arc = progress.map(std::sync::Arc::from);
+
+        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
             &self.config,
             provider,
             scan_config,
             filter,
+            progress_arc,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -196,6 +218,14 @@ impl KnowledgeIndex {
     /// Only processes files that have been added, modified, or deleted since
     /// the last index operation. More efficient than a full rebuild.
     pub fn update(&mut self) -> Result<IndexResult, IndexError> {
+        self.update_with_progress(None)
+    }
+
+    /// Update the index with optional progress reporting
+    pub fn update_with_progress(
+        &mut self,
+        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+    ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
         let provider = self.create_provider()?;
@@ -204,13 +234,16 @@ impl KnowledgeIndex {
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::new(
+        let progress_arc = progress.map(std::sync::Arc::from);
+
+        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
             &self.config,
             provider,
             scan_config,
             filter,
+            progress_arc,
         )
         .context(IndexingFailedSnafu)?;
 

@@ -3,6 +3,7 @@ use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::cli::index_progress::CliProgressReporter;
 use crate::knowledge::KnowledgeIndex;
 use crate::knowledge::domain::{
     FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,
@@ -122,7 +123,10 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let result = index.build().context(KnowledgeIndexSnafu)?;
+    let progress = Box::new(CliProgressReporter::new());
+    let result = index
+        .build_with_progress(Some(progress))
+        .context(KnowledgeIndexSnafu)?;
 
     format_build_result(&result);
 
@@ -138,7 +142,10 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let result = index.rebuild().context(KnowledgeIndexSnafu)?;
+    let progress = Box::new(CliProgressReporter::new());
+    let result = index
+        .rebuild_with_progress(Some(progress))
+        .context(KnowledgeIndexSnafu)?;
 
     format_build_result(&result);
 
@@ -154,7 +161,10 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
 
     let mut index = open_existing_index(&forest_root)?;
 
-    let result = index.update().context(KnowledgeIndexSnafu)?;
+    let progress = Box::new(CliProgressReporter::new());
+    let result = index
+        .update_with_progress(Some(progress))
+        .context(KnowledgeIndexSnafu)?;
 
     format_update_result(&result);
 

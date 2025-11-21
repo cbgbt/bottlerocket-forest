@@ -1,4 +1,5 @@
 mod index;
+mod index_progress;
 mod registry;
 
 use argh::FromArgs;
