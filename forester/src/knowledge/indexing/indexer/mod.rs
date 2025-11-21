@@ -146,12 +146,12 @@ impl<R: ChunkRepository> Indexer<R> {
         for result in results {
             match result {
                 Ok(indexed_chunks) => {
+                    files_added += 1;
                     if !indexed_chunks.is_empty() {
                         chunks_affected += indexed_chunks.len();
                         self.repository
                             .save_batch(&indexed_chunks)
                             .context(StorageFailedSnafu)?;
-                        files_added += 1;
                     }
                 }
                 Err(Ok(())) => {
