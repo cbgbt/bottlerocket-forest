@@ -188,7 +188,7 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
             let size_mb = image.size_bytes as f64 / 1_000_000.0;
             let digest_short = &image.digest.chars().take(19).collect::<String>();
-            
+
             let time_ago = image.created.map(|created| {
                 let duration = Utc::now().signed_duration_since(created);
                 if duration.num_days() > 365 {

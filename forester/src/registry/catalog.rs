@@ -203,7 +203,9 @@ fn fetch_manifest_info(
     // Fetch created timestamp from config blob (only for regular manifests, not indexes)
     let created = if let Some(config) = &manifest.config {
         if let Some(config_digest) = &config.digest {
-            fetch_created_time(client, registry_url, repository, config_digest).ok().flatten()
+            fetch_created_time(client, registry_url, repository, config_digest)
+                .ok()
+                .flatten()
         } else {
             None
         }
