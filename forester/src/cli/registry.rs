@@ -83,9 +83,27 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
         registry::RegistryState::Stopped => {
             println!("Registry: {}", "Stopped".yellow());
         }
-        registry::RegistryState::Running { url } => {
+        registry::RegistryState::Running { ref url } => {
             println!("Registry: {} 🚀", "Running".green().bold());
             println!("  URL: {}", url.to_string().cyan().underline());
+
+            // Fetch image stats if registry is running
+            if let Ok(images) = registry::list_images(url) {
+                let total_logical_size: u64 = images.iter().map(|img| img.size_bytes).sum();
+                let size_gb = total_logical_size as f64 / 1_000_000_000.0;
+
+                println!(
+                    "  Images: {} ({:.2} GB logical)",
+                    images.len().to_string().cyan(),
+                    size_gb
+                );
+                println!(
+                    "  {}",
+                    "Note: Actual disk usage may be lower due to layer deduplication"
+                        .dimmed()
+                        .italic()
+                );
+            }
         }
     }
 
