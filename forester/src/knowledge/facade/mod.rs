@@ -38,8 +38,9 @@ use snafu::ResultExt;
 use std::path::{Path, PathBuf};
 
 use crate::knowledge::domain::{EmbeddingModelConfig, SearchQuery, SearchResults};
-use crate::knowledge::indexing::IndexResult;
-use crate::knowledge::search::SearchEngine;
+use crate::knowledge::indexing::{IndexResult, load_forester_config};
+use crate::knowledge::scoring::ScoreBooster;
+use crate::knowledge::search::{EmbeddingModel, SearchEngine, SemanticSearchEngine};
 use crate::knowledge::storage::ChunkRepository;
 use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 
@@ -358,16 +359,32 @@ impl KnowledgeIndex {
 
         let repo = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
-        let embedding_model = crate::knowledge::search::EmbeddingModel::builder()
+        let embedding_model = EmbeddingModel::builder()
             .model_name(self.config.model_name.clone())
             .dimension(self.config.embedding_dim)
             .cache_dir(self.forest_root.join(".forester/cache/model"))
             .build()
             .load()
             .context(EmbeddingProviderCreationFailedSnafu)?;
-        Ok(Box::new(
-            crate::knowledge::search::SemanticSearchEngine::new(repo, Box::new(embedding_model)),
-        ))
+
+        // Load boost rules from config, or use defaults
+        let forester_config =
+            load_forester_config(&self.forest_root).context(ConfigLoadFailedSnafu)?;
+        let score_booster = if let Some(config) = forester_config {
+            if config.boost_rules.is_empty() {
+                ScoreBooster::default()
+            } else {
+                ScoreBooster::new(config.boost_rules)
+            }
+        } else {
+            ScoreBooster::default()
+        };
+
+        Ok(Box::new(SemanticSearchEngine::new(
+            repo,
+            Box::new(embedding_model),
+            score_booster,
+        )))
     }
 
     fn create_provider(
@@ -375,7 +392,7 @@ impl KnowledgeIndex {
     ) -> Result<Box<dyn crate::knowledge::indexing::IndexDataProvider>, IndexError> {
         use types::index_error::*;
 
-        let embedding_model = crate::knowledge::search::EmbeddingModel::builder()
+        let embedding_model = EmbeddingModel::builder()
             .model_name(self.config.model_name.clone())
             .dimension(self.config.embedding_dim)
             .cache_dir(self.forest_root.join(".forester/cache/model"))

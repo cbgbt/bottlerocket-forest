@@ -27,11 +27,15 @@ pub struct SemanticSearchEngine<R: ChunkRepository> {
 
 impl<R: ChunkRepository> SemanticSearchEngine<R> {
     /// Create a new semantic search engine with the given repository and embedding provider
-    pub fn new(repository: R, embedding_provider: Box<dyn EmbeddingProvider>) -> Self {
+    pub fn new(
+        repository: R,
+        embedding_provider: Box<dyn EmbeddingProvider>,
+        score_booster: ScoreBooster,
+    ) -> Self {
         Self {
             repository,
             embedding_provider,
-            score_booster: ScoreBooster::default(),
+            score_booster,
         }
     }
 }
@@ -155,7 +159,8 @@ mod test {
             .times(1)
             .returning(|_| Ok(create_test_embedding(vec![0.1; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test query").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -181,7 +186,8 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.1; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("nonexistent concept").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -260,7 +266,8 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.5; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
             .limit(ResultLimit::try_new(2).unwrap())
@@ -286,7 +293,8 @@ mod test {
             )
         });
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -318,7 +326,8 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.1; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -349,7 +358,8 @@ mod test {
             .expect_embed()
             .returning(move |_| Ok(create_test_embedding(query_embedding.clone())));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("test").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -379,7 +389,8 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.6; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new(query_text).unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -407,7 +418,8 @@ mod test {
             .expect_embed()
             .returning(|_| Ok(create_test_embedding(vec![0.6; 384])));
 
-        let engine = SemanticSearchEngine::new(mock_repo, Box::new(mock_provider));
+        let engine =
+            SemanticSearchEngine::new(mock_repo, Box::new(mock_provider), ScoreBooster::default());
         let query = SearchQuery::builder()
             .text(QueryText::try_new("rust").unwrap())
             .limit(ResultLimit::try_new(10).unwrap())
@@ -490,9 +502,7 @@ mod test {
         let boost_rules = vec![
             crate::knowledge::scoring::BoostRule::builder()
                 .description("Markdown files")
-                .pattern(crate::knowledge::scoring::BoostPattern::Extension(
-                    "md".to_string(),
-                ))
+                .pattern(crate::knowledge::scoring::BoostPattern::new("**/*.md").unwrap())
                 .multiplier(crate::knowledge::scoring::BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];

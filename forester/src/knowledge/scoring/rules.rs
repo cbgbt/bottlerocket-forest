@@ -4,6 +4,7 @@
 //! file characteristics. Documentation files are prioritized over source code.
 
 use bon::Builder;
+use globset::{Glob, GlobMatcher};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +40,7 @@ impl Default for BoostMultiplier {
 #[non_exhaustive]
 pub struct BoostRule {
     /// Human-readable description of the rule
+    #[serde(default)]
     pub description: String,
     /// The pattern to match against
     pub pattern: BoostPattern,
@@ -53,51 +55,80 @@ impl BoostRule {
     }
 }
 
-/// Pattern for matching files
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BoostPattern {
-    /// Match files with a specific extension (e.g., "md", "rs")
-    Extension(String),
-    /// Match files whose name matches exactly (e.g., "README.md")
-    FileName(String),
-    /// Match files whose path starts with a prefix (e.g., "docs/")
-    PathPrefix(String),
+/// Pattern for matching files using glob syntax
+#[derive(Debug, Clone, Serialize)]
+pub struct BoostPattern {
+    pattern: String,
+    #[serde(skip)]
+    matcher: Option<GlobMatcher>,
+}
+
+impl<'de> Deserialize<'de> for BoostPattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let pattern = String::deserialize(deserializer)?;
+        Self::new(pattern).map_err(serde::de::Error::custom)
+    }
 }
 
 impl BoostPattern {
+    /// Create a new boost pattern from a glob string
+    pub fn new(pattern: impl Into<String>) -> Result<Self, globset::Error> {
+        let pattern = pattern.into();
+        let matcher = Glob::new(&pattern)?.compile_matcher();
+        Ok(Self {
+            pattern,
+            matcher: Some(matcher),
+        })
+    }
+
+    /// Get or compile the matcher
+    fn get_matcher(&self) -> GlobMatcher {
+        self.matcher.clone().unwrap_or_else(|| {
+            // Lazy compile if deserialized
+            Glob::new(&self.pattern)
+                .expect("pattern should be valid")
+                .compile_matcher()
+        })
+    }
+
     fn matches(&self, path: &ForestRelativePath) -> bool {
-        let path_str = path.to_string();
-        match self {
-            BoostPattern::Extension(ext) => path_str.ends_with(&format!(".{}", ext)),
-            BoostPattern::FileName(name) => {
-                path_str.ends_with(&format!("/{}", name)) || path_str == *name
-            }
-            BoostPattern::PathPrefix(prefix) => path_str.starts_with(prefix),
-        }
+        let matcher = self.get_matcher();
+        matcher.is_match(path.to_string())
     }
 }
+
+impl PartialEq for BoostPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+    }
+}
+
+impl Eq for BoostPattern {}
 
 /// Default boost rules prioritizing documentation over source code
 pub fn default_boost_rules() -> Vec<BoostRule> {
     vec![
         BoostRule::builder()
             .description("README files (highest priority documentation)")
-            .pattern(BoostPattern::FileName("README.md".to_string()))
-            .multiplier(BoostMultiplier::try_new(1.3).unwrap())
+            .pattern(BoostPattern::new("**/README.md").unwrap())
+            .multiplier(BoostMultiplier::try_new(1.2).unwrap())
             .build(),
         BoostRule::builder()
             .description("Documentation directory")
-            .pattern(BoostPattern::PathPrefix("docs/".to_string()))
+            .pattern(BoostPattern::new("**/docs/**").unwrap())
             .multiplier(BoostMultiplier::try_new(1.2).unwrap())
+            .build(),
+        BoostRule::builder()
+            .description("Changelogs")
+            .pattern(BoostPattern::new("**/CHANGELOG.md").unwrap())
+            .multiplier(BoostMultiplier::try_new(0.8).unwrap())
             .build(),
         BoostRule::builder()
             .description("Markdown documentation files")
-            .pattern(BoostPattern::Extension("md".to_string()))
-            .multiplier(BoostMultiplier::try_new(1.2).unwrap())
-            .build(),
-        BoostRule::builder()
-            .description("Rust source with rustdoc comments")
-            .pattern(BoostPattern::Extension("rs".to_string()))
+            .pattern(BoostPattern::new("**/*.md").unwrap())
             .multiplier(BoostMultiplier::try_new(1.1).unwrap())
             .build(),
     ]
@@ -158,7 +189,7 @@ mod test {
     #[test]
     fn test_boost_pattern_extension_matches() {
         // Given An extension pattern
-        let pattern = BoostPattern::Extension("md".to_string());
+        let pattern = BoostPattern::new("**/*.md").unwrap();
         let chunk = create_test_chunk("docs/guide.md");
 
         // When Checking if it matches
@@ -171,7 +202,7 @@ mod test {
     #[test]
     fn test_boost_pattern_extension_no_match() {
         // Given An extension pattern
-        let pattern = BoostPattern::Extension("md".to_string());
+        let pattern = BoostPattern::new("**/*.md").unwrap();
         let chunk = create_test_chunk("src/main.rs");
 
         // When Checking if it matches
@@ -184,7 +215,7 @@ mod test {
     #[test]
     fn test_boost_pattern_filename_matches() {
         // Given A filename pattern
-        let pattern = BoostPattern::FileName("README.md".to_string());
+        let pattern = BoostPattern::new("**/README.md").unwrap();
         let chunk = create_test_chunk("docs/README.md");
 
         // When Checking if it matches
@@ -197,7 +228,7 @@ mod test {
     #[test]
     fn test_boost_pattern_filename_matches_root() {
         // Given A filename pattern
-        let pattern = BoostPattern::FileName("README.md".to_string());
+        let pattern = BoostPattern::new("**/README.md").unwrap();
         let chunk = create_test_chunk("README.md");
 
         // When Checking if it matches
@@ -210,7 +241,7 @@ mod test {
     #[test]
     fn test_boost_pattern_filename_no_match() {
         // Given A filename pattern
-        let pattern = BoostPattern::FileName("README.md".to_string());
+        let pattern = BoostPattern::new("**/README.md").unwrap();
         let chunk = create_test_chunk("docs/guide.md");
 
         // When Checking if it matches
@@ -223,7 +254,7 @@ mod test {
     #[test]
     fn test_boost_pattern_path_prefix_matches() {
         // Given A path prefix pattern
-        let pattern = BoostPattern::PathPrefix("docs/".to_string());
+        let pattern = BoostPattern::new("docs/**").unwrap();
         let chunk = create_test_chunk("docs/architecture.md");
 
         // When Checking if it matches
@@ -236,7 +267,7 @@ mod test {
     #[test]
     fn test_boost_pattern_path_prefix_no_match() {
         // Given A path prefix pattern
-        let pattern = BoostPattern::PathPrefix("docs/".to_string());
+        let pattern = BoostPattern::new("docs/**").unwrap();
         let chunk = create_test_chunk("src/main.rs");
 
         // When Checking if it matches
@@ -251,7 +282,7 @@ mod test {
         // Given A boost rule
         let rule = BoostRule::builder()
             .description("Markdown files")
-            .pattern(BoostPattern::Extension("md".to_string()))
+            .pattern(BoostPattern::new("**/*.md").unwrap())
             .multiplier(BoostMultiplier::try_new(1.2).unwrap())
             .build();
         let chunk = create_test_chunk("docs/guide.md");
@@ -268,7 +299,7 @@ mod test {
         // Given A boost rule
         let rule = BoostRule::builder()
             .description("Markdown files")
-            .pattern(BoostPattern::Extension("md".to_string()))
+            .pattern(BoostPattern::new("**/*.md").unwrap())
             .multiplier(BoostMultiplier::try_new(1.2).unwrap())
             .build();
         let chunk = create_test_chunk("src/main.rs");

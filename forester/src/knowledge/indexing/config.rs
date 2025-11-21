@@ -10,9 +10,10 @@ use std::path::{Path, PathBuf};
 
 use super::filter::{IndexingFilter, RustFilter, RustItemType};
 use crate::knowledge::domain::{FileType, Visibility};
+use crate::knowledge::scoring::BoostRule;
 
 /// Forester configuration loaded from `.forester.toml`
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ForesterConfig {
     /// File types to index
@@ -29,6 +30,10 @@ pub struct ForesterConfig {
     /// File type specific configuration
     #[serde(default)]
     pub file_types: FileTypeConfig,
+
+    /// Search result score boosting rules
+    #[serde(default)]
+    pub boost_rules: Vec<BoostRule>,
 }
 
 impl ForesterConfig {
@@ -53,12 +58,13 @@ impl Default for ForesterConfig {
             enabled_file_types: default_file_types(),
             targets: Vec::new(),
             file_types: FileTypeConfig::default(),
+            boost_rules: Vec::new(),
         }
     }
 }
 
 /// File type specific configuration
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct FileTypeConfig {
     /// Rust-specific indexing controls
@@ -67,7 +73,7 @@ pub struct FileTypeConfig {
 }
 
 /// Rust-specific indexing configuration
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RustConfig {
     /// Visibility levels to index
@@ -389,6 +395,7 @@ min-doc-lines = 30
                     min_doc_lines: 20,
                 },
             },
+            boost_rules: vec![],
         };
 
         // When Converting to indexing filter
@@ -416,5 +423,76 @@ min-doc-lines = 30
 
         // Then It should expand to all item types
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_load_forester_config_with_boost_rules() {
+        // Given A .forester.toml with boost rules
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+targets = ["docs"]
+
+[[boost-rules]]
+pattern = "**/README.md"
+multiplier = 1.5
+
+[[boost-rules]]
+pattern = "**/*.md"
+multiplier = 1.2
+"#;
+        fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
+
+        // When Loading the config
+        let result = load_forester_config(temp_dir.path());
+
+        // Then It should parse boost rules successfully
+        assert!(result.is_ok());
+        let config = result.unwrap().unwrap();
+        assert_eq!(config.boost_rules.len(), 2);
+        assert_eq!(config.boost_rules[0].multiplier.into_inner(), 1.5);
+        assert_eq!(config.boost_rules[1].multiplier.into_inner(), 1.2);
+    }
+
+    #[test]
+    fn test_load_forester_config_with_boost_rules_and_descriptions() {
+        // Given A .forester.toml with boost rules including descriptions
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+[[boost-rules]]
+description = "README files"
+pattern = "**/README.md"
+multiplier = 1.3
+"#;
+        fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
+
+        // When Loading the config
+        let result = load_forester_config(temp_dir.path());
+
+        // Then It should parse with description
+        assert!(result.is_ok());
+        let config = result.unwrap().unwrap();
+        assert_eq!(config.boost_rules.len(), 1);
+        assert_eq!(config.boost_rules[0].description, "README files");
+    }
+
+    #[test]
+    fn test_load_forester_config_boost_rules_optional_description() {
+        // Given A .forester.toml with boost rules without descriptions
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+[[boost-rules]]
+pattern = "docs/**"
+multiplier = 1.1
+"#;
+        fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
+
+        // When Loading the config
+        let result = load_forester_config(temp_dir.path());
+
+        // Then It should parse with empty description
+        assert!(result.is_ok());
+        let config = result.unwrap().unwrap();
+        assert_eq!(config.boost_rules.len(), 1);
+        assert_eq!(config.boost_rules[0].description, "");
     }
 }

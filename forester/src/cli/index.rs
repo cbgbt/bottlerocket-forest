@@ -307,9 +307,10 @@ fn group_results_by_file(results: &SearchResults) -> Vec<FileSearchResult> {
         .collect();
 
     file_results.sort_by(|a, b| {
-        b.match_count
-            .cmp(&a.match_count)
-            .then_with(|| b.best_score.partial_cmp(&a.best_score).unwrap())
+        b.best_score
+            .partial_cmp(&a.best_score)
+            .unwrap()
+            .then_with(|| b.match_count.cmp(&a.match_count))
     });
 
     file_results

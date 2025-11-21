@@ -114,7 +114,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];
@@ -134,7 +134,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];
@@ -154,12 +154,12 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.2).unwrap())
                 .build(),
             BoostRule::builder()
                 .description("Docs directory")
-                .pattern(BoostPattern::PathPrefix("docs/".to_string()))
+                .pattern(BoostPattern::new("docs/**").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];
@@ -179,7 +179,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(2.0).unwrap())
                 .build(),
         ];
@@ -200,7 +200,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(2.0).unwrap())
                 .build(),
         ];
@@ -221,7 +221,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];
@@ -242,7 +242,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("README files")
-                .pattern(BoostPattern::FileName("README.md".to_string()))
+                .pattern(BoostPattern::new("**/README.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.3).unwrap())
                 .build(),
         ];
@@ -263,7 +263,7 @@ mod test {
         let rules = vec![
             BoostRule::builder()
                 .description("Markdown files")
-                .pattern(BoostPattern::Extension("md".to_string()))
+                .pattern(BoostPattern::new("**/*.md").unwrap())
                 .multiplier(BoostMultiplier::try_new(1.5).unwrap())
                 .build(),
         ];

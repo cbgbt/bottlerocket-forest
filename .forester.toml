@@ -30,3 +30,26 @@ items = ["modules"]
 
 # Minimum doc comment length in characters (default: 0)
 min-doc-lines = 4
+
+# Search result score boosting rules
+# Rules are evaluated in order; first match wins
+# If not specified, default rules prioritize documentation over source code
+[[boost-rules]]
+description = "README files"
+pattern = "**/README.md"
+multiplier = 1.2
+
+[[boost-rules]]
+description = "Documentation directory"
+pattern = "**/docs/**"
+multiplier = 1.2
+
+[[boost-rules]]
+description = "changelogs"
+pattern = "**/CHANGELOG.md"
+multiplier = 0.8
+
+[[boost-rules]]
+description = "Markdown files"
+pattern = "**/*.md"
+multiplier = 1.1
