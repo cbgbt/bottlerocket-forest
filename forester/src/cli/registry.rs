@@ -3,6 +3,7 @@ use chrono::Utc;
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
+use timeago::Formatter;
 
 /// Manage local OCI registry
 #[derive(Parser)]
@@ -190,20 +191,8 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
             let digest_short = &image.digest.chars().take(19).collect::<String>();
 
             let time_ago = image.created.map(|created| {
-                let duration = Utc::now().signed_duration_since(created);
-                if duration.num_days() > 365 {
-                    format!("{}y ago", duration.num_days() / 365)
-                } else if duration.num_days() > 30 {
-                    format!("{}mo ago", duration.num_days() / 30)
-                } else if duration.num_days() > 0 {
-                    format!("{}d ago", duration.num_days())
-                } else if duration.num_hours() > 0 {
-                    format!("{}h ago", duration.num_hours())
-                } else if duration.num_minutes() > 0 {
-                    format!("{}m ago", duration.num_minutes())
-                } else {
-                    "just now".to_string()
-                }
+                let formatter = Formatter::new();
+                format!("Pushed {}", formatter.convert_chrono(created, Utc::now()))
             });
 
             println!(
