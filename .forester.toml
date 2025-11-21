@@ -29,4 +29,4 @@ visibility = ["public"]
 items = ["modules"]
 
 # Minimum doc comment length in characters (default: 0)
-min-doc-length = 320
+min-doc-lines = 4
