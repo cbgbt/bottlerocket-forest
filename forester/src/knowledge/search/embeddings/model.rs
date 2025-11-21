@@ -140,10 +140,9 @@ impl EmbeddingProvider for LoadedEmbeddingModel {
 }
 
 fn default_cache_dir() -> PathBuf {
-    dirs::home_dir()
+    dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".forester")
-        .join("cache")
+        .join("forester")
         .join("model")
 }
 
