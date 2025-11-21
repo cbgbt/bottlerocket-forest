@@ -29,7 +29,7 @@ impl CliProgressReporter {
     /// Sets up three progress bars:
     /// - Scan: Spinner showing file discovery
     /// - Chunk: Progress bar for chunking files
-    /// - Embed: Progress bar for generating embeddings
+    /// - Embed: Spinner showing indexing
     pub fn new() -> Self {
         Self::with_styles(
             Self::default_scan_style(),
@@ -90,12 +90,11 @@ impl CliProgressReporter {
     /// Get default embed progress style
     ///
     /// Returns a progress bar style for embedding:
-    /// `Embedding [████████░░] 450/1000 chunks`
+    /// `⠋ Embedding (450 chunks)`
     fn default_embed_style() -> ProgressStyle {
-        ProgressStyle::default_bar()
-            .template("Embedding [{bar:40.cyan/blue}] {pos}/{len} chunks")
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} Embedding... ({pos} chunks)")
             .unwrap()
-            .progress_chars("█░")
     }
 }
 

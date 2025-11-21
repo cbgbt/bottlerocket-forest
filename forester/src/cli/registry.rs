@@ -178,6 +178,13 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
         println!("{} {}", repo_prefix.dimmed(), repo.as_ref().bright_white());
 
+        // Calculate max tag width for alignment
+        let max_tag_width = images
+            .iter()
+            .map(|img| img.tag.as_ref().len())
+            .max()
+            .unwrap_or(0);
+
         let image_count = images.len();
         for (img_idx, image) in images.iter().enumerate() {
             let is_last_image = img_idx == image_count - 1;
@@ -195,14 +202,17 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
                 format!("Pushed {}", formatter.convert_chrono(created, Utc::now()))
             });
 
+            let tag_display = format!(":{}", image.tag.as_ref());
+
             println!(
-                "{}{} {} {} {} {}",
+                "{}{} {:<width$} {:>8} {:>22} {}",
                 tag_prefix.dimmed(),
                 img_symbol.dimmed(),
-                format!(":{}", image.tag.as_ref()).blue(),
+                tag_display.blue(),
                 format!("{:.1}MB", size_mb).yellow(),
                 time_ago.as_deref().unwrap_or("").green(),
-                digest_short.dimmed()
+                digest_short.dimmed(),
+                width = max_tag_width + 1 // +1 for the colon
             );
         }
     }
