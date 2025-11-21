@@ -1,5 +1,6 @@
 use crate::registry::RegistryUrl;
 use bon::Builder;
+use chrono::{DateTime, Utc};
 use nutype::nutype;
 use reqwest::blocking::Client;
 use serde::Deserialize;
@@ -42,6 +43,7 @@ pub struct ImageTag(String);
 struct ImageManifest {
     size_bytes: u64,
     digest: String,
+    created: Option<DateTime<Utc>>,
 }
 
 /// Represents an image in the registry with its repository and tag
@@ -52,6 +54,7 @@ pub struct RegistryImage {
     pub tag: ImageTag,
     pub size_bytes: u64,
     pub digest: String,
+    pub created: Option<DateTime<Utc>>,
 }
 
 /// List all images in the registry
@@ -73,6 +76,7 @@ pub fn list_images(registry_url: &RegistryUrl) -> Result<Vec<RegistryImage>, Cat
                     .tag(tag)
                     .size_bytes(manifest.size_bytes)
                     .digest(manifest.digest)
+                    .maybe_created(manifest.created)
                     .build(),
             );
         }
@@ -192,14 +196,51 @@ fn fetch_manifest_info(
         manifest.manifests.iter().map(|m| m.size).sum()
     } else {
         // Regular manifest - sum config + layers
-        manifest.config.map(|c| c.size).unwrap_or(0)
+        manifest.config.as_ref().map(|c| c.size).unwrap_or(0)
             + manifest.layers.iter().map(|layer| layer.size).sum::<u64>()
+    };
+
+    // Fetch created timestamp from config blob (only for regular manifests, not indexes)
+    let created = if let Some(config) = &manifest.config {
+        if let Some(config_digest) = &config.digest {
+            fetch_created_time(client, registry_url, repository, config_digest).ok().flatten()
+        } else {
+            None
+        }
+    } else {
+        None
     };
 
     Ok(ImageManifest::builder()
         .size_bytes(total_size)
         .digest(digest)
+        .maybe_created(created)
         .build())
+}
+
+fn fetch_created_time(
+    client: &Client,
+    registry_url: &RegistryUrl,
+    repository: &RepositoryName,
+    config_digest: &str,
+) -> Result<Option<DateTime<Utc>>, CatalogError> {
+    use catalog_error::*;
+
+    let url = format!(
+        "{}/v2/{}/blobs/{}",
+        registry_url,
+        repository.as_ref(),
+        config_digest
+    );
+
+    let response = client.get(&url).send().context(ApiRequestSnafu)?;
+
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    let config: ConfigBlob = response.json().context(ResponseParseSnafu)?;
+    Ok(config.created)
 }
 
 #[derive(Deserialize)]
@@ -227,6 +268,13 @@ struct ManifestResponse {
 #[derive(Deserialize)]
 struct Descriptor {
     size: u64,
+    #[serde(default)]
+    digest: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConfigBlob {
+    created: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Snafu)]

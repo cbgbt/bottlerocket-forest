@@ -1,4 +1,5 @@
 use crate::{config, registry};
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
@@ -187,13 +188,31 @@ fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 
             let size_mb = image.size_bytes as f64 / 1_000_000.0;
             let digest_short = &image.digest.chars().take(19).collect::<String>();
+            
+            let time_ago = image.created.map(|created| {
+                let duration = Utc::now().signed_duration_since(created);
+                if duration.num_days() > 365 {
+                    format!("{}y ago", duration.num_days() / 365)
+                } else if duration.num_days() > 30 {
+                    format!("{}mo ago", duration.num_days() / 30)
+                } else if duration.num_days() > 0 {
+                    format!("{}d ago", duration.num_days())
+                } else if duration.num_hours() > 0 {
+                    format!("{}h ago", duration.num_hours())
+                } else if duration.num_minutes() > 0 {
+                    format!("{}m ago", duration.num_minutes())
+                } else {
+                    "just now".to_string()
+                }
+            });
 
             println!(
-                "{}{} {} {} {}",
+                "{}{} {} {} {} {}",
                 tag_prefix.dimmed(),
                 img_symbol.dimmed(),
                 format!(":{}", image.tag.as_ref()).blue(),
                 format!("{:.1}MB", size_mb).yellow(),
+                time_ago.as_deref().unwrap_or("").green(),
                 digest_short.dimmed()
             );
         }
