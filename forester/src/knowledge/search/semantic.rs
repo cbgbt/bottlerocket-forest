@@ -57,7 +57,7 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
         let search_duration = start.elapsed();
         let total_chunks_searched = results.len();
 
-        let search_results: Vec<_> = results
+        let mut search_results: Vec<_> = results
             .into_iter()
             .map(|(indexed_chunk, score)| {
                 use crate::knowledge::domain::{RelevanceScore, SearchResult};
@@ -84,6 +84,9 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
                     .build())
             })
             .collect::<Result<Vec<_>, SearchError>>()?;
+
+        // Sort by boosted score (descending)
+        search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
 
         Ok(SearchResults::builder()
             .query(query.clone())

@@ -18,7 +18,7 @@ pub use chunk::{
     Chunk, ChunkContent, ChunkContext, ChunkSource, MarkdownContext, RustDocContext, Visibility,
 };
 pub use file_type::FileType;
-pub use search::{SearchQuery, SearchResult, SearchResults};
+pub use search::{FileSearchResult, SearchQuery, SearchResult, SearchResults};
 
 /// Configuration for file scanning
 #[derive(Debug, Clone, Builder)]

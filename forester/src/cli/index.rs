@@ -1,8 +1,12 @@
 use argh::FromArgs;
 use snafu::{ResultExt, Snafu};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::knowledge::KnowledgeIndex;
+use crate::knowledge::domain::{
+    FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,
+};
 use crate::knowledge::storage::ChunkRepository;
 
 /// Manage the knowledge index
@@ -83,6 +87,10 @@ struct SearchArgs {
     /// output format: human or json (defaults to human)
     #[argh(option, short = 'f')]
     format: Option<String>,
+
+    /// show individual chunk matches under each file
+    #[argh(switch)]
+    show_chunks: bool,
 }
 
 /// Show index status and statistics
@@ -191,9 +199,11 @@ fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
         .search(&args.query, limit)
         .context(KnowledgeIndexSnafu)?;
 
+    let file_results = group_results_by_file(&results);
+
     match format {
-        OutputFormat::Human => format_search_results_human(&results),
-        OutputFormat::Json => format_search_results_json(&results)?,
+        OutputFormat::Human => format_file_results_human(&file_results, args.show_chunks),
+        OutputFormat::Json => format_file_results_json(&file_results)?,
     }
 
     Ok(())
@@ -255,6 +265,48 @@ fn parse_output_format(format_str: Option<&str>) -> Result<OutputFormat, IndexEr
     }
 }
 
+fn group_results_by_file(results: &SearchResults) -> Vec<FileSearchResult> {
+    let mut file_map: HashMap<ForestRelativePath, (RepoName, Vec<SearchResult>)> = HashMap::new();
+
+    for result in &results.results {
+        let path = result.chunk.source.file_path.clone();
+        let repo = result.chunk.source.repo_name.clone();
+
+        file_map
+            .entry(path)
+            .or_insert_with(|| (repo, Vec::new()))
+            .1
+            .push(result.clone());
+    }
+
+    let mut file_results: Vec<_> = file_map
+        .into_iter()
+        .map(|(path, (repo, chunks))| {
+            let best_score = chunks
+                .iter()
+                .map(|r| r.score)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or_else(|| RelevanceScore::try_new(0.0).unwrap());
+
+            FileSearchResult::builder()
+                .file_path(path)
+                .repo_name(repo)
+                .match_count(chunks.len())
+                .best_score(best_score)
+                .chunks(chunks)
+                .build()
+        })
+        .collect();
+
+    file_results.sort_by(|a, b| {
+        b.match_count
+            .cmp(&a.match_count)
+            .then_with(|| b.best_score.partial_cmp(&a.best_score).unwrap())
+    });
+
+    file_results
+}
+
 fn format_build_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("Index build complete!");
     println!("  Files processed: {}", result.files_processed);
@@ -271,46 +323,44 @@ fn format_update_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("  Duration: {:.2}s", result.duration.as_secs_f64());
 }
 
-fn format_search_results_human(results: &crate::knowledge::domain::SearchResults) {
-    if results.results.is_empty() {
-        println!("No results found for '{}'", results.query.text);
-        println!(
-            "Searched {} chunks in {:.2}ms",
-            results.total_chunks_searched,
-            results.search_duration.as_secs_f64() * 1000.0
-        );
+fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: bool) {
+    if file_results.is_empty() {
+        println!("No files matched");
         return;
     }
 
-    println!(
-        "Found {} results for '{}' ({:.2}ms):\n",
-        results.results.len(),
-        results.query.text,
-        results.search_duration.as_secs_f64() * 1000.0
-    );
+    println!("Found {} unique files:\n", file_results.len());
 
-    for (i, result) in results.results.iter().enumerate() {
+    for (i, file_result) in file_results.iter().enumerate() {
         println!(
-            "{}. [Score: {:.3}] {}",
+            "{}. [Matches: {}, Best Score: {:.3}] {}",
             i + 1,
-            result.score,
-            result.chunk.source.file_path
+            file_result.match_count,
+            file_result.best_score,
+            file_result.file_path
         );
-        let preview = if result.chunk.content.text.len() > 150 {
-            format!("{}...", &result.chunk.content.text[..150])
-        } else {
-            result.chunk.content.text.to_string()
-        };
-        println!("   {}\n", preview.replace('\n', " "));
+
+        if show_chunks {
+            for chunk_result in &file_result.chunks {
+                let preview = if chunk_result.chunk.content.text.len() > 100 {
+                    format!("{}...", &chunk_result.chunk.content.text[..100])
+                } else {
+                    chunk_result.chunk.content.text.to_string()
+                };
+                println!(
+                    "   - [Score: {:.3}] {}\n",
+                    chunk_result.score,
+                    preview.replace('\n', " ")
+                );
+            }
+        }
     }
 }
 
-fn format_search_results_json(
-    results: &crate::knowledge::domain::SearchResults,
-) -> Result<(), IndexError> {
+fn format_file_results_json(file_results: &[FileSearchResult]) -> Result<(), IndexError> {
     use index_error::*;
 
-    let json = serde_json::to_string_pretty(results).context(JsonSerializationFailedSnafu)?;
+    let json = serde_json::to_string_pretty(file_results).context(JsonSerializationFailedSnafu)?;
     println!("{}", json);
     Ok(())
 }
@@ -520,43 +570,42 @@ mod test {
     }
 
     #[test]
-    fn test_format_search_results_human_with_results() {
-        // Given SearchResults with multiple results
+    fn test_format_file_results_human_with_results() {
+        // Given FileSearchResults with multiple files
         let chunk = create_test_chunk();
-        let results = SearchResults::builder()
-            .query(create_test_query())
-            .results(vec![
-                SearchResult {
-                    chunk: chunk.clone(),
-                    score: RelevanceScore::try_new(0.95).unwrap(),
-                },
-                SearchResult {
-                    chunk,
-                    score: RelevanceScore::try_new(0.85).unwrap(),
-                },
-            ])
-            .total_chunks_searched(100usize)
-            .search_duration(Duration::from_millis(50))
-            .build();
+        let file_results = vec![
+            FileSearchResult::builder()
+                .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                .repo_name(RepoName::try_new("test-repo").unwrap())
+                .match_count(2usize)
+                .best_score(RelevanceScore::try_new(0.95).unwrap())
+                .chunks(vec![
+                    SearchResult {
+                        chunk: chunk.clone(),
+                        score: RelevanceScore::try_new(0.95).unwrap(),
+                    },
+                    SearchResult {
+                        chunk,
+                        score: RelevanceScore::try_new(0.85).unwrap(),
+                    },
+                ])
+                .build(),
+        ];
 
-        // When Formatting search results in human format
+        // When Formatting file results in human format
         // Then It should print without panicking
-        format_search_results_human(&results);
+        format_file_results_human(&file_results, false);
+        format_file_results_human(&file_results, true);
     }
 
     #[test]
-    fn test_format_search_results_human_empty() {
-        // Given SearchResults with no results
-        let results = SearchResults::builder()
-            .query(create_test_query())
-            .results(vec![])
-            .total_chunks_searched(100usize)
-            .search_duration(Duration::from_millis(50))
-            .build();
+    fn test_format_file_results_human_empty() {
+        // Given Empty file results
+        let file_results = vec![];
 
-        // When Formatting empty search results
+        // When Formatting empty file results
         // Then It should print without panicking
-        format_search_results_human(&results);
+        format_file_results_human(&file_results, false);
     }
 
     #[test]
@@ -573,11 +622,70 @@ mod test {
             .search_duration(Duration::from_millis(50))
             .build();
 
-        // When Formatting search results as JSON
-        let result = format_search_results_json(&results);
+        // When Grouping and formatting as file results
+        let file_results = group_results_by_file(&results);
+
+        // Then It should succeed
+        assert!(file_results.len() > 0);
+    }
+
+    #[test]
+    fn test_format_file_results_json_success() {
+        // Given FileSearchResults
+        let chunk = create_test_chunk();
+        let file_results = vec![
+            FileSearchResult::builder()
+                .file_path(ForestRelativePath::try_new("test.md").unwrap())
+                .repo_name(RepoName::try_new("test-repo").unwrap())
+                .match_count(1usize)
+                .best_score(RelevanceScore::try_new(0.95).unwrap())
+                .chunks(vec![SearchResult {
+                    chunk,
+                    score: RelevanceScore::try_new(0.95).unwrap(),
+                }])
+                .build(),
+        ];
+
+        // When Formatting file results as JSON
+        let result = format_file_results_json(&file_results);
 
         // Then It should succeed
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_group_results_by_file() {
+        // Given SearchResults with multiple chunks from same file
+        let chunk1 = create_test_chunk();
+        let mut chunk2 = chunk1.clone();
+        chunk2.id = ChunkId::new(uuid::Uuid::new_v4());
+
+        let results = SearchResults::builder()
+            .query(create_test_query())
+            .results(vec![
+                SearchResult {
+                    chunk: chunk1,
+                    score: RelevanceScore::try_new(0.95).unwrap(),
+                },
+                SearchResult {
+                    chunk: chunk2,
+                    score: RelevanceScore::try_new(0.85).unwrap(),
+                },
+            ])
+            .total_chunks_searched(100usize)
+            .search_duration(Duration::from_millis(50))
+            .build();
+
+        // When Grouping results by file
+        let file_results = group_results_by_file(&results);
+
+        // Then It should return one file with two chunks
+        assert_eq!(file_results.len(), 1);
+        assert_eq!(file_results[0].match_count, 2);
+        assert_eq!(
+            file_results[0].best_score,
+            RelevanceScore::try_new(0.95).unwrap()
+        );
     }
 
     #[test]

@@ -22,11 +22,11 @@ targets = [
 [file-types.rust]
 # Which visibility levels to index (default: ["public"])
 # Options: "public", "crate", "private"
-visibility = ["public", "crate"]
+visibility = ["public"]
 
 # Which item types to index (default: ["all"])
 # Options: "all", "modules", "functions", "structs", "enums", "traits", "impls", "type-aliases", "constants"
-items = ["all"]
+items = ["modules"]
 
 # Minimum doc comment length in characters (default: 0)
-min-doc-length = 0
+min-doc-length = 320
