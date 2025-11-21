@@ -116,8 +116,8 @@ impl ProgressReporter for CliProgressReporter {
     }
 
     fn scanning_completed(&self, total_files: usize) {
-        self.scan_bar
-            .finish_with_message(format!("Scanned {} files", total_files));
+        self.scan_bar.finish_and_clear();
+        println!("  Scanning... ({} files found)", total_files);
     }
 
     fn chunking_started(&self, total_files: usize) {
@@ -129,14 +129,14 @@ impl ProgressReporter for CliProgressReporter {
         self.chunk_bar.inc(1);
     }
 
-    fn chunking_completed(&self, total_chunks: usize) {
-        self.chunk_bar
-            .finish_with_message(format!("Chunked into {} chunks", total_chunks));
+    fn chunking_completed(&self, _total_chunks: usize) {
+        self.chunk_bar.finish_and_clear();
     }
 
     fn embedding_started(&self, total_chunks: usize) {
         self.embed_bar.set_length(total_chunks as u64);
         self.embed_bar.set_position(0);
+        self.embed_bar.enable_steady_tick(std::time::Duration::from_millis(100));
     }
 
     fn embeddings_generated(&self, chunk_count: usize) {
@@ -144,7 +144,8 @@ impl ProgressReporter for CliProgressReporter {
     }
 
     fn embedding_completed(&self) {
-        self.embed_bar.finish_with_message("Embeddings generated");
+        self.embed_bar.finish_and_clear();
+        println!("  Embedding... ({} chunks)", self.embed_bar.length().unwrap_or(0));
     }
 
     fn indexing_completed(&self) {
