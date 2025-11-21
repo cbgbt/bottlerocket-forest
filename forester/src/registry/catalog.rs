@@ -1,3 +1,9 @@
+//! Registry catalog operations for discovering and listing container images.
+//!
+//! This module provides functionality to query OCI-compliant container registries
+//! and retrieve information about available images, including repositories, tags,
+//! sizes, digests, and creation timestamps.
+
 use crate::registry::RegistryUrl;
 use bon::Builder;
 use chrono::{DateTime, Utc};
@@ -6,6 +12,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 
+/// Name of a repository in a container registry.
 #[nutype(
     validate(not_empty),
     derive(
@@ -22,6 +29,7 @@ use snafu::{ResultExt, Snafu};
 )]
 pub struct RepositoryName(String);
 
+/// Tag identifying a specific image version within a repository.
 #[nutype(
     validate(not_empty),
     derive(
@@ -38,7 +46,10 @@ pub struct RepositoryName(String);
 )]
 pub struct ImageTag(String);
 
-/// Manifest information for an image
+/// Manifest information for a container image.
+///
+/// Contains metadata extracted from the image manifest including size,
+/// content digest, and optional creation timestamp.
 #[derive(Debug, Clone, Builder)]
 struct ImageManifest {
     size_bytes: u64,
@@ -46,7 +57,10 @@ struct ImageManifest {
     created: Option<DateTime<Utc>>,
 }
 
-/// Represents an image in the registry with its repository and tag
+/// Container image in a registry with complete metadata.
+///
+/// Represents a fully-qualified image including its repository location,
+/// tag, size, content digest, and creation timestamp.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
 #[non_exhaustive]
 pub struct RegistryImage {
@@ -57,9 +71,11 @@ pub struct RegistryImage {
     pub created: Option<DateTime<Utc>>,
 }
 
-/// List all images in the registry
+/// Lists all images available in the registry.
 ///
-/// Queries the registry catalog API to discover all repositories and their tags.
+/// Queries the registry catalog API to discover all repositories, then fetches
+/// tags and manifest information for each image. Results are sorted by repository
+/// name and tag.
 pub fn list_images(registry_url: &RegistryUrl) -> Result<Vec<RegistryImage>, CatalogError> {
     let client = Client::new();
 
@@ -91,6 +107,7 @@ pub fn list_images(registry_url: &RegistryUrl) -> Result<Vec<RegistryImage>, Cat
     Ok(images)
 }
 
+/// Fetches the list of repositories from the registry catalog endpoint.
 fn fetch_catalog(
     client: &Client,
     registry_url: &RegistryUrl,
@@ -121,6 +138,7 @@ fn fetch_catalog(
         .collect()
 }
 
+/// Fetches all tags for a specific repository.
 fn fetch_tags(
     client: &Client,
     registry_url: &RegistryUrl,
@@ -151,6 +169,10 @@ fn fetch_tags(
         .collect()
 }
 
+/// Fetches manifest information for a specific image.
+///
+/// Retrieves the manifest from the registry and extracts size, digest, and
+/// creation timestamp. Handles both OCI image indexes and regular manifests.
 fn fetch_manifest_info(
     client: &Client,
     registry_url: &RegistryUrl,
@@ -220,6 +242,7 @@ fn fetch_manifest_info(
         .build())
 }
 
+/// Fetches the creation timestamp from an image config blob.
 fn fetch_created_time(
     client: &Client,
     registry_url: &RegistryUrl,

@@ -6,6 +6,7 @@
 //! Each chunk maintains the full heading hierarchy from the document structure,
 //! enabling context-aware semantic search.
 
+use snafu::ResultExt;
 use std::path::Path;
 use text_splitter::{ChunkConfig, MarkdownSplitter};
 use tokenizers::Tokenizer;
@@ -22,6 +23,7 @@ use crate::knowledge::domain::{
 /// Sections are split by headings, then long sections are further chunked.
 pub struct MarkdownChunker {
     splitter: MarkdownSplitter<Tokenizer>,
+    tokenizer: Tokenizer,
 }
 
 impl MarkdownChunker {
@@ -36,6 +38,10 @@ impl MarkdownChunker {
             .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
             .context(TokenizerInitSnafu)?;
 
+        let tokenizer_for_counting = Tokenizer::from_pretrained(&config.model_name, None)
+            .map_err(|e| e as Box<dyn std::error::Error + Send + Sync>)
+            .context(TokenizerInitSnafu)?;
+
         let splitter = MarkdownSplitter::new(
             ChunkConfig::new(config.max_tokens)
                 .with_sizer(tokenizer)
@@ -43,7 +49,10 @@ impl MarkdownChunker {
                 .expect("overlap configuration should be valid"),
         );
 
-        Ok(Self { splitter })
+        Ok(Self {
+            splitter,
+            tokenizer: tokenizer_for_counting,
+        })
     }
 
     /// Splits markdown content into sections by heading structure.
@@ -133,7 +142,12 @@ impl ChunkingStrategy for MarkdownChunker {
                     continue;
                 }
 
-                let token_count = trimmed.split_whitespace().count().max(1);
+                let encoding = self
+                    .tokenizer
+                    .encode(trimmed, false)
+                    .context(super::strategy::chunking_error::TokenizerInitSnafu)?;
+
+                let token_count = encoding.len().max(1);
 
                 let chunk = Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))

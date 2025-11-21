@@ -7,7 +7,7 @@ pub use catalog::{CatalogError, ImageTag, RegistryImage, RepositoryName, list_im
 use docker::{Container, ContainerDiscovered};
 use snafu::{ResultExt, Snafu};
 use std::time::Duration;
-pub use types::{RegistryConfig, RegistryState, RegistryStatus, RegistryUrl};
+pub use types::{RegistryConfig, RegistryRuntimeConfig, RegistryState, RegistryStatus, RegistryUrl};
 
 const REGISTRY_STARTUP_TIMEOUT_SECS: u64 = 10;
 
@@ -16,7 +16,7 @@ const REGISTRY_STARTUP_TIMEOUT_SECS: u64 = 10;
 /// Creates and starts a Docker container running the registry image. If the container
 /// already exists but is stopped, it will be started. Waits for the registry to become
 /// healthy before returning.
-pub fn start(config: &RegistryConfig) -> Result<RegistryUrl, RegistryError> {
+pub fn start(config: &RegistryRuntimeConfig) -> Result<RegistryUrl, RegistryError> {
     use registry_error::*;
 
     let container = Container::new(
@@ -44,7 +44,7 @@ pub fn start(config: &RegistryConfig) -> Result<RegistryUrl, RegistryError> {
 ///
 /// Stops the registry container if it is running. Does nothing if the container
 /// is already stopped or does not exist.
-pub fn stop(config: &RegistryConfig) -> Result<(), RegistryError> {
+pub fn stop(config: &RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let container = Container::new(
@@ -68,7 +68,7 @@ pub fn stop(config: &RegistryConfig) -> Result<(), RegistryError> {
 ///
 /// Returns information about the registry container state (running, stopped, or not created)
 /// and whether the data volume exists.
-pub fn status(config: &RegistryConfig) -> Result<RegistryStatus, RegistryError> {
+pub fn status(config: &RegistryRuntimeConfig) -> Result<RegistryStatus, RegistryError> {
     use registry_error::*;
 
     let container = Container::new(
@@ -96,7 +96,7 @@ pub fn status(config: &RegistryConfig) -> Result<RegistryStatus, RegistryError> 
 ///
 /// Stops and removes the registry container if it exists, then removes the data volume.
 /// This permanently deletes all registry data.
-pub fn clean(config: &RegistryConfig) -> Result<(), RegistryError> {
+pub fn clean(config: &RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let container = Container::new(
@@ -128,7 +128,7 @@ pub fn clean(config: &RegistryConfig) -> Result<(), RegistryError> {
 ///
 /// Shows the container logs. If `follow` is true, streams logs continuously until interrupted.
 /// Returns an error if the container is not running.
-pub fn logs(config: &RegistryConfig, follow: bool) -> Result<(), RegistryError> {
+pub fn logs(config: &RegistryRuntimeConfig, follow: bool) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let container = Container::new(

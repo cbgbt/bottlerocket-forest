@@ -66,7 +66,7 @@ pub trait ProgressReporter: Send + Sync {
     /// Called when file scanning completes
     ///
     /// Signals the end of file discovery. The total file count is now known.
-    fn scanning_completed(&self, total_files: usize);
+    fn scanning_completed(&self);
 
     /// Called when chunking begins for all files
     ///
@@ -123,7 +123,7 @@ pub struct SilentReporter;
 impl ProgressReporter for SilentReporter {
     fn scanning_started(&self) {}
     fn file_discovered(&self, _path: &Path) {}
-    fn scanning_completed(&self, _total_files: usize) {}
+    fn scanning_completed(&self) {}
     fn chunking_started(&self, _total_files: usize) {}
     fn file_chunked(&self, _path: &Path, _chunk_count: usize) {}
     fn chunking_completed(&self, _total_chunks: usize) {}

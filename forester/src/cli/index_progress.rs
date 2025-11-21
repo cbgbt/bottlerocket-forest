@@ -4,7 +4,7 @@
 //! Displays three concurrent progress bars:
 //! - Scan bar: File discovery (spinner → final count)
 //! - Chunk bar: File chunking progress
-//! - Embed bar: Embedding generation progress
+//! - Embed bar: Indexing generation progress
 
 use crate::knowledge::indexing::ProgressReporter;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -51,12 +51,15 @@ impl CliProgressReporter {
 
         let scan_bar = Arc::new(multi.add(ProgressBar::new_spinner()));
         scan_bar.set_style(scan_style);
+        scan_bar.set_message("Scanning...");
 
         let chunk_bar = Arc::new(multi.add(ProgressBar::new(0)));
         chunk_bar.set_style(chunk_style);
+        chunk_bar.set_message("Chunking...");
 
         let embed_bar = Arc::new(multi.add(ProgressBar::new(0)));
         embed_bar.set_style(embed_style);
+        embed_bar.set_message("Indexing...");
 
         Self {
             multi,
@@ -69,31 +72,31 @@ impl CliProgressReporter {
     /// Get default scan progress style
     ///
     /// Returns a spinner style for the scanning phase:
-    /// `⠋ Scanning... (123 files found)`
+    /// `⠋ Scanning    (123 files found)`
     fn default_scan_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("{spinner:.green} Scanning... ({pos} files found)")
+            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos} files found)")
             .unwrap()
     }
 
     /// Get default chunk progress style
     ///
     /// Returns a progress bar style for chunking:
-    /// `Chunking [████████░░] 45/100 files`
+    /// `  Chunking    [████████░░] 45/100 files`
     fn default_chunk_style() -> ProgressStyle {
-        ProgressStyle::default_bar()
-            .template("Chunking [{bar:40.cyan/blue}] {pos}/{len} files")
+        ProgressStyle::default_spinner()
+            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos}/{len} files)")
             .unwrap()
             .progress_chars("█░")
     }
 
     /// Get default embed progress style
     ///
-    /// Returns a progress bar style for embedding:
-    /// `⠋ Embedding (450 chunks)`
+    /// Returns a progress bar style for indexing:
+    /// `⠋ Indexing    (450 chunks indexed)`
     fn default_embed_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("{spinner:.green} Embedding... ({pos} chunks)")
+            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos}/{len} chunks indexed)")
             .unwrap()
     }
 }
@@ -109,34 +112,41 @@ impl ProgressReporter for CliProgressReporter {
         self.scan_bar.set_position(0);
         self.scan_bar
             .enable_steady_tick(std::time::Duration::from_millis(100));
+        self.scan_bar.set_message("Scanning...");
     }
 
     fn file_discovered(&self, _path: &Path) {
         self.scan_bar.inc(1);
     }
 
-    fn scanning_completed(&self, total_files: usize) {
-        self.scan_bar.finish_and_clear();
-        println!("  Scanning... ({} files found)", total_files);
+    fn scanning_completed(&self) {
+        self.scan_bar.set_message("Scanning Completed");
+        self.scan_bar.finish();
     }
 
     fn chunking_started(&self, total_files: usize) {
         self.chunk_bar.set_length(total_files as u64);
         self.chunk_bar.set_position(0);
+        self.chunk_bar.set_message("Chunking...");
     }
 
-    fn file_chunked(&self, _path: &Path, _chunk_count: usize) {
+    fn file_chunked(&self, _path: &Path, chunk_count: usize) {
+        self.embed_bar.inc_length(chunk_count as u64);
         self.chunk_bar.inc(1);
     }
 
-    fn chunking_completed(&self, _total_chunks: usize) {
-        self.chunk_bar.finish_and_clear();
+    fn chunking_completed(&self, total_chunks: usize) {
+        self.embed_bar.set_length(total_chunks as u64);
+
+        self.chunk_bar.set_message("Chunking Completed");
+        self.chunk_bar.finish();
     }
 
     fn embedding_started(&self, total_chunks: usize) {
         self.embed_bar.set_length(total_chunks as u64);
-        self.embed_bar.set_position(0);
-        self.embed_bar.enable_steady_tick(std::time::Duration::from_millis(100));
+        self.embed_bar.set_message("Indexing...");
+        self.embed_bar
+            .enable_steady_tick(std::time::Duration::from_millis(100));
     }
 
     fn embeddings_generated(&self, chunk_count: usize) {
@@ -144,8 +154,8 @@ impl ProgressReporter for CliProgressReporter {
     }
 
     fn embedding_completed(&self) {
-        self.embed_bar.finish_and_clear();
-        println!("  Embedding... ({} chunks)", self.embed_bar.length().unwrap_or(0));
+        self.embed_bar.set_message("Indexing Completed");
+        self.embed_bar.finish();
     }
 
     fn indexing_completed(&self) {

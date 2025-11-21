@@ -93,10 +93,10 @@ impl FileScanner {
 
         let result = self.scan_internal(None);
 
-        if let Ok(files) = &result
+        if result.is_ok()
             && let Some(progress) = &self.progress
         {
-            progress.scanning_completed(files.len());
+            progress.scanning_completed();
         }
 
         result
@@ -110,10 +110,10 @@ impl FileScanner {
 
         let result = self.scan_internal(Some(repo_name));
 
-        if let Ok(files) = &result
+        if result.is_ok()
             && let Some(progress) = &self.progress
         {
-            progress.scanning_completed(files.len());
+            progress.scanning_completed();
         }
 
         result

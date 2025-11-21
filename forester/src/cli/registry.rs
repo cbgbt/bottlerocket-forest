@@ -52,7 +52,7 @@ pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
 }
 
 /// Start the registry and display the URL
-fn start(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+fn start(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let url = registry::start(config).context(OperationSnafu)?;
@@ -62,7 +62,7 @@ fn start(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 }
 
 /// Stop the registry and display confirmation
-fn stop(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+fn stop(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::stop(config).context(OperationSnafu)?;
@@ -71,7 +71,7 @@ fn stop(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 }
 
 /// Display the registry status
-fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let status = registry::status(config).context(OperationSnafu)?;
@@ -120,7 +120,7 @@ fn status(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 }
 
 /// Clean the registry container and volume
-fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+fn clean(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::clean(config).context(OperationSnafu)?;
@@ -129,14 +129,14 @@ fn clean(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
 }
 
 /// Display registry logs
-fn logs(config: &registry::RegistryConfig, follow: bool) -> Result<(), RegistryError> {
+fn logs(config: &registry::RegistryRuntimeConfig, follow: bool) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::logs(config, follow).context(OperationSnafu)
 }
 
 /// List all images in the registry
-fn list(config: &registry::RegistryConfig) -> Result<(), RegistryError> {
+fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     let status = registry::status(config).context(OperationSnafu)?;

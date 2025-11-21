@@ -1,11 +1,11 @@
-use crate::registry::types::RegistryConfig;
+use crate::registry::types::{RegistryConfig, RegistryRuntimeConfig};
 use snafu::{ResultExt, Snafu};
 
 /// Load registry configuration from environment variables
 ///
 /// Reads configuration from environment variables prefixed with `FORESTER_REGISTRY_`.
 /// Falls back to defaults if variables are not set.
-pub fn load_config() -> Result<RegistryConfig, ConfigError> {
+pub fn load_config() -> Result<RegistryRuntimeConfig, ConfigError> {
     use config_error::*;
 
     dotenvy::dotenv().ok();
@@ -14,8 +14,7 @@ pub fn load_config() -> Result<RegistryConfig, ConfigError> {
         .from_env()
         .context(LoadFailedSnafu)?;
 
-    let port = config.port;
-    Ok(config.with_port(port))
+    Ok(config.into_runtime())
 }
 
 #[derive(Debug, Snafu)]
