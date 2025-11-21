@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::{Chunk, EmbeddingModelConfig};
+use crate::knowledge::indexing::IndexingFilter;
 
 /// Routes files to appropriate chunking strategies.
 pub struct ChunkingDispatcher {
@@ -15,12 +16,24 @@ impl ChunkingDispatcher {
     /// Creates a dispatcher with default strategies for markdown and Rust files.
     #[must_use = "dispatcher must be used or initialization error handled"]
     pub fn with_defaults(config: &EmbeddingModelConfig) -> Result<Self, DispatchError> {
+        Self::with_defaults_and_filter(config, &IndexingFilter::default())
+    }
+
+    /// Creates a dispatcher with filtering support
+    #[must_use = "dispatcher must be used or initialization error handled"]
+    pub fn with_defaults_and_filter(
+        config: &EmbeddingModelConfig,
+        filter: &IndexingFilter,
+    ) -> Result<Self, DispatchError> {
         use dispatch_error::*;
 
         let markdown_chunker = super::markdown::MarkdownChunker::from_config(config)
             .context(StrategyInitFailedSnafu)?;
-        let rustdoc_chunker =
-            super::rustdoc::RustDocChunker::from_config(config).context(StrategyInitFailedSnafu)?;
+        let rustdoc_chunker = super::rustdoc::RustDocChunker::from_config_with_filter(
+            config,
+            filter.rust_filter().cloned(),
+        )
+        .context(StrategyInitFailedSnafu)?;
 
         Ok(Self {
             strategies: vec![Box::new(markdown_chunker), Box::new(rustdoc_chunker)],

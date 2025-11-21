@@ -1,23 +1,156 @@
 //! Configuration loading for forester
 //!
 //! Handles parsing `.forester.toml` configuration files to control
-//! indexing behavior, particularly multi-target scanning.
+//! indexing behavior, including file type filtering and Rust-specific options.
 
 use path_clean::PathClean;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
 
+use super::filter::{IndexingFilter, RustFilter, RustItemType};
+use crate::knowledge::domain::{FileType, Visibility};
+
 /// Forester configuration loaded from `.forester.toml`
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ForesterConfig {
+    /// File types to index
+    #[serde(default = "default_file_types")]
+    pub enabled_file_types: Vec<FileType>,
+
     /// Scan targets relative to forest root
     ///
     /// Each target is scanned independently with its own gitignore context.
     /// Empty list means scan from forest root.
     #[serde(default)]
     pub targets: Vec<PathBuf>,
+
+    /// File type specific configuration
+    #[serde(default)]
+    pub file_types: FileTypeConfig,
+}
+
+impl ForesterConfig {
+    /// Convert configuration to indexing filter
+    pub fn to_indexing_filter(&self) -> Result<IndexingFilter, ForesterConfigError> {
+        let rust_filter = if self.enabled_file_types.contains(&FileType::Rust) {
+            Some(self.file_types.rust.to_rust_filter()?)
+        } else {
+            None
+        };
+
+        Ok(IndexingFilter::new(
+            self.enabled_file_types.clone(),
+            rust_filter,
+        ))
+    }
+}
+
+impl Default for ForesterConfig {
+    fn default() -> Self {
+        Self {
+            enabled_file_types: default_file_types(),
+            targets: Vec::new(),
+            file_types: FileTypeConfig::default(),
+        }
+    }
+}
+
+/// File type specific configuration
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct FileTypeConfig {
+    /// Rust-specific indexing controls
+    #[serde(default)]
+    pub rust: RustConfig,
+}
+
+/// Rust-specific indexing configuration
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct RustConfig {
+    /// Visibility levels to index
+    #[serde(default = "default_rust_visibility")]
+    pub visibility: Vec<Visibility>,
+
+    /// Item types to index ("all" or specific types)
+    #[serde(default = "default_rust_items", deserialize_with = "deserialize_items")]
+    items: Vec<RustItemType>,
+
+    /// Minimum doc comment length in characters
+    #[serde(default)]
+    pub min_doc_length: usize,
+}
+
+fn deserialize_items<'de, D>(deserializer: D) -> Result<Vec<RustItemType>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let strings: Vec<String> = Vec::deserialize(deserializer)?;
+
+    if strings.len() == 1 && strings[0] == "all" {
+        return Ok(default_rust_items());
+    }
+
+    strings
+        .into_iter()
+        .map(|s| match s.as_str() {
+            "modules" => Ok(RustItemType::Module),
+            "functions" => Ok(RustItemType::Function),
+            "structs" => Ok(RustItemType::Struct),
+            "enums" => Ok(RustItemType::Enum),
+            "traits" => Ok(RustItemType::Trait),
+            "impls" => Ok(RustItemType::Impl),
+            "type-aliases" => Ok(RustItemType::TypeAlias),
+            "constants" => Ok(RustItemType::Constant),
+            _ => Err(D::Error::custom(format!("unknown item type: {}", s))),
+        })
+        .collect()
+}
+
+impl RustConfig {
+    /// Convert to RustFilter
+    fn to_rust_filter(&self) -> Result<RustFilter, ForesterConfigError> {
+        Ok(RustFilter::new(
+            self.visibility.clone(),
+            self.items.clone(),
+            self.min_doc_length,
+        ))
+    }
+}
+
+impl Default for RustConfig {
+    fn default() -> Self {
+        Self {
+            visibility: default_rust_visibility(),
+            items: default_rust_items(),
+            min_doc_length: 0,
+        }
+    }
+}
+
+fn default_file_types() -> Vec<FileType> {
+    vec![FileType::Markdown, FileType::Rust]
+}
+
+fn default_rust_visibility() -> Vec<Visibility> {
+    vec![Visibility::Public]
+}
+
+fn default_rust_items() -> Vec<RustItemType> {
+    vec![
+        RustItemType::Module,
+        RustItemType::Function,
+        RustItemType::Struct,
+        RustItemType::Enum,
+        RustItemType::Trait,
+        RustItemType::Impl,
+        RustItemType::TypeAlias,
+        RustItemType::Constant,
+    ]
 }
 
 /// Load forester configuration from `.forester.toml`
@@ -89,6 +222,9 @@ pub enum ForesterConfigError {
 
     #[snafu(display("Target path escapes forest root: {path}"))]
     PathEscapesRoot { path: String },
+
+    #[snafu(display("Invalid item type in configuration"))]
+    InvalidItemType,
 }
 
 #[cfg(test)]
@@ -206,5 +342,79 @@ targets = ["docs", "bottlerocket", "kits/bottlerocket-core-kit"]
             config.targets[2],
             PathBuf::from("kits/bottlerocket-core-kit")
         );
+    }
+
+    #[test]
+    fn test_forester_config_with_file_type_filters() {
+        // Given A .forester.toml with file type configuration
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+enabled-file-types = ["markdown", "rust"]
+targets = ["docs"]
+
+[file-types.rust]
+visibility = ["public", "crate"]
+items = ["modules", "structs"]
+min-doc-length = 30
+"#;
+        fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
+
+        // When Loading the config
+        let result = load_forester_config(temp_dir.path());
+
+        // Then It should parse successfully
+        assert!(result.is_ok());
+        let config = result.unwrap().unwrap();
+        assert_eq!(
+            config.enabled_file_types,
+            vec![FileType::Markdown, FileType::Rust]
+        );
+        assert_eq!(
+            config.file_types.rust.visibility,
+            vec![Visibility::Public, Visibility::Crate]
+        );
+        assert_eq!(config.file_types.rust.min_doc_length, 30);
+    }
+
+    #[test]
+    fn test_forester_config_to_indexing_filter() {
+        // Given A config with Rust filtering
+        let config = ForesterConfig {
+            enabled_file_types: vec![FileType::Markdown, FileType::Rust],
+            targets: vec![],
+            file_types: FileTypeConfig {
+                rust: RustConfig {
+                    visibility: vec![Visibility::Public],
+                    items: vec![RustItemType::Struct],
+                    min_doc_length: 20,
+                },
+            },
+        };
+
+        // When Converting to indexing filter
+        let result = config.to_indexing_filter();
+
+        // Then It should create a valid filter
+        assert!(result.is_ok());
+        let filter = result.unwrap();
+        assert!(filter.should_index_file_type(FileType::Markdown));
+        assert!(filter.should_index_file_type(FileType::Rust));
+        assert!(filter.rust_filter().is_some());
+    }
+
+    #[test]
+    fn test_rust_config_handles_all_items() {
+        // Given A config with "all" items
+        let config = RustConfig {
+            visibility: vec![Visibility::Public],
+            items: default_rust_items(),
+            min_doc_length: 0,
+        };
+
+        // When Converting to filter
+        let result = config.to_rust_filter();
+
+        // Then It should expand to all item types
+        assert!(result.is_ok());
     }
 }

@@ -14,7 +14,7 @@ use crate::knowledge::chunking::ChunkingDispatcher;
 use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig};
 use crate::knowledge::storage::ChunkRepository;
 
-use super::{FileScanner, IndexDataProvider};
+use super::{FileScanner, IndexDataProvider, IndexingFilter};
 
 /// Strategy for index operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,12 +45,14 @@ impl<R: ChunkRepository> Indexer<R> {
         config: &EmbeddingModelConfig,
         provider: Box<dyn IndexDataProvider>,
         scan_config: ScanConfig,
+        filter: IndexingFilter,
     ) -> Result<Self, IndexingError> {
         use types::indexing_error::*;
 
-        let scanner =
-            FileScanner::with_config(forest_root, scan_config).context(ScanFailedSnafu)?;
-        let dispatcher = ChunkingDispatcher::with_defaults(config).context(ChunkingFailedSnafu)?;
+        let scanner = FileScanner::with_config_and_filter(forest_root, scan_config, filter.clone())
+            .context(ScanFailedSnafu)?;
+        let dispatcher = ChunkingDispatcher::with_defaults_and_filter(config, &filter)
+            .context(ChunkingFailedSnafu)?;
 
         Ok(Self {
             scanner,
@@ -262,6 +264,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         );
 
         // Then It should succeed
@@ -283,6 +286,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         );
 
         // Then It should fail with ScanFailed error
@@ -315,6 +319,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -359,6 +364,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -396,6 +402,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -431,6 +438,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -471,6 +479,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -498,6 +507,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -534,6 +544,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -570,6 +581,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -619,6 +631,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -663,6 +676,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -717,6 +731,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -754,6 +769,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 
@@ -783,6 +799,7 @@ mod test {
             &config,
             Box::new(mock_provider),
             ScanConfig::default(),
+            IndexingFilter::default(),
         )
         .unwrap();
 

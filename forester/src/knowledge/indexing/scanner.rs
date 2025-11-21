@@ -4,6 +4,7 @@ use bon::Builder;
 use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
 
+use super::IndexingFilter;
 use crate::knowledge::domain::{
     AbsolutePath, FileType, ForestRelativePath, RepoName, ScanConfig, Timestamp,
 };
@@ -13,18 +14,32 @@ use crate::knowledge::domain::{
 pub struct FileScanner {
     forest_root: PathBuf,
     config: ScanConfig,
+    filter: IndexingFilter,
 }
 
 impl FileScanner {
     /// Create a scanner for the given forest root directory
     pub fn new(forest_root: impl AsRef<Path>) -> Result<Self, ScanError> {
-        Self::with_config(forest_root, ScanConfig::default())
+        Self::with_config_and_filter(
+            forest_root,
+            ScanConfig::default(),
+            IndexingFilter::default(),
+        )
     }
 
     /// Create a scanner with custom configuration
     pub fn with_config(
         forest_root: impl AsRef<Path>,
         config: ScanConfig,
+    ) -> Result<Self, ScanError> {
+        Self::with_config_and_filter(forest_root, config, IndexingFilter::default())
+    }
+
+    /// Create a scanner with custom configuration and filter
+    pub fn with_config_and_filter(
+        forest_root: impl AsRef<Path>,
+        config: ScanConfig,
+        filter: IndexingFilter,
     ) -> Result<Self, ScanError> {
         use scan_error::*;
 
@@ -39,6 +54,7 @@ impl FileScanner {
         Ok(Self {
             forest_root: forest_root.to_path_buf(),
             config,
+            filter,
         })
     }
 
@@ -119,6 +135,11 @@ impl FileScanner {
             }
 
             let file_type = FileType::from_path(path);
+
+            if !self.filter.should_index_file_type(file_type) {
+                continue;
+            }
+
             if !file_type.is_indexable() {
                 continue;
             }

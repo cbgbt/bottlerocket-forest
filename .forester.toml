@@ -1,8 +1,12 @@
 # Forester configuration for bottlerocket-forest
 #
-# This file configures which directories forester should index for semantic search.
-# Each target is scanned independently with its own gitignore context.
+# This file configures which directories forester should index for semantic search
+# and provides fine-grained control over what gets indexed.
 
+# File types to index (default: ["markdown", "rust"])
+enabled-file-types = ["markdown", "rust"]
+
+# Directories to scan
 targets = [
     "docs",
     "skills",
@@ -13,3 +17,16 @@ targets = [
     "host-containers",
     "bottlerocket-settings-sdk",
 ]
+
+# Rust-specific indexing controls
+[file-types.rust]
+# Which visibility levels to index (default: ["public"])
+# Options: "public", "crate", "private"
+visibility = ["public", "crate"]
+
+# Which item types to index (default: ["all"])
+# Options: "all", "modules", "functions", "structs", "enums", "traits", "impls", "type-aliases", "constants"
+items = ["all"]
+
+# Minimum doc comment length in characters (default: 0)
+min-doc-length = 0

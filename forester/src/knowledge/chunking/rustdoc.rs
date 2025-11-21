@@ -30,6 +30,7 @@ use crate::knowledge::domain::{
 pub struct RustDocChunker {
     splitter: TextSplitter<Tokenizer>,
     tokenizer: Tokenizer,
+    filter: Option<crate::knowledge::indexing::RustFilter>,
 }
 
 impl RustDocChunker {
@@ -37,6 +38,14 @@ impl RustDocChunker {
     ///
     /// Initializes tokenizers and text splitter with token limits and overlap from config.
     pub fn from_config(config: &EmbeddingModelConfig) -> Result<Self, ChunkingError> {
+        Self::from_config_with_filter(config, None)
+    }
+
+    /// Creates a chunker with optional filtering
+    pub fn from_config_with_filter(
+        config: &EmbeddingModelConfig,
+        filter: Option<crate::knowledge::indexing::RustFilter>,
+    ) -> Result<Self, ChunkingError> {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;
 
@@ -58,6 +67,7 @@ impl RustDocChunker {
         Ok(Self {
             splitter,
             tokenizer: tokenizer_for_counting,
+            filter,
         })
     }
 
@@ -91,6 +101,7 @@ impl RustDocChunker {
         input: &ChunkingInput,
     ) -> Result<Vec<Chunk>, ChunkingError> {
         use super::strategy::chunking_error::*;
+        use crate::knowledge::indexing::RustItemType;
         use snafu::ResultExt;
 
         let file_path = input.source.file_path.to_string();
@@ -118,6 +129,7 @@ impl RustDocChunker {
                         item_name,
                         Visibility::from(item_fn.vis.clone()),
                         Some(signature),
+                        RustItemType::Function,
                         input,
                     )?);
                 }
@@ -136,6 +148,7 @@ impl RustDocChunker {
                         item_name,
                         Visibility::from(item_struct.vis.clone()),
                         None,
+                        RustItemType::Struct,
                         input,
                     )?);
                 }
@@ -154,6 +167,7 @@ impl RustDocChunker {
                         item_name,
                         Visibility::from(item_enum.vis.clone()),
                         None,
+                        RustItemType::Enum,
                         input,
                     )?);
                 }
@@ -172,6 +186,7 @@ impl RustDocChunker {
                         item_name,
                         Visibility::from(item_trait.vis.clone()),
                         None,
+                        RustItemType::Trait,
                         input,
                     )?);
                 }
@@ -190,6 +205,7 @@ impl RustDocChunker {
                         mod_name,
                         Visibility::from(item_mod.vis.clone()),
                         None,
+                        RustItemType::Module,
                         input,
                     )?);
                 }
@@ -202,6 +218,44 @@ impl RustDocChunker {
             }
             Item::Impl(item_impl) => {
                 chunks.extend(self.extract_impl_method_chunks(item_impl, input)?);
+            }
+            Item::Type(item_type) => {
+                let doc_text = Self::extract_doc_text(&item_type.attrs);
+                if !doc_text.trim().is_empty() {
+                    let item_name = ItemName::try_new(item_type.ident.to_string())
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
+
+                    chunks.extend(self.create_chunks(
+                        &doc_text,
+                        item_name,
+                        Visibility::from(item_type.vis.clone()),
+                        None,
+                        RustItemType::TypeAlias,
+                        input,
+                    )?);
+                }
+            }
+            Item::Const(item_const) => {
+                let doc_text = Self::extract_doc_text(&item_const.attrs);
+                if !doc_text.trim().is_empty() {
+                    let item_name = ItemName::try_new(item_const.ident.to_string())
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                        .context(ParseSnafu {
+                            file_path: file_path.clone(),
+                        })?;
+
+                    chunks.extend(self.create_chunks(
+                        &doc_text,
+                        item_name,
+                        Visibility::from(item_const.vis.clone()),
+                        None,
+                        RustItemType::Constant,
+                        input,
+                    )?);
+                }
             }
             _ => {}
         }
@@ -216,6 +270,7 @@ impl RustDocChunker {
         input: &ChunkingInput,
     ) -> Result<Vec<Chunk>, ChunkingError> {
         use super::strategy::chunking_error::*;
+        use crate::knowledge::indexing::RustItemType;
         use snafu::ResultExt;
 
         let file_path = input.source.file_path.to_string();
@@ -243,6 +298,7 @@ impl RustDocChunker {
                         item_name,
                         Visibility::from(method.vis.clone()),
                         Some(signature),
+                        RustItemType::Impl,
                         input,
                     )?);
                 }
@@ -261,10 +317,17 @@ impl RustDocChunker {
         item_name: ItemName,
         visibility: Visibility,
         signature: Option<Signature>,
+        item_type: crate::knowledge::indexing::RustItemType,
         input: &ChunkingInput,
     ) -> Result<Vec<Chunk>, ChunkingError> {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;
+
+        if let Some(filter) = &self.filter
+            && !filter.should_index(&visibility, &item_type, doc_text.len())
+        {
+            return Ok(vec![]);
+        }
 
         let file_path = input.source.file_path.to_string();
         let text_chunks: Vec<&str> = self.splitter.chunks(doc_text).collect();
@@ -288,6 +351,7 @@ impl RustDocChunker {
                     .item_name(item_name.clone())
                     .visibility(visibility)
                     .maybe_signature(signature.clone())
+                    .item_type(item_type)
                     .build();
 
                 Ok(Chunk::builder()
@@ -342,6 +406,7 @@ impl ChunkingStrategy for RustDocChunker {
                         })?,
                     Visibility::Public,
                     None,
+                    crate::knowledge::indexing::RustItemType::Module,
                     input,
                 )?,
             );
@@ -860,5 +925,140 @@ pub fn medium() {}
         for chunk in &chunks {
             assert!(chunk.content.token_count.into_inner() > 0);
         }
+    }
+
+    #[test]
+    fn test_chunker_respects_visibility_filter() {
+        use crate::knowledge::domain::Visibility;
+        use crate::knowledge::indexing::{RustFilter, RustItemType};
+
+        // Given A chunker with public-only filter
+        let config = test_config();
+        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 0);
+        let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
+
+        let input = create_test_input(
+            r#"
+/// Public function
+pub fn public_fn() {}
+
+/// Private function
+fn private_fn() {}
+"#,
+        );
+
+        // When Chunking the file
+        let result = chunker.chunk(&input);
+
+        // Then Only public function should be indexed
+        assert!(result.is_ok());
+        let chunks = result.unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.text.contains("Public function"));
+    }
+
+    #[test]
+    fn test_chunker_respects_item_type_filter() {
+        use crate::knowledge::domain::Visibility;
+        use crate::knowledge::indexing::{RustFilter, RustItemType};
+
+        // Given A chunker that only indexes structs
+        let config = test_config();
+        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Struct], 0);
+        let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
+
+        let input = create_test_input(
+            r#"
+/// A struct
+pub struct MyStruct {}
+
+/// A function
+pub fn my_function() {}
+"#,
+        );
+
+        // When Chunking the file
+        let result = chunker.chunk(&input);
+
+        // Then Only struct should be indexed
+        assert!(result.is_ok());
+        let chunks = result.unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.text.contains("A struct"));
+    }
+
+    #[test]
+    fn test_chunker_respects_min_doc_length_filter() {
+        use crate::knowledge::domain::Visibility;
+        use crate::knowledge::indexing::{RustFilter, RustItemType};
+
+        // Given A chunker with minimum doc length of 30
+        let config = test_config();
+        let filter = RustFilter::new(vec![Visibility::Public], vec![RustItemType::Function], 30);
+        let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
+
+        let input = create_test_input(
+            r#"
+/// Short doc
+pub fn short() {}
+
+/// This is a longer documentation comment that exceeds the minimum length
+pub fn long() {}
+"#,
+        );
+
+        // When Chunking the file
+        let result = chunker.chunk(&input);
+
+        // Then Only function with long doc should be indexed
+        assert!(result.is_ok());
+        let chunks = result.unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.text.contains("longer documentation"));
+    }
+
+    #[test]
+    fn test_chunker_filters_multiple_criteria() {
+        use crate::knowledge::domain::Visibility;
+        use crate::knowledge::indexing::{RustFilter, RustItemType};
+
+        // Given A chunker with multiple filter criteria
+        let config = test_config();
+        let filter = RustFilter::new(
+            vec![Visibility::Public],
+            vec![RustItemType::Struct, RustItemType::Enum],
+            20,
+        );
+        let chunker = RustDocChunker::from_config_with_filter(&config, Some(filter)).unwrap();
+
+        let input = create_test_input(
+            r#"
+/// A public struct with sufficient documentation
+pub struct PublicStruct {}
+
+/// Short
+pub struct ShortDoc {}
+
+/// A private struct with sufficient documentation
+struct PrivateStruct {}
+
+/// A public enum with sufficient documentation
+pub enum PublicEnum { A, B }
+
+/// A public function with sufficient documentation
+pub fn public_function() {}
+"#,
+        );
+
+        // When Chunking the file
+        let result = chunker.chunk(&input);
+
+        // Then Only public struct and enum with sufficient docs should be indexed
+        assert!(result.is_ok());
+        let chunks = result.unwrap();
+        assert_eq!(chunks.len(), 2);
+        let texts: Vec<&str> = chunks.iter().map(|c| c.content.text.as_str()).collect();
+        assert!(texts.iter().any(|t| t.contains("public struct")));
+        assert!(texts.iter().any(|t| t.contains("public enum")));
     }
 }

@@ -7,13 +7,15 @@
 use std::path::Path;
 
 /// Classification of files for indexing
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FileType {
     /// Markdown documentation files
     Markdown,
     /// Rust source files (for doc comment extraction)
     Rust,
     /// Files that should not be indexed
+    #[serde(skip)]
     Unsupported,
 }
 

@@ -135,6 +135,7 @@ impl KnowledgeIndex {
 
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
+        let filter = self.load_indexing_filter()?;
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
@@ -144,6 +145,7 @@ impl KnowledgeIndex {
             &self.config,
             provider,
             scan_config,
+            filter,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -165,6 +167,7 @@ impl KnowledgeIndex {
 
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
+        let filter = self.load_indexing_filter()?;
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
@@ -174,6 +177,7 @@ impl KnowledgeIndex {
             &self.config,
             provider,
             scan_config,
+            filter,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -196,6 +200,7 @@ impl KnowledgeIndex {
 
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
+        let filter = self.load_indexing_filter()?;
         let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
@@ -205,6 +210,7 @@ impl KnowledgeIndex {
             &self.config,
             provider,
             scan_config,
+            filter,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -357,11 +363,31 @@ impl KnowledgeIndex {
         let forester_config = crate::knowledge::indexing::load_forester_config(&self.forest_root)
             .context(ConfigLoadFailedSnafu)?;
 
-        let targets = forester_config.map(|c| c.targets).unwrap_or_default();
+        let targets = forester_config
+            .as_ref()
+            .map(|c| c.targets.clone())
+            .unwrap_or_default();
 
         Ok(crate::knowledge::domain::ScanConfig::builder()
             .targets(targets)
             .build())
+    }
+
+    fn load_indexing_filter(
+        &self,
+    ) -> Result<crate::knowledge::indexing::IndexingFilter, IndexError> {
+        use types::index_error::*;
+
+        let forester_config = crate::knowledge::indexing::load_forester_config(&self.forest_root)
+            .context(ConfigLoadFailedSnafu)?;
+
+        let filter = forester_config
+            .map(|c| c.to_indexing_filter())
+            .transpose()
+            .context(ConfigLoadFailedSnafu)?
+            .unwrap_or_default();
+
+        Ok(filter)
     }
 }
 

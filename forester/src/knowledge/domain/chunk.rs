@@ -13,6 +13,7 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 
 use super::{ChunkId, ForestRelativePath, HeadingText, ItemName, RepoName, Signature, TokenCount};
+use crate::knowledge::indexing::RustItemType;
 
 /// A searchable chunk of documentation with metadata
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
@@ -66,10 +67,12 @@ pub struct RustDocContext {
     pub item_name: ItemName,
     pub visibility: Visibility,
     pub signature: Option<Signature>,
+    pub item_type: RustItemType,
 }
 
 /// Visibility of a Rust item
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum Visibility {
     Public,
     Crate,

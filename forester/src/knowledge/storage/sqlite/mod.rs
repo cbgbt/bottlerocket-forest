@@ -359,6 +359,7 @@ mod test {
                 .item_name(ItemName::try_new("build_variant").unwrap())
                 .visibility(Visibility::Public)
                 .signature(Signature::try_new("pub fn build_variant()").unwrap())
+                .item_type(crate::knowledge::indexing::RustItemType::Function)
                 .build()
         )
         ; "rustdoc context with signature"
@@ -368,6 +369,7 @@ mod test {
             RustDocContext::builder()
                 .item_name(ItemName::try_new("Config").unwrap())
                 .visibility(Visibility::Private)
+                .item_type(crate::knowledge::indexing::RustItemType::Struct)
                 .build()
         )
         ; "rustdoc context without signature"
