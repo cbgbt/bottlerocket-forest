@@ -7,7 +7,9 @@ pub use catalog::{CatalogError, ImageTag, RegistryImage, RepositoryName, list_im
 use docker::{Container, ContainerDiscovered};
 use snafu::{ResultExt, Snafu};
 use std::time::Duration;
-pub use types::{RegistryConfig, RegistryRuntimeConfig, RegistryState, RegistryStatus, RegistryUrl};
+pub use types::{
+    RegistryConfig, RegistryRuntimeConfig, RegistryState, RegistryStatus, RegistryUrl,
+};
 
 const REGISTRY_STARTUP_TIMEOUT_SECS: u64 = 10;
 

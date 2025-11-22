@@ -111,22 +111,13 @@ pub struct RegistryStatus {
 ///
 /// Contains user-configurable settings that can be loaded from environment
 /// variables or configuration files.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder, Default)]
 #[serde(rename_all = "kebab-case", default)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct RegistryConfig {
     pub port: RegistryPort,
     pub image: ImageRef,
-}
-
-impl Default for RegistryConfig {
-    fn default() -> Self {
-        Self {
-            port: RegistryPort::default(),
-            image: ImageRef::default(),
-        }
-    }
 }
 
 impl RegistryConfig {
