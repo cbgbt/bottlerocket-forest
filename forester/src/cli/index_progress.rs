@@ -72,20 +72,20 @@ impl CliProgressReporter {
     /// Get default scan progress style
     ///
     /// Returns a spinner style for the scanning phase:
-    /// `⠋ Scanning    (123 files found)`
+    /// `[00:00:01.234] ⠋ Scanning... (123 files found)`
     fn default_scan_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos} files found)")
+            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan} files found)")
             .unwrap()
     }
 
     /// Get default chunk progress style
     ///
     /// Returns a progress bar style for chunking:
-    /// `  Chunking    [████████░░] 45/100 files`
+    /// `[00:00:02.456] ⠋ Chunking... (45/100 files)`
     fn default_chunk_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos}/{len} files)")
+            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} files)")
             .unwrap()
             .progress_chars("█░")
     }
@@ -93,10 +93,10 @@ impl CliProgressReporter {
     /// Get default embed progress style
     ///
     /// Returns a progress bar style for indexing:
-    /// `⠋ Indexing    (450 chunks indexed)`
+    /// `[00:00:03.789] ⠋ Indexing... (450/1000 chunks indexed)`
     fn default_embed_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise}] {spinner:.green} {msg} ({pos}/{len} chunks indexed)")
+            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} chunks indexed)")
             .unwrap()
     }
 }
