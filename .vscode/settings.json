@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "forester/Cargo.toml"
+    ],
+    "files.insertFinalNewline": true
+}
