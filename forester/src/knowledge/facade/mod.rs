@@ -137,7 +137,7 @@ impl KnowledgeIndex {
     /// Scans all files in the forest and indexes them. Existing chunks are preserved.
     #[builder]
     pub fn build(
-        &mut self,
+        &self,
         progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
@@ -172,7 +172,7 @@ impl KnowledgeIndex {
     /// Removes all existing chunks before scanning and indexing all files in the forest.
     #[builder]
     pub fn rebuild(
-        &mut self,
+        &self,
         progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
@@ -208,7 +208,7 @@ impl KnowledgeIndex {
     /// the last index operation.
     #[builder]
     pub fn update(
-        &mut self,
+        &self,
         progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
@@ -241,7 +241,7 @@ impl KnowledgeIndex {
     /// Remove all chunks from the index
     ///
     /// Returns the number of chunks removed.
-    pub fn clear(&mut self) -> Result<usize, IndexError> {
+    pub fn clear(&self) -> Result<usize, IndexError> {
         use types::index_error::*;
 
         let mut repository = self.repository()?;
@@ -321,7 +321,7 @@ impl KnowledgeIndex {
     }
 
     /// Update the last_build timestamp in metadata
-    fn update_last_build_timestamp(&mut self) -> Result<(), IndexError> {
+    fn update_last_build_timestamp(&self) -> Result<(), IndexError> {
         use types::index_error::*;
 
         let mut repository = self.repository()?;

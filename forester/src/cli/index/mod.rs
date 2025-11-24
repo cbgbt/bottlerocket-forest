@@ -133,7 +133,7 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
@@ -155,7 +155,7 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
@@ -177,7 +177,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let mut index = open_existing_index(&forest_root)?;
+    let index = open_existing_index(&forest_root)?;
 
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
@@ -204,7 +204,7 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
         return Ok(());
     }
 
-    let mut index = open_existing_index(&forest_root)?;
+    let index = open_existing_index(&forest_root)?;
 
     let count = index.clear().context(KnowledgeIndexSnafu)?;
 
