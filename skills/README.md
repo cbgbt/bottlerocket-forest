@@ -28,6 +28,8 @@ When you identify that a skill should be used:
 
 3. **Follow the procedure exactly as documented** in the SKILL.md file
 
+**💡 TIP: If you have todolist functionality, use it to track skill steps.** Multi-step skills benefit from explicit progress tracking.
+
 ## Available Skills
 
 - **research-with-citations** - Answer questions about Bottlerocket by finding and reading relevant documentation

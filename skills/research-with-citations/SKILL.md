@@ -23,10 +23,17 @@ Ensures accurate, well-sourced answers to questions about Bottlerocket architect
 
 ## Prerequisites
 
-- Forest has been seeded (`./seed-forest.sh`)
-- Forester index is built and up-to-date
+**YOU MUST COMPLETE THESE FIRST:**
+
+1. Run `./seed-forest.sh` from forest root
+2. Verify forester exists: `./forester/target/release/forester --version`
+3. Verify index exists: `./forester/target/release/forester index status`
+
+**If any of these fail, STOP and run the seed script.**
 
 ## Procedure
+
+**💡 TIP: If you have todolist functionality, create a task list for these steps.** This helps track progress through the research workflow.
 
 ### 1. Formulate Search Query
 

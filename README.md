@@ -2,6 +2,65 @@
 
 A meta-repository for AI-assisted Bottlerocket development.
 
+## 🚨 MANDATORY WORKFLOW - START HERE
+
+**STOP. Before ANY response, you MUST complete these steps IN ORDER:**
+
+### Step 1: Seed the Forest (REQUIRED EVERY SESSION)
+
+```bash
+./seed-forest.sh
+```
+
+**Do this even if you think it's already done.** Run it and verify the output shows success.
+
+**If you skip this step, your response will be WRONG because:**
+- ❌ Forester tool won't exist → Can't search documentation
+- ❌ Knowledge index missing → Can't find relevant files
+- ❌ Repositories outdated → Will reference old code
+
+### Step 2: Read Core Documentation (REQUIRED EVERY SESSION)
+
+```bash
+# Read these files before any work:
+cat ./docs/architecture.md
+cat ./docs/build-system.md
+```
+
+**These docs are ALWAYS relevant.** Reading takes 30 seconds, prevents hours of mistakes.
+
+**If you skip this step, your response will be WRONG because:**
+- ❌ Will guess instead of citing facts
+- ❌ Will misunderstand component relationships
+- ❌ Will give outdated or incorrect guidance
+
+### Step 3: Check for Applicable Skills (REQUIRED BEFORE ANY TASK)
+
+```bash
+cat skills/README.md
+ls skills/
+```
+
+- If a skill exists for the task, ANNOUNCE it, LOAD it, then USE IT
+- Skills are tested procedures, not optional suggestions
+
+**If you skip this step, your response will be WRONG because:**
+- ❌ Will reinvent tested procedures incorrectly
+- ❌ Will miss validation steps
+- ❌ Will waste time on solved problems
+
+### Workflow Verification
+
+**Before answering, state which steps you completed:**
+- [ ] Ran `./seed-forest.sh` and verified output
+- [ ] Read `./docs/architecture.md`
+- [ ] Read `./docs/build-system.md`
+- [ ] Checked `skills/` directory for applicable skills
+
+**💡 TIP: If you have todolist functionality, create a task list for multi-step workflows.** This helps track progress, prevents skipped steps, and provides clear status updates.
+
+**Only after completing ALL steps should you proceed with the user's request.**
+
 ## Purpose
 
 The forest provides:
@@ -50,37 +109,23 @@ The script is idempotent and quiet by default. Use `./seed-forest.sh --verbose` 
 
 ## Working with the Forest
 
-**MANDATORY: Start every session by running `./seed-forest.sh`**
-
-### 🎯 SKILLS ARE MANDATORY
-
-**Before doing ANYTHING, check if a skill exists for the task.** Skills are NOT optional suggestions - they are the required way to work in the forest.
-
-**Why skills are mandatory:**
-- They encode tested, reliable procedures
-- They prevent common mistakes and save debugging time
-- They ensure consistent results across all sessions
-- They represent the ONLY approved way to perform their tasks
-
-**The workflow is:**
-1. User makes a request
-2. **IMMEDIATELY check `skills/` directory for applicable skills**
-3. If a skill exists, **USE IT** - do not improvise alternatives
-4. If no skill exists, proceed with manual approach
-
-See `skills/README.md` for the complete skills protocol.
-
 ### Documentation Research
 
-**CRITICAL**: Before answering questions about Bottlerocket, ALWAYS:
-1. Use the **research-with-citations** skill (see `skills/research-with-citations/`)
-2. Never rely on general knowledge when documentation exists
+**ANY question about how Bottlerocket works requires using a skill.**
 
-This ensures accurate, up-to-date information from actual documentation.
+Before answering questions about Bottlerocket:
+1. **Read `skills/README.md`** for the skill usage protocol
+2. Check if a skill exists for the task (e.g., `research-with-citations`)
+3. Follow the protocol: ANNOUNCE → LOAD → FOLLOW
 
 ## Forester
 
 Forester is the forest's orchestration tool, providing commands for common development tasks:
+
+**⚠️ CRITICAL: Forester must be run from the forest root directory**
+- Forester searches for documentation in the current working directory
+- Running it from `forester/` or using `cargo run` from inside `forester/` will NOT work
+- Always use `./forester/target/release/forester` from the forest root
 
 **Knowledge Index** - Semantic search across all forest documentation:
 ```bash
@@ -97,19 +142,6 @@ forester registry list     # List published images
 ```
 
 See `forester/README.md` for complete documentation.
-
-## Using the Forest
-
-**IMPORTANT: Before starting work or answering questions**, read `@./docs/architecture.md` to understand:
-- How kits, variants, and the build system work together
-- The development workflow and dependencies between components
-- Where to find key configuration files
-
-**When investigating system internals** (partitions, disk layout, boot process, encryption, etc.), check:
-1. `docs/architecture.md` for high-level system design
-2. Component-specific documentation in relevant repositories
-
-This context is essential for understanding the Bottlerocket ecosystem before making changes or answering questions about system behavior.
 
 ## Skills
 
