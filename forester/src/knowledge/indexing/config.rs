@@ -1,7 +1,8 @@
-//! Configuration loading for forester
+//! Configuration loading and parsing for forester indexing
 //!
-//! Handles parsing `.forester.toml` configuration files to control
-//! indexing behavior, including file type filtering and Rust-specific options.
+//! Loads and validates `.forester.toml` configuration files that control indexing
+//! behavior. Configuration includes file type filtering, Rust-specific options,
+//! scan targets, and search result boosting rules.
 
 use path_clean::PathClean;
 use serde::Deserialize;
@@ -12,7 +13,7 @@ use super::filter::{IndexingFilter, RustFilter, RustItemType};
 use crate::knowledge::domain::{FileType, Visibility};
 use crate::knowledge::scoring::BoostRule;
 
-/// Forester configuration loaded from `.forester.toml`
+/// Configuration loaded from `.forester.toml` in the forest root
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ForesterConfig {
@@ -37,7 +38,7 @@ pub struct ForesterConfig {
 }
 
 impl ForesterConfig {
-    /// Convert configuration to indexing filter
+    /// Convert configuration to an IndexingFilter for use during scanning
     pub fn to_indexing_filter(&self) -> Result<IndexingFilter, ForesterConfigError> {
         let rust_filter = if self.enabled_file_types.contains(&FileType::Rust) {
             Some(self.file_types.rust.to_rust_filter()?)
@@ -63,7 +64,7 @@ impl Default for ForesterConfig {
     }
 }
 
-/// File type specific configuration
+/// Configuration options specific to different file types
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct FileTypeConfig {
@@ -72,7 +73,7 @@ pub struct FileTypeConfig {
     pub rust: RustConfig,
 }
 
-/// Rust-specific indexing configuration
+/// Configuration for indexing Rust source files
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RustConfig {
@@ -118,7 +119,7 @@ where
 }
 
 impl RustConfig {
-    /// Convert to RustFilter
+    /// Convert to a RustFilter for use during indexing
     fn to_rust_filter(&self) -> Result<RustFilter, ForesterConfigError> {
         Ok(RustFilter::new(
             self.visibility.clone(),
@@ -159,10 +160,11 @@ fn default_rust_items() -> Vec<RustItemType> {
     ]
 }
 
-/// Load forester configuration from `.forester.toml`
+/// Load and validate forester configuration from `.forester.toml`
 ///
-/// Returns `None` if the config file doesn't exist (not an error).
-/// Returns an error if the file exists but is invalid.
+/// Returns `None` if the config file doesn't exist. Returns an error if the file
+/// exists but contains invalid TOML or violates validation rules (e.g., paths
+/// that escape the forest root).
 pub fn load_forester_config(
     forest_root: impl AsRef<Path>,
 ) -> Result<Option<ForesterConfig>, ForesterConfigError> {

@@ -1,4 +1,8 @@
-//! Core indexing operations
+//! Core file processing operations for indexing
+//!
+//! Provides functions for processing individual files during indexing: reading
+//! content, chunking via the dispatcher, generating embeddings, and handling
+//! parse errors gracefully.
 
 use snafu::ResultExt;
 
@@ -9,10 +13,9 @@ use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, IndexedChun
 
 /// Process a file with graceful error handling for parse failures
 ///
-/// Returns:
-/// - Ok: Successfully processed chunks
-/// - Err(Ok): File was skipped due to parse error
-/// - Err(Err): Fatal error - caller should propagate
+/// Returns Ok with chunks on success, Err(Ok(())) if the file should be skipped
+/// due to a parse error, or Err(Err(error)) for fatal errors that should be
+/// propagated to the caller.
 pub(super) fn process_file_gracefully(
     file: &IndexableFile,
     dispatcher: &ChunkingDispatcher,
@@ -42,10 +45,7 @@ fn is_skippable_parse_error(error: &IndexingError) -> bool {
     )
 }
 
-/// Process a single file: read, chunk, and index
-///
-/// Reads the file content, chunks it using the dispatcher, and wraps each chunk
-/// with index data.
+/// Process a single file by reading, chunking, and generating embeddings
 pub(super) fn process_file(
     file: &IndexableFile,
     dispatcher: &ChunkingDispatcher,
@@ -77,7 +77,7 @@ pub(super) fn process_file(
     index_chunks(chunks, provider, progress)
 }
 
-/// Index multiple chunks, using batch operations when available
+/// Generate embeddings for chunks and wrap them as IndexedChunks
 fn index_chunks(
     chunks: Vec<Chunk>,
     provider: &dyn IndexDataProvider,

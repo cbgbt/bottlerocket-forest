@@ -1,4 +1,7 @@
-//! Types for indexing operations
+//! Type definitions for indexing operations
+//!
+//! Defines [`IndexResult`] for reporting indexing outcomes and [`IndexingError`]
+//! for representing failures during the indexing workflow.
 
 use bon::Builder;
 use snafu::Snafu;
@@ -8,7 +11,7 @@ use crate::knowledge::storage::StorageError;
 
 use super::super::{DispatchError, IndexDataError, ScanError};
 
-/// Result of an indexing operation
+/// Statistics and metadata from a completed indexing operation
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[non_exhaustive]
 pub struct IndexResult {

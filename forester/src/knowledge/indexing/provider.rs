@@ -1,6 +1,9 @@
-//! Index data generation for semantic embeddings
+//! Embedding generation for semantic search indexing
 //!
-//! Generates semantic embeddings for text chunks using neural language models.
+//! This module provides the [`IndexDataProvider`] trait for generating embeddings
+//! from text content. The [`EmbeddingDataProvider`] implementation wraps an
+//! [`EmbeddingProvider`] to convert text chunks into vector embeddings suitable
+//! for semantic search.
 
 use snafu::{IntoError, Snafu};
 
@@ -8,19 +11,22 @@ use super::ProgressReporter;
 use crate::knowledge::domain::Embedding;
 use crate::knowledge::search::embeddings::EmbeddingProvider;
 
-/// Generates embeddings from text content
+/// Generates embeddings from text content for semantic search
 #[cfg_attr(test, mockall::automock)]
 #[allow(clippy::needless_lifetimes)]
 pub trait IndexDataProvider: Send + Sync {
-    /// Generate embedding from text
+    /// Generate embedding vector from text
     fn generate(&self, text: &str) -> Result<Embedding, IndexDataError>;
 
     /// Generate embeddings for multiple texts in batch
+    ///
+    /// Default implementation calls `generate()` for each text. Implementations
+    /// can override to use native batch processing for better performance.
     fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<Embedding>, IndexDataError> {
         texts.iter().map(|text| self.generate(text)).collect()
     }
 
-    /// Generate embedding with optional progress reporting
+    /// Generate embedding with progress reporting
     ///
     /// Default implementation calls `generate()` and reports progress.
     /// Implementations can override for batch-aware progress reporting.
@@ -36,7 +42,7 @@ pub trait IndexDataProvider: Send + Sync {
         Ok(result)
     }
 
-    /// Generate embeddings for multiple texts with optional progress reporting
+    /// Generate embeddings for multiple texts with progress reporting
     ///
     /// Default implementation calls `generate_batch()` and reports progress.
     /// Implementations can override for fine-grained batch progress reporting.
@@ -67,13 +73,13 @@ pub enum IndexDataError {
     },
 }
 
-/// Semantic embedding provider
+/// Adapter for generating embeddings via an EmbeddingProvider
 pub struct EmbeddingDataProvider {
     embedding_provider: Box<dyn EmbeddingProvider>,
 }
 
 impl EmbeddingDataProvider {
-    /// Create a new embedding data provider
+    /// Create a new embedding data provider wrapping an EmbeddingProvider
     pub fn new(embedding_provider: Box<dyn EmbeddingProvider>) -> Self {
         Self { embedding_provider }
     }

@@ -1,13 +1,15 @@
-//! Filtering logic for controlling what gets indexed
+//! Filtering rules for controlling indexing scope
 //!
-//! Provides fine-grained control over which files and Rust items are included
-//! in the knowledge index based on configuration.
+//! Provides [`IndexingFilter`] for file-level filtering and [`RustFilter`] for
+//! Rust-specific filtering based on visibility, item type, and documentation
+//! length. Filters are typically constructed from configuration loaded via
+//! [`ForesterConfig`](super::config::ForesterConfig).
 
 use serde::{Deserialize, Serialize};
 
 use crate::knowledge::domain::Visibility;
 
-/// Type of Rust item for filtering purposes
+/// Categories of Rust language items that can be filtered during indexing
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RustItemType {
@@ -29,7 +31,7 @@ pub enum RustItemType {
     Constant,
 }
 
-/// Filter for Rust item indexing
+/// Filtering rules for Rust source code indexing
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RustFilter {
     visibility: Vec<Visibility>,
@@ -38,7 +40,7 @@ pub struct RustFilter {
 }
 
 impl RustFilter {
-    /// Create a filter with specified criteria
+    /// Create a filter with visibility, item types, and minimum documentation length
     pub fn new(
         visibility: Vec<Visibility>,
         items: Vec<RustItemType>,
@@ -51,7 +53,7 @@ impl RustFilter {
         }
     }
 
-    /// Check if a Rust item should be indexed
+    /// Determine whether a Rust item should be indexed based on filter criteria
     pub fn should_index(
         &self,
         visibility: &Visibility,
@@ -74,7 +76,7 @@ impl RustFilter {
     }
 }
 
-/// Indexing filters derived from configuration
+/// Combined filtering rules for file types and Rust-specific criteria
 #[derive(Debug, Clone)]
 pub struct IndexingFilter {
     enabled_file_types: Vec<crate::knowledge::domain::FileType>,
@@ -82,7 +84,7 @@ pub struct IndexingFilter {
 }
 
 impl IndexingFilter {
-    /// Create a filter with specified file types and optional Rust filter
+    /// Create a filter with enabled file types and optional Rust-specific rules
     pub fn new(
         enabled_file_types: Vec<crate::knowledge::domain::FileType>,
         rust_filter: Option<RustFilter>,
@@ -93,12 +95,12 @@ impl IndexingFilter {
         }
     }
 
-    /// Check if a file type should be indexed
+    /// Determine whether a file type should be indexed
     pub fn should_index_file_type(&self, file_type: crate::knowledge::domain::FileType) -> bool {
         self.enabled_file_types.contains(&file_type)
     }
 
-    /// Get Rust filter if Rust indexing is enabled
+    /// Access the Rust-specific filter if configured
     pub fn rust_filter(&self) -> Option<&RustFilter> {
         self.rust_filter.as_ref()
     }

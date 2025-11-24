@@ -1,4 +1,9 @@
-//! File scanning for discovering indexable documentation
+//! File discovery for indexable documentation in the forest
+//!
+//! The [`FileScanner`] walks the forest directory structure to discover files
+//! that can be indexed (.md and .rs files). It respects .gitignore and
+//! .foresterignore patterns, and can be configured to scan specific target
+//! directories or the entire forest.
 
 use bon::Builder;
 use snafu::{ResultExt, Snafu};
@@ -10,7 +15,7 @@ use crate::knowledge::domain::{
     AbsolutePath, FileType, ForestRelativePath, RepoName, ScanConfig, Timestamp,
 };
 
-/// Scans directories for indexable files
+/// Discovers indexable files in the forest directory structure
 pub struct FileScanner {
     forest_root: PathBuf,
     config: ScanConfig,
@@ -267,7 +272,7 @@ impl FileScanner {
     }
 }
 
-/// A file that can be indexed
+/// Metadata for a file discovered during scanning
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
 #[builder(on(_, into))]
 #[non_exhaustive]

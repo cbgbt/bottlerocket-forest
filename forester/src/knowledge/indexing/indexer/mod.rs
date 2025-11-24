@@ -1,4 +1,16 @@
-//! Unified indexer for building and updating the knowledge index
+//! Unified indexer for building and maintaining the knowledge index
+//!
+//! The [`Indexer`] orchestrates the complete indexing workflow: scanning files,
+//! chunking content, generating embeddings, and storing indexed chunks. It supports
+//! three strategies via [`IndexStrategy`]:
+//!
+//! * [`IndexStrategy::Build`] - Build index from scratch without clearing existing data
+//! * [`IndexStrategy::Rebuild`] - Clear existing index then build from scratch
+//! * [`IndexStrategy::Incremental`] - Update only changed files (additions, modifications, deletions)
+//!
+//! The indexer coordinates between the [`FileScanner`], [`ChunkingDispatcher`],
+//! [`IndexDataProvider`], and [`ChunkRepository`] to transform raw documentation
+//! files into searchable indexed chunks.
 
 mod operations;
 mod types;
@@ -17,7 +29,7 @@ use crate::knowledge::storage::ChunkRepository;
 
 use super::{FileScanner, IndexDataProvider, IndexingFilter, ProgressReporter};
 
-/// Strategy for index operations
+/// Strategy for executing index operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexStrategy {
     /// Build index from scratch (don't clear existing)
@@ -30,7 +42,7 @@ pub enum IndexStrategy {
     Incremental,
 }
 
-/// Unified indexer for building and updating the knowledge index
+/// Orchestrates the complete indexing workflow from files to indexed chunks
 pub struct Indexer<R: ChunkRepository> {
     scanner: FileScanner,
     dispatcher: ChunkingDispatcher,
@@ -40,7 +52,7 @@ pub struct Indexer<R: ChunkRepository> {
 }
 
 impl<R: ChunkRepository> Indexer<R> {
-    /// Create a new indexer
+    /// Create an indexer for the specified forest root
     pub fn new(
         forest_root: impl AsRef<Path>,
         repository: R,
@@ -60,7 +72,7 @@ impl<R: ChunkRepository> Indexer<R> {
         )
     }
 
-    /// Create a new indexer with optional progress reporting
+    /// Create an indexer with progress reporting
     pub fn with_progress(
         forest_root: impl AsRef<Path>,
         repository: R,
@@ -87,7 +99,7 @@ impl<R: ChunkRepository> Indexer<R> {
         })
     }
 
-    /// Execute an indexing operation
+    /// Execute an indexing operation using the specified strategy
     pub fn index(&mut self, strategy: IndexStrategy) -> Result<IndexResult, IndexingError> {
         match strategy {
             IndexStrategy::Build => self.build(),
