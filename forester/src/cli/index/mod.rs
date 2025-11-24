@@ -193,7 +193,7 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
     if !args.yes && !prompt_confirmation("Are you sure you want to clear the index?")? {
-        println!("Cancelled");
+        println!("{}", theme::muted("Cancelled"));
         return Ok(());
     }
 
@@ -201,7 +201,11 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
 
     let count = index.clear().context(KnowledgeIndexSnafu)?;
 
-    println!("Cleared {} chunks from the index", count);
+    println!(
+        "{} Cleared {} chunks from the index",
+        theme::success("✓"),
+        theme::value(count)
+    );
 
     Ok(())
 }
@@ -339,20 +343,32 @@ fn group_results_by_file(results: &SearchResults) -> Vec<FileSearchResult> {
 
 /// Prints a formatted summary of build operation results
 fn format_build_result(result: &crate::knowledge::indexing::IndexResult) {
-    println!("Index build complete!");
-    println!("  Files processed: {}", result.files_processed);
-    println!("  Chunks created: {}", result.chunks_affected);
-    println!("  Duration: {:.2}s", result.duration.as_secs_f64());
+    println!("{} Index build complete!", theme::success("✓"));
+    println!(
+        "  Files processed: {}",
+        theme::value(result.files_processed)
+    );
+    println!("  Chunks created: {}", theme::value(result.chunks_affected));
+    println!(
+        "  Duration: {}",
+        theme::muted(format!("{:.2}s", result.duration.as_secs_f64()))
+    );
 }
 
 /// Prints a formatted summary of update operation results
 fn format_update_result(result: &crate::knowledge::indexing::IndexResult) {
-    println!("Index update complete!");
-    println!("  Files added: {}", result.files_added);
-    println!("  Files updated: {}", result.files_updated);
-    println!("  Files removed: {}", result.files_removed);
-    println!("  Chunks affected: {}", result.chunks_affected);
-    println!("  Duration: {:.2}s", result.duration.as_secs_f64());
+    println!("{} Index update complete!", theme::success("✓"));
+    println!("  Files added: {}", theme::value(result.files_added));
+    println!("  Files updated: {}", theme::value(result.files_updated));
+    println!("  Files removed: {}", theme::value(result.files_removed));
+    println!(
+        "  Chunks affected: {}",
+        theme::value(result.chunks_affected)
+    );
+    println!(
+        "  Duration: {}",
+        theme::muted(format!("{:.2}s", result.duration.as_secs_f64()))
+    );
 }
 
 /// Prints file search results in human-readable format with color-coded scores
@@ -404,21 +420,33 @@ fn format_file_results_json(file_results: &[FileSearchResult]) -> Result<(), Ind
 
 /// Prints index status information including metadata and statistics
 fn format_status(status: &crate::knowledge::facade::IndexStatus) {
-    println!("Knowledge Index Status");
-    println!("  Exists: {}", status.exists);
-    println!("  Chunks: {}", status.chunk_count);
-    println!("  Files: {}", status.file_count);
+    println!("{}", theme::label("Knowledge Index Status"));
+    println!("  Exists: {}", theme::value(status.exists));
+    println!("  Chunks: {}", theme::value(status.chunk_count));
+    println!("  Files: {}", theme::value(status.file_count));
 
     if let Some(Ok(elapsed)) = status.last_build.map(|t| t.elapsed()) {
-        println!("  Last build: {:.0} seconds ago", elapsed.as_secs_f64());
+        println!(
+            "  Last build: {}",
+            theme::muted(format!("{:.0} seconds ago", elapsed.as_secs_f64()))
+        );
     }
 
-    println!("  Model: {}", status.model_config.model_name);
-    println!("  Embedding dim: {}", status.model_config.embedding_dim);
-    println!("  Max tokens: {}", status.model_config.max_tokens);
+    println!("  Model: {}", theme::value(&status.model_config.model_name));
+    println!(
+        "  Embedding dim: {}",
+        theme::value(status.model_config.embedding_dim)
+    );
+    println!(
+        "  Max tokens: {}",
+        theme::value(status.model_config.max_tokens)
+    );
 
     if let Some(size) = status.size_bytes {
-        println!("  Size: {:.2} MB", size as f64 / 1_000_000.0);
+        println!(
+            "  Size: {}",
+            theme::size(format!("{:.2} MB", size as f64 / 1_000_000.0))
+        );
     }
 }
 
