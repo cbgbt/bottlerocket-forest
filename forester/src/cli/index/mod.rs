@@ -1,10 +1,20 @@
+//! Knowledge index management commands.
+//!
+//! This module provides CLI commands for building, updating, and querying the knowledge index.
+//! The index enables semantic search across Bottlerocket repositories.
+//!
+//! Submodules:
+//! * [`progress`] - Progress reporting for indexing operations
+
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::cli::index_progress::CliProgressReporter;
+use self::progress::CliProgressReporter;
+
+mod progress;
 use crate::knowledge::KnowledgeIndex;
 use crate::knowledge::domain::{
     FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,

@@ -1,5 +1,4 @@
 mod index;
-mod index_progress;
 mod registry;
 
 use clap::{Parser, Subcommand};
