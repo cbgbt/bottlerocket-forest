@@ -1,7 +1,7 @@
-//! Score boosting rules for search results
+//! Declarative rules for boosting search result scores
 //!
-//! Defines declarative rules for boosting search result scores based on
-//! file characteristics. Documentation files are prioritized over source code.
+//! Defines rules based on file characteristics to prioritize documentation
+//! files over source code in search results.
 
 use bon::Builder;
 use globset::{Glob, GlobMatcher};
@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::knowledge::domain::{Chunk, ForestRelativePath};
 
-/// A multiplier applied to search scores
+/// Multiplier applied to search scores
+///
+/// Valid range is [0.1, 10.0] where 1.0 means no boost.
 #[nutype(
     validate(greater_or_equal = 0.1, less_or_equal = 10.0),
     derive(
@@ -34,17 +36,17 @@ impl Default for BoostMultiplier {
     }
 }
 
-/// A rule for boosting search scores based on file characteristics
+/// Rule for boosting search scores based on file characteristics
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Builder)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct BoostRule {
-    /// Human-readable description of the rule
+    /// Human-readable description of what this rule matches
     #[serde(default)]
     pub description: String,
-    /// The pattern to match against
+    /// Glob pattern to match against file paths
     pub pattern: BoostPattern,
-    /// The multiplier to apply when matched
+    /// Score multiplier applied when pattern matches
     pub multiplier: BoostMultiplier,
 }
 
@@ -55,7 +57,7 @@ impl BoostRule {
     }
 }
 
-/// Pattern for matching files using glob syntax
+/// Glob pattern for matching file paths
 #[derive(Debug, Clone, Serialize)]
 pub struct BoostPattern {
     pattern: String,
@@ -74,7 +76,7 @@ impl<'de> Deserialize<'de> for BoostPattern {
 }
 
 impl BoostPattern {
-    /// Create a new boost pattern from a glob string
+    /// Create a boost pattern from a glob string
     pub fn new(pattern: impl Into<String>) -> Result<Self, globset::Error> {
         let pattern = pattern.into();
         let matcher = Glob::new(&pattern)?.compile_matcher();
@@ -84,7 +86,7 @@ impl BoostPattern {
         })
     }
 
-    /// Get or compile the matcher
+    /// Get or lazily compile the glob matcher
     fn get_matcher(&self) -> GlobMatcher {
         self.matcher.clone().unwrap_or_else(|| {
             // Lazy compile if deserialized
@@ -94,6 +96,7 @@ impl BoostPattern {
         })
     }
 
+    /// Check if this pattern matches the given file path
     fn matches(&self, path: &ForestRelativePath) -> bool {
         let matcher = self.get_matcher();
         matcher.is_match(path.to_string())
@@ -109,6 +112,8 @@ impl PartialEq for BoostPattern {
 impl Eq for BoostPattern {}
 
 /// Default boost rules prioritizing documentation over source code
+///
+/// Rules are evaluated in order, with the first match being applied.
 pub fn default_boost_rules() -> Vec<BoostRule> {
     vec![
         BoostRule::builder()

@@ -1,7 +1,7 @@
-//! Score boosting implementation
+//! Applies boost rules to search result scores
 //!
-//! Applies boost rules to search result scores to prioritize certain types
-//! of content (e.g., documentation over source code).
+//! Prioritizes certain types of content (e.g., documentation over source code)
+//! by multiplying relevance scores based on file characteristics.
 
 use snafu::ResultExt;
 
@@ -16,14 +16,14 @@ pub struct ScoreBooster {
 }
 
 impl ScoreBooster {
-    /// Create a new score booster with the given rules
+    /// Create a score booster with the given rules
     pub fn new(rules: Vec<BoostRule>) -> Self {
         Self { rules }
     }
 
     /// Calculate the boost multiplier for a chunk
     ///
-    /// Returns the multiplier from the first matching rule, or 1.0 if no rules match.
+    /// Uses the multiplier from the first matching rule, or 1.0 if no rules match.
     pub fn calculate_boost(&self, chunk: &Chunk) -> BoostMultiplier {
         self.rules
             .iter()
@@ -34,7 +34,7 @@ impl ScoreBooster {
 
     /// Apply boost to a relevance score
     ///
-    /// Multiplies the score by the boost multiplier, clamping to [0.0, 1.0].
+    /// Multiplies the score by the boost multiplier and clamps to [0.0, 1.0].
     pub fn apply_boost(
         &self,
         score: RelevanceScore,
