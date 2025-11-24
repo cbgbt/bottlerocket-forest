@@ -1,4 +1,4 @@
-//! Chunking strategy trait and types
+//! Defines the chunking strategy trait and common types for file content processing.
 
 use snafu::Snafu;
 use std::path::Path;

@@ -1,7 +1,8 @@
 //! Chunks markdown files by heading structure with token-aware splitting.
 //!
-//! This module uses `text-splitter`'s `MarkdownSplitter` to chunk markdown content
-//! while preserving heading hierarchy. Long sections are split with token-based overlap.
+//! Uses `text-splitter`'s `MarkdownSplitter` to chunk markdown content
+//! while preserving heading hierarchy. Sections exceeding token limits are
+//! split with configurable overlap.
 //!
 //! Each chunk maintains the full heading hierarchy from the document structure,
 //! enabling context-aware semantic search.
@@ -27,9 +28,7 @@ pub struct MarkdownChunker {
 }
 
 impl MarkdownChunker {
-    /// Creates a chunker configured with the specified embedding model parameters.
-    ///
-    /// Initializes tokenizer and markdown splitter with token limits and overlap from config.
+    /// Initializes chunker with tokenizer and splitter configured for the embedding model.
     pub fn from_config(config: &EmbeddingModelConfig) -> Result<Self, ChunkingError> {
         use super::strategy::chunking_error::*;
         use snafu::ResultExt;

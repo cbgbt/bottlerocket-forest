@@ -13,13 +13,13 @@ pub struct ChunkingDispatcher {
 }
 
 impl ChunkingDispatcher {
-    /// Creates a dispatcher with default strategies for markdown and Rust files.
+    /// Initializes dispatcher with markdown and Rust file strategies.
     #[must_use = "dispatcher must be used or initialization error handled"]
     pub fn with_defaults(config: &EmbeddingModelConfig) -> Result<Self, DispatchError> {
         Self::with_defaults_and_filter(config, &IndexingFilter::default())
     }
 
-    /// Creates a dispatcher with filtering support
+    /// Initializes dispatcher with markdown and Rust file strategies and applies filtering rules.
     #[must_use = "dispatcher must be used or initialization error handled"]
     pub fn with_defaults_and_filter(
         config: &EmbeddingModelConfig,
@@ -56,7 +56,6 @@ impl ChunkingDispatcher {
     }
 }
 
-/// Errors that can occur during dispatch operations
 #[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub(crate)))]
 pub enum DispatchError {

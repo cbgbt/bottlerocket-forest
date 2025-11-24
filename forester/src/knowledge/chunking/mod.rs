@@ -1,4 +1,8 @@
-//! Chunking strategies for splitting documentation into searchable units
+//! Splits documentation files into searchable chunks for semantic indexing.
+//!
+//! Provides strategies for chunking markdown and Rust source files while preserving
+//! structural context (heading hierarchies, item metadata). Uses token-aware splitting
+//! with configurable overlap to respect embedding model constraints.
 
 pub mod dispatcher;
 pub mod markdown;

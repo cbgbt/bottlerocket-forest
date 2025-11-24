@@ -1,4 +1,4 @@
-//! Doc comment extraction logic for Rust items.
+//! Extracts doc comments from Rust syntax tree items and creates searchable chunks.
 
 use syn::{Attribute, Item, ItemImpl};
 use text_splitter::TextSplitter;

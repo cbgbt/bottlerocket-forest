@@ -1,7 +1,7 @@
 //! Extracts and chunks Rust documentation comments for semantic search.
 //!
-//! This module implements chunking for Rust source files by extracting doc comments
-//! (`///` and `//!`) while ignoring inline comments (`//`). It uses `syn` for parsing
+//! Implements chunking for Rust source files by extracting doc comments
+//! (`///` and `//!`) while ignoring inline comments (`//`). Uses `syn` for parsing
 //! and `text-splitter` for token-aware chunking with overlap.
 //!
 //! Doc comments are extracted from:
@@ -38,14 +38,12 @@ pub struct RustDocChunker {
 }
 
 impl RustDocChunker {
-    /// Creates a chunker configured with the specified embedding model parameters.
-    ///
-    /// Initializes tokenizers and text splitter with token limits and overlap from config.
+    /// Initializes chunker with tokenizer and splitter configured for the embedding model.
     pub fn from_config(config: &EmbeddingModelConfig) -> Result<Self, ChunkingError> {
         Self::from_config_with_filter(config, None)
     }
 
-    /// Creates a chunker with optional filtering
+    /// Initializes chunker with tokenizer, splitter, and filtering rules for Rust items.
     pub fn from_config_with_filter(
         config: &EmbeddingModelConfig,
         filter: Option<crate::knowledge::indexing::RustFilter>,
