@@ -61,14 +61,15 @@ impl KnowledgeIndex {
     /// Open or create a knowledge index with default configuration
     ///
     /// Creates the `.forester/` directory and `knowledge.db` database if they don't exist.
+    /// Uses the default embedding model configuration.
     pub fn open(forest_root: impl AsRef<Path>) -> Result<Self, IndexError> {
         Self::open_with_config(forest_root, EmbeddingModelConfig::default())
     }
 
     /// Open or create a knowledge index with custom configuration
     ///
-    /// Like [`open`](Self::open), but allows specifying a custom embedding model configuration.
-    /// If the index already exists, validates that its configuration matches.
+    /// Allows specifying a custom embedding model configuration. The configuration
+    /// is validated against any existing index to ensure compatibility.
     pub fn open_with_config(
         forest_root: impl AsRef<Path>,
         config: EmbeddingModelConfig,
@@ -129,8 +130,7 @@ impl KnowledgeIndex {
 
     /// Build the index from scratch without clearing existing data
     ///
-    /// Scans all files in the forest and indexes them. If chunks already exist,
-    /// they are not removed. Use [`rebuild`](Self::rebuild) to start fresh.
+    /// Scans all files in the forest and indexes them. Existing chunks are preserved.
     pub fn build(&mut self) -> Result<IndexResult, IndexError> {
         self.build_with_progress(None)
     }
@@ -173,7 +173,7 @@ impl KnowledgeIndex {
 
     /// Clear the index and rebuild from scratch
     ///
-    /// Removes all existing chunks, then scans and indexes all files in the forest.
+    /// Removes all existing chunks before scanning and indexing all files in the forest.
     pub fn rebuild(&mut self) -> Result<IndexResult, IndexError> {
         self.rebuild_with_progress(None)
     }
@@ -216,8 +216,8 @@ impl KnowledgeIndex {
 
     /// Update the index incrementally
     ///
-    /// Only processes files that have been added, modified, or deleted since
-    /// the last index operation. More efficient than a full rebuild.
+    /// Processes only files that have been added, modified, or deleted since
+    /// the last index operation.
     pub fn update(&mut self) -> Result<IndexResult, IndexError> {
         self.update_with_progress(None)
     }
@@ -269,8 +269,8 @@ impl KnowledgeIndex {
 
     /// Search the index
     ///
-    /// Executes a semantic search query using embeddings.
-    /// The limit must be between 1 and 100.
+    /// Executes a semantic search query using embeddings. The limit parameter
+    /// controls the maximum number of results returned (1-100).
     pub fn search(
         &self,
         query: impl AsRef<str>,
@@ -309,8 +309,7 @@ impl KnowledgeIndex {
 
     /// Get index status and statistics
     ///
-    /// Returns metadata about the index including chunk count, file count,
-    /// last build time, and disk size.
+    /// Returns metadata including chunk count, file count, last build time, and disk size.
     pub fn status(&self) -> Result<IndexStatus, IndexError> {
         use types::index_error::*;
 
@@ -354,6 +353,9 @@ impl KnowledgeIndex {
     }
 
     /// Create a search engine for the current index mode
+    ///
+    /// Initializes the semantic search engine with the configured embedding model
+    /// and score boosting rules from the forester configuration.
     fn create_search_engine(&self) -> Result<Box<dyn SearchEngine>, IndexError> {
         use types::index_error::*;
 
@@ -387,6 +389,9 @@ impl KnowledgeIndex {
         )))
     }
 
+    /// Create an embedding data provider for indexing operations
+    ///
+    /// Initializes the embedding model used to generate vector embeddings during indexing.
     fn create_provider(
         &self,
     ) -> Result<Box<dyn crate::knowledge::indexing::IndexDataProvider>, IndexError> {
@@ -423,6 +428,9 @@ impl KnowledgeIndex {
             .build())
     }
 
+    /// Load indexing filter rules from forester configuration
+    ///
+    /// Reads `.forester.toml` to determine which files should be excluded from indexing.
     fn load_indexing_filter(
         &self,
     ) -> Result<crate::knowledge::indexing::IndexingFilter, IndexError> {

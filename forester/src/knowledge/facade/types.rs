@@ -1,4 +1,11 @@
 //! Types for the knowledge index facade
+//!
+//! This module defines the public API types for interacting with the knowledge index:
+//! * [`IndexStatus`] provides metadata about the current state of the index
+//! * [`IndexError`] represents all errors that can occur during facade operations
+//!
+//! These types form the boundary between the high-level facade API and the underlying
+//! domain, storage, and search implementations.
 
 use bon::Builder;
 use snafu::Snafu;
