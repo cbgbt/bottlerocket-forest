@@ -20,11 +20,10 @@ pub trait IndexDataProvider: Send + Sync {
 
     /// Generate embeddings for multiple texts in batch
     ///
-    /// Default implementation calls `generate()` for each text. Implementations
-    /// can override to use native batch processing for better performance.
-    fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<Embedding>, IndexDataError> {
-        texts.iter().map(|text| self.generate(text)).collect()
-    }
+    /// Implementations should use native batch processing when available for
+    /// better performance. Batching typically provides significant speedup
+    /// over individual generation calls.
+    fn generate_batch<'a>(&self, texts: &[&'a str]) -> Result<Vec<Embedding>, IndexDataError>;
 
     /// Generate embedding with progress reporting
     ///
