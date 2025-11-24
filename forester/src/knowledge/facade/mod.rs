@@ -168,6 +168,8 @@ impl KnowledgeIndex {
         self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
 
+        self.update_last_build_timestamp()?;
+
         Ok(result)
     }
 
@@ -210,6 +212,8 @@ impl KnowledgeIndex {
 
         self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
+
+        self.update_last_build_timestamp()?;
 
         Ok(result)
     }
@@ -254,6 +258,8 @@ impl KnowledgeIndex {
 
         self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
             .context(DatabaseAccessFailedSnafu)?;
+
+        self.update_last_build_timestamp()?;
 
         Ok(result)
     }
@@ -350,6 +356,21 @@ impl KnowledgeIndex {
     /// Returns `<forest_root>/.forester/knowledge.db`
     fn default_db_path(forest_root: impl AsRef<Path>) -> PathBuf {
         forest_root.as_ref().join(".forester/knowledge.db")
+    }
+
+    /// Update the last_build timestamp in metadata
+    fn update_last_build_timestamp(&mut self) -> Result<(), IndexError> {
+        use types::index_error::*;
+
+        let mut metadata = self
+            .repository
+            .get_metadata()
+            .context(DatabaseAccessFailedSnafu)?;
+        metadata.last_build = std::time::SystemTime::now();
+        self.repository
+            .set_metadata(&metadata)
+            .context(DatabaseAccessFailedSnafu)?;
+        Ok(())
     }
 
     /// Create a search engine for the current index mode
