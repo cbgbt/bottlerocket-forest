@@ -69,23 +69,30 @@ fs_read with mode: "Line", start_line: 1, end_line: -1
 When providing the answer:
 - Synthesize information from multiple sources
 - Structure the response logically
-- **Always include a "Sources" section** listing:
-  - Full file paths
-  - What information came from each file
-  - Key details or quotes if helpful
+- **Use numeric references [1], [2], etc. inline** when stating facts
+- **Always include a "Sources" section** at the end with numbered citations
 
 **Citation format:**
 ```
+The root filesystem is immutable [1] and verified with dm-verity [2].
+Bottlerocket uses dual partition sets [1] for atomic updates.
+
 ## Sources
 
-1. **`/path/to/file.md`**
-   - Specific information found
-   - Key concepts explained
+[1] **`bottlerocket/SECURITY_FEATURES.md`**
+    - Immutable rootfs backed by dm-verity
+    - Dual partition sets for updates
 
-2. **`/path/to/another/file.rs`**
-   - Additional details
-   - Implementation specifics
+[2] **`kits/bottlerocket-core-kit/sources/updater/signpost/README.md`**
+    - Partition structure details
+    - GPT priority bits system
 ```
+
+**Guidelines:**
+- Number sources in order of first reference
+- Use the same number for multiple facts from the same source
+- Include full file paths in the Sources section
+- Briefly describe what information came from each source
 
 ### 5. Iterate if Needed
 
@@ -113,16 +120,18 @@ If initial search doesn't yield complete information:
 - Search variants README for layout options
 
 **Step 4 - Provide answer with citations:**
-- Explain dual partition sets (from signpost)
-- Describe security features (from SECURITY_FEATURES)
-- Note configuration options (from variants README)
-- List all sources with specific details
+- Explain dual partition sets with inline reference [1]
+- Describe security features with inline references [2]
+- Use numeric citations throughout the answer
+- List all sources at the end with numbers matching inline references
 
 ## Validation
 
 A good research response includes:
 - ✓ Information directly from documentation files
+- ✓ Numeric references [1], [2], etc. inline with facts
 - ✓ Multiple sources cross-referenced
+- ✓ Numbered Sources section at the end
 - ✓ Complete file paths cited
 - ✓ Specific details attributed to sources
 - ✓ No speculation or general knowledge where docs exist
@@ -138,6 +147,13 @@ A good research response includes:
 **Build system questions:** Look in `docs/build-system.md`, `Makefile`, `Twoliter.toml`
 
 **Implementation details:** Search for package names, then read source in `sources/` or `packages/`
+
+## Research Quality Indicator
+
+End your response with one of:
+
+- ✅ *Answered from documentation* - If forester results were sufficient
+- 📝 *Answered primarily from source code* - If you needed to read >3 source files
 
 ## Notes
 
