@@ -1,3 +1,11 @@
+//! Local OCI registry management commands.
+//!
+//! Provides subcommands for controlling a Docker-based OCI registry container:
+//! * Starting and stopping the registry
+//! * Checking registry status and viewing logs
+//! * Listing stored images
+//! * Cleaning registry data
+
 use crate::{config, registry};
 use chrono::Utc;
 use clap::{Parser, Subcommand};

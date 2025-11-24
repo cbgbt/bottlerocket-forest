@@ -1,3 +1,9 @@
+//! Command-line interface for forester.
+//!
+//! This module provides the top-level CLI structure and dispatches to subcommands:
+//! * [`index`] - Manages the forest repository index
+//! * [`registry`] - Manages the local OCI registry
+
 mod index;
 mod registry;
 
