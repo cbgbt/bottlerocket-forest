@@ -37,7 +37,7 @@ pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, Stora
     // NOTE: Embeddings are not fetched during retrieval because they're only needed
     // during indexing. Search results extract the Chunk and discard the embedding.
     // This dummy embedding satisfies the IndexedChunk type requirement.
-    let embedding = Embedding::try_new(vec![0.0; EMBEDDING_DIM])
+    let embedding = Embedding::try_new(vec![0.1; EMBEDDING_DIM])
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         .context(InvalidFieldSnafu {
             field: "embedding".to_string(),

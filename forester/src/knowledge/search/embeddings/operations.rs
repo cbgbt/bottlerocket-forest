@@ -37,7 +37,11 @@ impl VectorOps for Embedding {
     fn normalize(&self) -> Self {
         let mag = self.magnitude();
         let normalized: Vec<f32> = self.as_ref().iter().map(|&x| x / mag).collect();
-        Embedding::try_new(normalized).expect("normalized vector cannot be empty")
+        // SAFETY: Embedding validates against zero vectors at construction, so magnitude
+        // is always non-zero and division is safe. The normalized vector is non-empty
+        // because the input is validated to be non-empty.
+        Embedding::try_new(normalized)
+            .expect("Embedding is validated to be non-zero, preventing division by zero")
     }
 
     fn dot_product(&self, other: &Self) -> f32 {

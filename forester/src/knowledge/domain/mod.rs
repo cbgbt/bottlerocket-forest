@@ -113,18 +113,27 @@ pub struct ResultLimit(usize);
 /// Search result relevance score normalized 0.0-1.0
 #[nutype(
     validate(greater_or_equal = 0.0, less_or_equal = 1.0),
-    derive(
-        Debug,
-        Clone,
-        Copy,
-        Display,
-        Serialize,
-        Deserialize,
-        PartialEq,
-        PartialOrd
-    )
+    derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq)
 )]
 pub struct RelevanceScore(f32);
+
+impl Eq for RelevanceScore {}
+
+impl PartialOrd for RelevanceScore {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RelevanceScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // SAFETY: RelevanceScore is validated to be in [0.0, 1.0], so it cannot be NaN.
+        // Therefore f32::partial_cmp always returns Some and unwrap is safe.
+        self.into_inner()
+            .partial_cmp(&other.into_inner())
+            .expect("RelevanceScore is validated to exclude NaN")
+    }
+}
 
 /// Rust item signature for doc comment context
 #[nutype(
@@ -135,10 +144,14 @@ pub struct Signature(String);
 
 /// Semantic embedding vector for similarity search
 #[nutype(
-    validate(predicate = |v: &Vec<f32>| !v.is_empty()),
+    validate(predicate = |v: &Vec<f32>| !v.is_empty() && !is_zero_vector(v)),
     derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRef, Deref)
 )]
 pub struct Embedding(Vec<f32>);
+
+fn is_zero_vector(v: &[f32]) -> bool {
+    v.iter().all(|&x| x == 0.0)
+}
 
 /// Raw text content ready for chunking
 #[nutype(derive(Debug, Clone, Display, AsRef, Serialize, Deserialize, PartialEq, Eq))]

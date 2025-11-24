@@ -425,7 +425,7 @@ mod test {
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let embedding = Embedding::try_new(
-            (0..EMBEDDING_DIM)
+            (1..=EMBEDDING_DIM)
                 .map(|i| i as f32 / EMBEDDING_DIM as f32)
                 .collect(),
         )
@@ -507,7 +507,7 @@ mod test {
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let embedding = Embedding::try_new(
-            (0..EMBEDDING_DIM)
+            (1..=EMBEDDING_DIM)
                 .map(|i| i as f32 / EMBEDDING_DIM as f32)
                 .collect(),
         )

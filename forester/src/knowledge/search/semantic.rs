@@ -90,7 +90,7 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
             .collect::<Result<Vec<_>, SearchError>>()?;
 
         // Sort by boosted score (descending)
-        search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        search_results.sort_by_key(|result| std::cmp::Reverse(result.score));
 
         Ok(SearchResults::builder()
             .query(query.clone())
