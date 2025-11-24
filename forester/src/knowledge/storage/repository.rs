@@ -1,4 +1,6 @@
-//! Repository trait for chunk persistence
+//! Abstract repository interface for chunk persistence
+//!
+//! Defines the contract for storing, retrieving, and searching indexed documentation chunks.
 
 use snafu::Snafu;
 
@@ -6,28 +8,27 @@ use crate::knowledge::domain::{
     ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
 };
 
-/// Repository for chunk persistence
+/// Abstract interface for chunk storage operations
 #[cfg_attr(test, mockall::automock)]
 pub trait ChunkRepository {
-    /// Store an indexed chunk
+    /// Persists a single indexed chunk to storage
     fn save(&mut self, chunk: &IndexedChunk) -> Result<(), StorageError>;
 
-    /// Store multiple indexed chunks (transaction)
+    /// Persists multiple indexed chunks in a single transaction
     fn save_batch(&mut self, chunks: &[IndexedChunk]) -> Result<(), StorageError>;
 
-    /// Retrieve an indexed chunk by ID
+    /// Retrieves an indexed chunk by its unique identifier
     fn find_by_id(&self, id: &ChunkId) -> Result<Option<IndexedChunk>, StorageError>;
 
-    /// Find all indexed chunks for a file
+    /// Retrieves all indexed chunks from a specific file
     fn find_by_file(&self, path: &ForestRelativePath) -> Result<Vec<IndexedChunk>, StorageError>;
 
-    /// Find all indexed chunks in the index
+    /// Retrieves all indexed chunks from storage
     fn find_all(&self) -> Result<Vec<IndexedChunk>, StorageError>;
 
-    /// Get indexed file metadata (path and last indexed timestamp)
+    /// Retrieves file paths and their most recent indexing timestamps
     ///
-    /// Returns a map of file paths to their most recent indexing timestamp.
-    /// This is more efficient than `find_all()` for incremental update comparisons.
+    /// More efficient than `find_all()` for incremental update comparisons.
     fn get_indexed_files(
         &self,
     ) -> Result<
@@ -35,21 +36,21 @@ pub trait ChunkRepository {
         StorageError,
     >;
 
-    /// Remove chunks for a file
+    /// Removes all chunks associated with a specific file
     fn delete_by_file(&mut self, path: &ForestRelativePath) -> Result<usize, StorageError>;
 
-    /// Clear all chunks
+    /// Removes all chunks from storage
     fn clear(&mut self) -> Result<usize, StorageError>;
 
-    /// Get index metadata
+    /// Retrieves index metadata including build time and model configuration
     fn get_metadata(&self) -> Result<IndexMetadata, StorageError>;
 
-    /// Update index metadata
+    /// Updates index metadata
     fn set_metadata(&mut self, metadata: &IndexMetadata) -> Result<(), StorageError>;
 
-    /// Search chunks using semantic similarity
+    /// Searches for chunks semantically similar to the query embedding
     ///
-    /// Returns indexed chunks ranked by similarity to the query embedding, with scores.
+    /// Returns chunks ranked by similarity score in descending order.
     fn search_semantic(
         &self,
         query_embedding: &[f32],
@@ -57,7 +58,6 @@ pub trait ChunkRepository {
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
 }
 
-/// Errors that can occur during storage operations
 #[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub))]
 pub enum StorageError {

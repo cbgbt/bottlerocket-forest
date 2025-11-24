@@ -1,4 +1,6 @@
 //! Database schema definitions and migrations
+//!
+//! Manages SQLite table creation and schema evolution for chunk storage.
 
 use rusqlite::Connection;
 use snafu::{ResultExt, Snafu};
@@ -37,7 +39,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 const CREATE_INDEX_FILE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_file ON chunks(file_path)";
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
 
-/// Creates all tables and indexes in the database
+/// Initializes database schema including tables and indexes
 pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result<()> {
     use schema_error::*;
 
@@ -62,7 +64,7 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     Ok(())
 }
 
-/// Runs database migrations
+/// Applies database migrations for schema evolution
 pub fn migrate(_conn: &Connection) -> Result<()> {
     Ok(())
 }

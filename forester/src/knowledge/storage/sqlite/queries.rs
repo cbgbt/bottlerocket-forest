@@ -1,4 +1,6 @@
 //! CRUD operations for chunk storage
+//!
+//! Implements database queries for persisting and retrieving indexed chunks.
 
 use rusqlite::{Connection, OptionalExtension};
 use snafu::ResultExt;
@@ -9,7 +11,7 @@ use crate::knowledge::domain::{
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
-/// Save a single indexed chunk to the database
+/// Persists a single indexed chunk to the database
 pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), StorageError> {
     let chunk = &indexed_chunk.chunk;
     let (context_type, context_data) = serialize_context(&chunk.context)?;
@@ -46,7 +48,7 @@ pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), S
     Ok(())
 }
 
-/// Save multiple indexed chunks in a transaction
+/// Persists multiple indexed chunks in a single transaction
 pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), StorageError> {
     let tx = conn.transaction().context(DatabaseSnafu)?;
 
@@ -89,7 +91,7 @@ pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), 
     Ok(())
 }
 
-/// Find an indexed chunk by its ID
+/// Retrieves an indexed chunk by its unique identifier
 pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
@@ -108,7 +110,7 @@ pub fn find_by_id(conn: &Connection, id: &ChunkId) -> Result<Option<IndexedChunk
     .context(DatabaseSnafu)
 }
 
-/// Find all indexed chunks from a specific file
+/// Retrieves all indexed chunks from a specific file
 pub fn find_by_file(
     conn: &Connection,
     path: &ForestRelativePath,
@@ -134,7 +136,7 @@ pub fn find_by_file(
     .context(DatabaseSnafu)
 }
 
-/// Find all indexed chunks in the database
+/// Retrieves all indexed chunks from the database
 pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     let mut stmt = conn
         .prepare(
@@ -153,7 +155,7 @@ pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     .context(DatabaseSnafu)
 }
 
-/// Get indexed file metadata (path and last indexed timestamp)
+/// Retrieves file paths and their most recent indexing timestamps
 pub fn get_indexed_files(
     conn: &Connection,
 ) -> Result<std::collections::HashMap<ForestRelativePath, Timestamp>, StorageError> {
@@ -182,7 +184,7 @@ pub fn get_indexed_files(
     Ok(result)
 }
 
-/// Delete all chunks from a specific file
+/// Removes all chunks associated with a specific file
 pub fn delete_by_file(
     conn: &mut Connection,
     path: &ForestRelativePath,
@@ -203,7 +205,7 @@ pub fn delete_by_file(
     Ok(count)
 }
 
-/// Delete all chunks from the database
+/// Removes all chunks from the database
 pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
     conn.execute("DELETE FROM vec_chunks", [])
         .context(DatabaseSnafu)?;
@@ -215,7 +217,7 @@ pub fn clear(conn: &mut Connection) -> Result<usize, StorageError> {
     Ok(count)
 }
 
-/// Get index metadata
+/// Retrieves index metadata including build time and model configuration
 pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
     let last_build_unix: i64 = conn
         .query_row(
@@ -298,7 +300,7 @@ pub fn get_metadata(conn: &Connection) -> Result<IndexMetadata, StorageError> {
         .build())
 }
 
-/// Set index metadata
+/// Updates index metadata in the database
 pub fn set_metadata(conn: &mut Connection, metadata: &IndexMetadata) -> Result<(), StorageError> {
     let last_build_unix = metadata
         .last_build

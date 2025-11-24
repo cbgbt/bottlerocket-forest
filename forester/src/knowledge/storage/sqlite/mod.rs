@@ -1,8 +1,12 @@
 //! SQLite implementation of ChunkRepository
 //!
-//! - `serialization`: Converting between domain types and database formats
-//! - `queries`: CRUD operations for chunk storage
-//! - `search`: Semantic search implementation
+//! Provides persistent storage for indexed chunks using SQLite with vector search capabilities.
+//!
+//! # Submodules
+//!
+//! * `serialization`: Converts between domain types and database formats
+//! * `queries`: Implements CRUD operations for chunk storage
+//! * `search`: Provides semantic search using vector embeddings
 
 mod queries;
 mod search;
@@ -18,14 +22,16 @@ use crate::knowledge::domain::{
     ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
 };
 
-/// SQLite-backed chunk repository
+/// SQLite-backed implementation of chunk repository with vector search
 #[derive(Debug)]
 pub struct SqliteChunkRepository {
     conn: Connection,
 }
 
 impl SqliteChunkRepository {
-    /// Open or create a database at the given path
+    /// Opens or creates a database at the specified path
+    ///
+    /// Initializes the schema and registers the sqlite-vec extension for vector operations.
     pub fn open(
         path: impl AsRef<Path>,
         config: &EmbeddingModelConfig,
@@ -71,7 +77,9 @@ impl SqliteChunkRepository {
         Ok(Self { conn })
     }
 
-    /// Open an existing database and validate the model configuration matches
+    /// Opens an existing database and validates model configuration compatibility
+    ///
+    /// Verifies that the stored model configuration matches the expected configuration.
     pub fn open_with_config(
         path: impl AsRef<Path>,
         expected_config: &EmbeddingModelConfig,

@@ -1,4 +1,7 @@
-//! Serialization helpers for converting between domain types and database formats
+//! Serialization between domain types and database formats
+//!
+//! Converts domain types to database-storable representations and reconstructs
+//! domain types from database rows.
 
 use snafu::ResultExt;
 
@@ -9,10 +12,10 @@ use crate::knowledge::domain::{
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
-/// Parse a Chunk from a rusqlite::Row
+/// Reconstructs an IndexedChunk from a database row
 ///
-/// Expects columns in order: id, file_path, repo_name,
-/// context_type, context_data, content, token_count, last_modified
+/// Expects columns: id, file_path, repo_name, context_type, context_data,
+/// content, token_count, last_modified.
 pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, StorageError> {
     let id_str: String = row.get(0).context(DatabaseSnafu)?;
     let file_path: String = row.get(1).context(DatabaseSnafu)?;
@@ -88,12 +91,12 @@ pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, Stora
         .build())
 }
 
-/// Convert f32 embedding vector to bytes for sqlite-vec storage
+/// Converts f32 embedding vector to little-endian byte representation
 pub fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
     embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
 }
 
-/// Convert ChunkContext enum to database-storable format
+/// Converts ChunkContext to database-storable type and JSON representation
 pub fn serialize_context(context: &ChunkContext) -> Result<(String, String), StorageError> {
     let (context_type, context_data) = match context {
         ChunkContext::Markdown(ctx) => (
@@ -119,7 +122,7 @@ pub fn serialize_context(context: &ChunkContext) -> Result<(String, String), Sto
     Ok((context_type.to_string(), context_data))
 }
 
-/// Reconstruct ChunkContext from database fields
+/// Reconstructs ChunkContext from database type and JSON fields
 pub fn deserialize_context(
     context_type: &str,
     context_data: &str,

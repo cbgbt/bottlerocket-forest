@@ -1,4 +1,12 @@
-//! Search implementation for semantic search
+//! Semantic search implementation using vector embeddings
+//!
+//! Provides k-nearest-neighbor search using sqlite-vec with cosine distance.
+//!
+//! # Implementation Notes
+//!
+//! Similarity scores are computed as `1.0 - distance` where distance is cosine distance.
+//! This assumes normalized embeddings (as produced by fastembed). Non-normalized embeddings
+//! may produce scores outside [0, 1].
 
 use rusqlite::Connection;
 use snafu::ResultExt;
@@ -7,18 +15,11 @@ use super::serialization::{indexed_chunk_from_row, serialize_embedding};
 use crate::knowledge::domain::IndexedChunk;
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
-/// Perform semantic search using sqlite-vec
+/// Performs k-nearest-neighbor search using cosine distance
 ///
-/// Uses cosine distance for similarity measurement. For normalized vectors, cosine distance
-/// equals `1 - cosine_similarity`, so lower distances indicate higher similarity.
-/// We convert distance to similarity score via `1.0 - distance` for intuitive ranking.
-///
-/// Note: If embeddings are not normalized, the distance-to-similarity conversion may produce
-/// values outside [0, 1]. The fastembed library used for embedding generation produces
-/// normalized vectors by default.
-///
-/// The MATCH clause with `k = :limit` performs k-nearest-neighbor search, returning
-/// the top k most similar vectors. See: https://github.com/asg017/sqlite-vec
+/// Returns chunks ranked by similarity score in descending order. Similarity scores
+/// are computed as `1.0 - distance` where distance is the cosine distance between
+/// normalized embeddings.
 pub fn search_semantic(
     conn: &Connection,
     query_embedding: &[f32],
