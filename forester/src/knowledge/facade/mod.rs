@@ -46,15 +46,14 @@ use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 
 /// High-level interface for the knowledge index
 ///
-/// Coordinates indexing, storage, and search operations. Owns the database
-/// connection and provides a unified API for all knowledge index functionality.
+/// Coordinates indexing, storage, and search operations. Provides a unified
+/// API for all knowledge index functionality.
 #[derive(Builder)]
 #[builder(on(_, into))]
 pub struct KnowledgeIndex {
     forest_root: PathBuf,
     db_path: PathBuf,
     config: EmbeddingModelConfig,
-    repository: SqliteChunkRepository,
 }
 
 impl KnowledgeIndex {
@@ -124,7 +123,6 @@ impl KnowledgeIndex {
             forest_root: forest_root.to_path_buf(),
             db_path,
             config,
-            repository,
         })
     }
 
@@ -145,8 +143,7 @@ impl KnowledgeIndex {
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
-        let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
+        let repository = self.repository()?;
 
         let progress_arc = progress.map(std::sync::Arc::from);
 
@@ -164,9 +161,6 @@ impl KnowledgeIndex {
         let result = indexer
             .index(crate::knowledge::indexing::IndexStrategy::Build)
             .context(IndexingFailedSnafu)?;
-
-        self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
 
@@ -190,8 +184,7 @@ impl KnowledgeIndex {
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
-        let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
+        let repository = self.repository()?;
 
         let progress_arc = progress.map(std::sync::Arc::from);
 
@@ -209,9 +202,6 @@ impl KnowledgeIndex {
         let result = indexer
             .index(crate::knowledge::indexing::IndexStrategy::Rebuild)
             .context(IndexingFailedSnafu)?;
-
-        self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
 
@@ -236,8 +226,7 @@ impl KnowledgeIndex {
         let provider = self.create_provider()?;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
-        let repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
+        let repository = self.repository()?;
 
         let progress_arc = progress.map(std::sync::Arc::from);
 
@@ -256,9 +245,6 @@ impl KnowledgeIndex {
             .index(crate::knowledge::indexing::IndexStrategy::Incremental)
             .context(IndexingFailedSnafu)?;
 
-        self.repository = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
-
         self.update_last_build_timestamp()?;
 
         Ok(result)
@@ -270,7 +256,8 @@ impl KnowledgeIndex {
     pub fn clear(&mut self) -> Result<usize, IndexError> {
         use types::index_error::*;
 
-        self.repository.clear().context(DatabaseAccessFailedSnafu)
+        let mut repository = self.repository()?;
+        repository.clear().context(DatabaseAccessFailedSnafu)
     }
 
     /// Search the index
@@ -319,8 +306,8 @@ impl KnowledgeIndex {
     pub fn status(&self) -> Result<IndexStatus, IndexError> {
         use types::index_error::*;
 
-        let metadata = self
-            .repository
+        let repository = self.repository()?;
+        let metadata = repository
             .get_metadata()
             .context(DatabaseAccessFailedSnafu)?;
 
@@ -358,16 +345,22 @@ impl KnowledgeIndex {
         forest_root.as_ref().join(".forester/knowledge.db")
     }
 
+    /// Open a repository connection to the database
+    fn repository(&self) -> Result<SqliteChunkRepository, IndexError> {
+        use types::index_error::*;
+        SqliteChunkRepository::open(&self.db_path, &self.config).context(DatabaseAccessFailedSnafu)
+    }
+
     /// Update the last_build timestamp in metadata
     fn update_last_build_timestamp(&mut self) -> Result<(), IndexError> {
         use types::index_error::*;
 
-        let mut metadata = self
-            .repository
+        let mut repository = self.repository()?;
+        let mut metadata = repository
             .get_metadata()
             .context(DatabaseAccessFailedSnafu)?;
         metadata.last_build = std::time::SystemTime::now();
-        self.repository
+        repository
             .set_metadata(&metadata)
             .context(DatabaseAccessFailedSnafu)?;
         Ok(())
@@ -380,8 +373,7 @@ impl KnowledgeIndex {
     fn create_search_engine(&self) -> Result<Box<dyn SearchEngine>, IndexError> {
         use types::index_error::*;
 
-        let repo = SqliteChunkRepository::open(&self.db_path, &self.config)
-            .context(DatabaseAccessFailedSnafu)?;
+        let repo = self.repository()?;
         let embedding_model = EmbeddingModel::builder()
             .model_name(self.config.model_name.clone())
             .dimension(self.config.embedding_dim)
