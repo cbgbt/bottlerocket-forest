@@ -33,9 +33,51 @@ bottlerocket-forest/
 
 ## Getting Started
 
-1. **Seed the forest**: `./seed-forest.sh` (clones any missing repositories)
-2. **Build forester**: `cd forester && cargo build --release`
-3. **Explore skills**: See `skills/` directory for available workflows
+### ⚠️ REQUIRED FIRST-TIME SETUP ⚠️
+
+**Run this once to set up everything:**
+```bash
+./seed-forest.sh
+```
+
+This script will:
+1. Clone all Bottlerocket repositories
+2. Build the forester tool
+3. Build the knowledge index
+4. Verify everything works
+
+The script is idempotent and quiet by default. Use `./seed-forest.sh --verbose` for detailed output.
+
+## Working with the Forest
+
+**MANDATORY: Start every session by running `./seed-forest.sh`**
+
+**CRITICAL**: Before answering questions about Bottlerocket, ALWAYS:
+1. Use `forester index search` to locate relevant documentation files
+2. Read the identified files directly
+3. Never rely on general knowledge when documentation exists
+
+This ensures accurate, up-to-date information from actual documentation. Note that the index searches documentation only, not source code - use traditional search for code.
+
+## Forester
+
+Forester is the forest's orchestration tool, providing commands for common development tasks:
+
+**Knowledge Index** - Semantic search across all forest documentation:
+```bash
+forester index build                    # Build the search index
+forester index search "boot process"    # Search documentation
+forester index status                   # Check index status
+```
+
+**Local Registry** - Manage a local OCI registry for kit development:
+```bash
+forester registry start    # Start local registry
+forester registry status   # Check registry status
+forester registry list     # List published images
+```
+
+See `forester/README.md` for complete documentation.
 
 ## Using the Forest
 

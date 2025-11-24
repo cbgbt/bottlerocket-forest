@@ -13,7 +13,7 @@
 //! let mut index = KnowledgeIndex::open("/path/to/forest")?;
 //!
 //! // Build the index
-//! let result = index.build()?;
+//! let result = index.build().call()?;
 //! println!("Indexed {} files", result.files_processed);
 //!
 //! // Search
@@ -49,13 +49,14 @@ use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 /// Coordinates indexing, storage, and search operations. Provides a unified
 /// API for all knowledge index functionality.
 #[derive(Builder)]
-#[builder(on(_, into))]
+#[builder(on(_, into), builder_type = KnowledgeIndexConstructor)]
 pub struct KnowledgeIndex {
     forest_root: PathBuf,
     db_path: PathBuf,
     config: EmbeddingModelConfig,
 }
 
+#[bon::bon]
 impl KnowledgeIndex {
     /// Open or create a knowledge index with default configuration
     ///
@@ -129,12 +130,8 @@ impl KnowledgeIndex {
     /// Build the index from scratch without clearing existing data
     ///
     /// Scans all files in the forest and indexes them. Existing chunks are preserved.
-    pub fn build(&mut self) -> Result<IndexResult, IndexError> {
-        self.build_with_progress(None)
-    }
-
-    /// Build the index with optional progress reporting
-    pub fn build_with_progress(
+    #[builder]
+    pub fn build(
         &mut self,
         progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
@@ -170,12 +167,8 @@ impl KnowledgeIndex {
     /// Clear the index and rebuild from scratch
     ///
     /// Removes all existing chunks before scanning and indexing all files in the forest.
-    pub fn rebuild(&mut self) -> Result<IndexResult, IndexError> {
-        self.rebuild_with_progress(None)
-    }
-
-    /// Rebuild the index with optional progress reporting
-    pub fn rebuild_with_progress(
+    #[builder]
+    pub fn rebuild(
         &mut self,
         progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
@@ -212,12 +205,8 @@ impl KnowledgeIndex {
     ///
     /// Processes only files that have been added, modified, or deleted since
     /// the last index operation.
-    pub fn update(&mut self) -> Result<IndexResult, IndexError> {
-        self.update_with_progress(None)
-    }
-
-    /// Update the index with optional progress reporting
-    pub fn update_with_progress(
+    #[builder]
+    pub fn update(
         &mut self,
         progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
@@ -587,7 +576,7 @@ mod test {
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
-        let result = index.build();
+        let result = index.build().call();
 
         // Then It should succeed and report indexed files
         assert!(result.is_ok());
@@ -603,7 +592,7 @@ mod test {
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building
-        let result = index.build().unwrap();
+        let result = index.build().call().unwrap();
 
         // Then It should succeed with zero files
         assert_eq!(result.files_processed, 0);
@@ -619,10 +608,10 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Rebuilding
-        let result = index.rebuild();
+        let result = index.rebuild().call();
 
         // Then It should succeed
         assert!(result.is_ok());
@@ -639,7 +628,7 @@ mod test {
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
-        let result = index.rebuild().unwrap();
+        let result = index.rebuild().call().unwrap();
 
         // Then It should index files
         assert!(result.files_processed > 0);
@@ -651,14 +640,14 @@ mod test {
         // Given An index with no files
         let temp_dir = TempDir::new().unwrap();
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Adding a new file and updating
         let repo_dir = temp_dir.path().join("test-repo");
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("new.md"), "# New\n\nContent").unwrap();
 
-        let result = index.update().unwrap();
+        let result = index.update().call().unwrap();
 
         // Then It should report one file added
         assert_eq!(result.files_added, 1);
@@ -675,12 +664,12 @@ mod test {
         fs::write(&file_path, "# Test\n\nContent").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Deleting the file and updating
         fs::remove_file(&file_path).unwrap();
 
-        let result = index.update().unwrap();
+        let result = index.update().call().unwrap();
 
         // Then It should report one file removed
         assert_eq!(result.files_removed, 1);
@@ -695,7 +684,7 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Clearing the index
         let result = index.clear();
@@ -727,7 +716,7 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Boot Process\n\nHow boot works").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Searching
         let result = index.search("boot", 10);
@@ -751,7 +740,7 @@ mod test {
         .unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Searching with limit 2
         let result = index.search("test", 2).unwrap();
@@ -808,7 +797,7 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Getting status
         let result = index.status();
@@ -846,7 +835,7 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Getting status
         let status = index.status().unwrap();
@@ -982,7 +971,7 @@ targets = ["docs", "bottlerocket"]
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
-        let result = index.build().unwrap();
+        let result = index.build().call().unwrap();
 
         // Then It should only index files from configured targets
         assert_eq!(result.files_processed, 2);
@@ -1010,7 +999,7 @@ targets = ["docs"]
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
-        let result = index.rebuild().unwrap();
+        let result = index.rebuild().call().unwrap();
 
         // Then It should only index configured targets
         assert_eq!(result.files_processed, 1);
@@ -1031,13 +1020,13 @@ targets = ["docs"]
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
         let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
-        index.build().unwrap();
+        index.build().call().unwrap();
 
         // When Adding files to both directories and updating
         fs::write(docs_dir.join("new.md"), "# New").unwrap();
         fs::write(other_dir.join("ignored.md"), "# Ignored").unwrap();
 
-        let result = index.update().unwrap();
+        let result = index.update().call().unwrap();
 
         // Then It should only detect changes in configured targets
         assert_eq!(result.files_added, 1);
