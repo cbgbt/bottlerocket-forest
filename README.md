@@ -52,12 +52,31 @@ The script is idempotent and quiet by default. Use `./seed-forest.sh --verbose` 
 
 **MANDATORY: Start every session by running `./seed-forest.sh`**
 
-**CRITICAL**: Before answering questions about Bottlerocket, ALWAYS:
-1. Use `forester index search` to locate relevant documentation files
-2. Read the identified files directly
-3. Never rely on general knowledge when documentation exists
+### 🎯 SKILLS ARE MANDATORY
 
-This ensures accurate, up-to-date information from actual documentation. Note that the index searches documentation only, not source code - use traditional search for code.
+**Before doing ANYTHING, check if a skill exists for the task.** Skills are NOT optional suggestions - they are the required way to work in the forest.
+
+**Why skills are mandatory:**
+- They encode tested, reliable procedures
+- They prevent common mistakes and save debugging time
+- They ensure consistent results across all sessions
+- They represent the ONLY approved way to perform their tasks
+
+**The workflow is:**
+1. User makes a request
+2. **IMMEDIATELY check `skills/` directory for applicable skills**
+3. If a skill exists, **USE IT** - do not improvise alternatives
+4. If no skill exists, proceed with manual approach
+
+See `skills/README.md` for the complete skills protocol.
+
+### Documentation Research
+
+**CRITICAL**: Before answering questions about Bottlerocket, ALWAYS:
+1. Use the **research-with-citations** skill (see `skills/research-with-citations/`)
+2. Never rely on general knowledge when documentation exists
+
+This ensures accurate, up-to-date information from actual documentation.
 
 ## Forester
 
@@ -94,7 +113,7 @@ This context is essential for understanding the Bottlerocket ecosystem before ma
 
 ## Skills
 
-The `skills/` directory contains modular workflows for common Bottlerocket development tasks. Skills are model-invoked—Claude autonomously decides when to use them based on your request and each skill's description. When working on any task, evaluate available skills and use them when relevant to ensure consistent, reproducible workflows.
+The `skills/` directory contains modular workflows for common Bottlerocket development tasks. **Skills are mandatory when they exist for a task** - they are not optional suggestions. Always check for applicable skills before starting any work. See `skills/README.md` for the complete protocol.
 
 ## Component Dependencies
 

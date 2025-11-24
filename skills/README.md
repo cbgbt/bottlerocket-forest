@@ -2,21 +2,39 @@
 
 Claude Code skills for common Bottlerocket development workflows.
 
+## ⚠️ IMPORTANT: Always Use Skills When Available
+
+**Skills are the preferred way to accomplish tasks in the forest.** They provide:
+- Tested, reliable workflows
+- Consistent results across sessions
+- Complete procedures with validation
+- Known solutions to common issues
+
+**Before starting any task, check if a skill exists for it.** Using skills ensures quality and saves time.
+
+## Skill Usage Protocol
+
+When you identify that a skill should be used:
+
+1. **Announce it clearly:**
+   ```
+   USING SKILL "skill-name"
+   ```
+
+2. **Load the skill file:**
+   ```
+   Read skills/skill-name/SKILL.md
+   ```
+
+3. **Follow the procedure exactly as documented** in the SKILL.md file
+
 ## Available Skills
 
+- **research-with-citations** - Answer questions about Bottlerocket by finding and reading relevant documentation
 - **local-registry** - Start and manage a local OCI registry for development
 - **build-and-publish-kit** - Build a kit and publish it to the local registry
 - **build-variant-from-local-kits** - Build a variant using locally published kits
 - **update-twoliter** - Update all repositories to a new Twoliter version
-
-## Using Skills
-
-Skills are automatically discovered by Claude Code when placed in this directory. Invoke them by name in conversation:
-
-```
-"Use the local-registry skill to start a registry"
-"Apply the update-twoliter skill to bump to version 0.13.0"
-```
 
 ## Skill Format
 
