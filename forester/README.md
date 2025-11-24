@@ -4,11 +4,10 @@ Forester is a Rust CLI tool that orchestrates development workflows across the B
 
 ## Purpose
 
-Forester manages:
-- **Local OCI registry** - Run a local Docker registry for kit development
-- **Build orchestration** - Coordinate builds across kits and variants (future)
-- **Development status** - Show what's built and running (future)
-- **Environment management** - Test infrastructure lifecycle (future)
+Forester provides:
+
+- **Knowledge Index** - Semantic search across forest documentation using ML embeddings
+- **Local OCI Registry** - Run a local Docker registry for kit development
 
 ## Installation
 
@@ -22,6 +21,44 @@ cargo build --release
 The binary will be at `target/release/forester`.
 
 ## Usage
+
+### Knowledge Index
+
+The knowledge index provides semantic search across all forest documentation, enabling fast, targeted documentation lookup.
+
+Build the index (first time or after major changes):
+
+```bash
+forester index build
+```
+
+Search the documentation:
+
+```bash
+forester index search "how to build a kit"
+forester index search "boot process" --limit 5
+forester index search "systemd configuration" --show-chunks
+```
+
+Check index status:
+
+```bash
+forester index status
+```
+
+Update incrementally (faster than full rebuild):
+
+```bash
+forester index update
+```
+
+Rebuild from scratch:
+
+```bash
+forester index rebuild
+```
+
+The index uses the `sentence-transformers/all-MiniLM-L6-v2` model for embeddings and stores data in `.forester/knowledge/` at the forest root. It automatically discovers documentation from all repositories and supports markdown files, Rust source files, and other text formats.
 
 ### Registry Management
 
@@ -71,8 +108,11 @@ Note: Container and volume names are automatically derived from the port as `for
 
 ## Requirements
 
-- Docker installed and running
+- Rust toolchain (for building)
+- Docker installed and running (for registry commands)
 - User must be in the `docker` group (or have Docker permissions)
+
+The knowledge index downloads ML models automatically on first use (~90MB for the embedding model).
 
 ## Development
 
@@ -94,53 +134,18 @@ The binary will be at `target/debug/forester` or `target/release/forester` respe
 
 ### Code Quality
 
-Run all quality checks:
+Run all quality checks, including integration tests:
+
+```bash
+make integ
+```
+
+This runs formatting checks, lints, and all tests (unit and integration).
+If you need a quicker validation, you can run:
 
 ```bash
 make check
 ```
 
-This runs formatting checks, lints, and all tests (unit and integration).
-
-Individual checks:
-
-```bash
-make fmt      # Check code formatting
-make clippy   # Run lints
-make test     # Run all tests
-```
-
-Integration tests use the `serial_test` crate with `#[serial(registry)]` to ensure tests that manipulate the Docker registry run one at a time. Tests use a dedicated test port (5555), and each test starts with a clean state and cleans up after itself.
-
-### Project Structure
-
-```
-forester/
-├── src/
-│   ├── main.rs          # CLI entry point (thin wrapper)
-│   ├── lib.rs           # Library entry point
-│   ├── config.rs        # Configuration loading
-│   └── registry/        # Registry management
-│       ├── mod.rs       # Public API
-│       ├── types.rs     # Domain types
-│       ├── docker.rs    # Docker interaction
-│       └── health.rs    # Health checking
-└── tests/
-    └── registry_integration.rs
-```
-
-### Implementation Guide
-
-See `planning/forester-registry-impl.md` for the detailed implementation checklist.
-
-## Design Principles
-
-- **Agent-friendly** - Clear commands, informative output, helpful errors
-- **Composable** - Commands work independently and can be chained
-- **Type-safe** - Strong domain types prevent invalid states
-- **Minimal dependencies** - Leverage existing tools (Docker, Twoliter)
-- **Fail fast** - Validate early, provide clear error messages
-
-## License
-
-See the forest repository root for license information.
+Integration tests use the `serial_test` crate with `#[serial(registry)]` to ensure tests that manipulate the Docker registry run one at a time.
+Tests use a dedicated test port (5555), and each test starts with a clean state and cleans up after itself.
