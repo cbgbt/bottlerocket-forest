@@ -95,13 +95,6 @@ pub enum IndexError {
     )]
     InvalidResultLimit { source: ResultLimitError },
 
-    #[snafu(display("Knowledge index does not exist"))]
-    #[diagnostic(
-        code(forester::index::index_not_found),
-        help("Run `forester index build` to create the index before searching")
-    )]
-    IndexNotFound,
-
     #[snafu(display("Failed to read database file metadata"))]
     #[diagnostic(
         code(forester::index::file_metadata_failed),
