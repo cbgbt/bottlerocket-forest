@@ -157,10 +157,19 @@ A good research response includes:
 
 ## Research Quality Indicator
 
-End your response with one of:
+End your response with one of these to indicate documentation quality:
 
-- ✅ *Answered from documentation* - If forester results were sufficient
-- 📝 *Answered primarily from source code* - If you needed to read >3 source files
+- ✅ **Answered from documentation** - Question fully answered from README files, design docs, or other narrative documentation. Minimal or no source code reading required.
+
+- ⚠️ **Answered from source code** - Had to read implementation files (systemd units, Rust source, spec files, etc.) because documentation was insufficient or didn't exist. This indicates a documentation gap.
+
+- 🔍 **Partial documentation** - Some documentation exists but was incomplete. Required both docs and source code to answer fully.
+
+**Guidelines:**
+- If you read more than 2-3 source/config files, it's NOT "from documentation"
+- README files and markdown docs in `docs/` or `sources/*/README.md` count as documentation
+- Systemd units, .rs files, .spec files, .toml configs are source code
+- The indicator should reflect whether *someone else* could answer this question from docs alone
 
 ## Notes
 
