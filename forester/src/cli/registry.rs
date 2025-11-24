@@ -31,11 +31,12 @@ enum RegistrySubcommand {
 /// Show registry logs
 #[derive(Parser)]
 struct LogsArgs {
-    /// follow log output
+    /// Follow log output
     #[arg(short = 'f', long)]
     follow: bool,
 }
 
+/// Executes the registry subcommand
 pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -51,7 +52,7 @@ pub fn run(cmd: RegistryCommand) -> Result<(), RegistryError> {
     }
 }
 
-/// Start the registry and display the URL
+/// Starts the local OCI registry and prints the URL
 fn start(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -61,7 +62,7 @@ fn start(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> 
     Ok(())
 }
 
-/// Stop the registry and display confirmation
+/// Stops the local OCI registry
 fn stop(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -70,7 +71,7 @@ fn stop(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     Ok(())
 }
 
-/// Display the registry status
+/// Queries and displays the current registry state
 fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -119,7 +120,7 @@ fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError>
     Ok(())
 }
 
-/// Clean the registry container and volume
+/// Removes the registry container and associated volume
 fn clean(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
@@ -128,14 +129,14 @@ fn clean(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> 
     Ok(())
 }
 
-/// Display registry logs
+/// Streams logs from the registry container
 fn logs(config: &registry::RegistryRuntimeConfig, follow: bool) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::logs(config, follow).context(OperationSnafu)
 }
 
-/// List all images in the registry
+/// Queries and displays all images stored in the registry
 fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
