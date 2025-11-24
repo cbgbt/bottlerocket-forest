@@ -25,7 +25,7 @@ pub(super) fn process_file_gracefully(
     match process_file(file, dispatcher, provider, progress) {
         Ok(chunks) => Ok(chunks),
         Err(e) => {
-            if is_skippable_parse_error(&e) {
+            if is_skippable_error(&e) {
                 Err(Ok(()))
             } else {
                 Err(Err(e))
@@ -34,15 +34,32 @@ pub(super) fn process_file_gracefully(
     }
 }
 
-fn is_skippable_parse_error(error: &IndexingError) -> bool {
-    matches!(
-        error,
+fn is_skippable_error(error: &IndexingError) -> bool {
+    match error {
+        // Skip files with parse errors
         IndexingError::ChunkingFailed {
-            source: DispatchError::ChunkingFailed {
-                source: ChunkingError::ParseError { .. }
-            }
-        }
-    )
+            source:
+                DispatchError::ChunkingFailed {
+                    source: ChunkingError::ParseError { .. },
+                },
+        } => true,
+        // Skip files with no matching strategy (shouldn't happen due to scanner filtering)
+        IndexingError::ChunkingFailed {
+            source: DispatchError::NoStrategyFound,
+        } => true,
+        // Strategy init failures are fatal - indicate configuration problem
+        IndexingError::ChunkingFailed {
+            source: DispatchError::StrategyInitFailed { .. },
+        } => false,
+        // Other chunking errors are fatal
+        IndexingError::ChunkingFailed { .. } => false,
+        // Skip files with read errors (permission denied, file deleted, etc.)
+        IndexingError::ScanFailed { .. } => true,
+        // Embedding errors are fatal - indicate systemic problem
+        IndexingError::IndexDataGenerationFailed { .. } => false,
+        // Storage errors are fatal
+        IndexingError::StorageFailed { .. } => false,
+    }
 }
 
 /// Process a single file by reading, chunking, and generating embeddings
@@ -111,4 +128,76 @@ fn index_chunks(
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    use crate::knowledge::indexing::ScanError;
+    use crate::knowledge::storage::StorageError;
+
+    #[test]
+    fn test_is_skippable_error_parse_errors() {
+        // Given A parse error
+        let error = IndexingError::ChunkingFailed {
+            source: DispatchError::ChunkingFailed {
+                source: ChunkingError::ParseError {
+                    file_path: "test.rs".to_string(),
+                    source: Box::new(std::io::Error::other("parse failed")),
+                },
+            },
+        };
+
+        // When Checking if skippable
+        let result = is_skippable_error(&error);
+
+        // Then It should be skippable
+        assert!(result);
+    }
+
+    #[test]
+    fn test_is_skippable_error_scan_errors() {
+        // Given A scan/IO error
+        let error = IndexingError::ScanFailed {
+            source: ScanError::IoError {
+                path: "/test/file.md".to_string(),
+                source: std::io::Error::other("permission denied"),
+            },
+        };
+
+        // When Checking if skippable
+        let result = is_skippable_error(&error);
+
+        // Then It should be skippable
+        assert!(result);
+    }
+
+    #[test]
+    fn test_is_skippable_error_embedding_errors_not_skippable() {
+        // Given An embedding generation error
+        let error = IndexingError::IndexDataGenerationFailed {
+            source: crate::knowledge::indexing::IndexDataError::EmbeddingFailed {
+                source: Box::new(std::io::Error::other("model failed")),
+            },
+        };
+
+        // When Checking if skippable
+        let result = is_skippable_error(&error);
+
+        // Then It should NOT be skippable
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_is_skippable_error_storage_errors_not_skippable() {
+        // Given A storage error
+        let error = IndexingError::StorageFailed {
+            source: StorageError::InvalidData {
+                message: "corrupted data".to_string(),
+            },
+        };
+
+        // When Checking if skippable
+        let result = is_skippable_error(&error);
+
+        // Then It should NOT be skippable
+        assert!(!result);
+    }
+}
