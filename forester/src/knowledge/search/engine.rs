@@ -1,17 +1,19 @@
 //! Search engine abstraction for knowledge index queries
+//!
+//! Defines the core search interface and error types used by all search implementations.
 
 use snafu::Snafu;
 
 use crate::knowledge::domain::{SearchQuery, SearchResults};
 
-/// Search engine for querying the knowledge index
+/// Executes search queries against the knowledge index
 #[cfg_attr(test, mockall::automock)]
 pub trait SearchEngine {
-    /// Execute a search query
+    /// Execute a search query against the knowledge index
     fn search(&self, query: &SearchQuery) -> Result<SearchResults, SearchError>;
 }
 
-/// Errors that can occur during search operations
+/// Errors that occur during search operations
 #[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module, visibility(pub(crate)))]
 pub enum SearchError {

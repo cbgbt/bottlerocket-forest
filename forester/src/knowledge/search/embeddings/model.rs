@@ -12,28 +12,28 @@ use crate::knowledge::domain::Embedding;
 
 use super::error::{EmbeddingError, embedding_error};
 
-/// Generates embeddings for text content
+/// Generates embeddings from text content
 #[cfg_attr(test, mockall::automock)]
 pub trait EmbeddingProvider: Send + Sync {
-    /// Generate an embedding for a single text
+    /// Generate an embedding vector for text
     fn embed(&self, text: &str) -> Result<Embedding, EmbeddingError>;
 
-    /// Generate embeddings for multiple texts in a batch
-    ///
-    /// Batch processing can be more efficient than individual calls.
+    /// Generate embeddings for multiple texts
     fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Embedding>, EmbeddingError>;
 
     /// Get the dimensionality of embeddings produced by this provider
     fn dimension(&self) -> usize;
 
-    /// Get the model name used by this provider
+    /// Get the model name
     fn model_name(&self) -> &str;
 }
 
-/// Embedding model configuration using sentence-transformers
+/// Embedding model configuration
 ///
-/// Use the builder to configure model parameters, then call `load()` to
-/// download and initialize the model for generating embeddings.
+/// Configure model parameters using the builder, then call `load()` to initialize
+/// the model for generating embeddings. Models are downloaded and cached in the
+/// configured cache directory (defaults to `$XDG_CACHE_HOME/forester/model` or
+/// `~/.cache/forester/model` on Linux).
 #[derive(bon::Builder)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -47,9 +47,9 @@ pub struct EmbeddingModel {
 }
 
 impl EmbeddingModel {
-    /// Load the embedding model with the configured parameters
+    /// Load the embedding model
     ///
-    /// Downloads and caches the model if not already present.
+    /// Downloads and caches the model if not already present in the cache directory.
     pub fn load(self) -> Result<LoadedEmbeddingModel, EmbeddingError> {
         let fastembed_model = map_model_name(&self.model_name)?;
 
@@ -72,7 +72,7 @@ impl EmbeddingModel {
     }
 }
 
-/// A loaded embedding model ready for generating embeddings
+/// Loaded embedding model ready for generating embeddings
 pub struct LoadedEmbeddingModel {
     model_name: String,
     dimension: usize,

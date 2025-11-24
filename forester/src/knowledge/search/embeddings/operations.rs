@@ -6,15 +6,14 @@
 
 use crate::knowledge::domain::Embedding;
 
-/// Vector operations for embeddings
+/// Mathematical operations on embedding vectors
 pub trait VectorOps {
-    /// Calculate cosine similarity between two embeddings
+    /// Calculate cosine similarity between embeddings
     ///
     /// Returns a value between -1.0 (opposite) and 1.0 (identical).
-    /// Higher values indicate greater similarity.
     fn cosine_similarity(&self, other: &Self) -> f32;
 
-    /// Calculate the L2 (Euclidean) norm of the embedding
+    /// Calculate the L2 norm of the embedding
     fn magnitude(&self) -> f32;
 
     /// Normalize the embedding to unit length

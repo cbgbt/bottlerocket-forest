@@ -15,10 +15,10 @@ use crate::knowledge::storage::ChunkRepository;
 
 use super::{EmbeddingProvider, SearchEngine, SearchError};
 
-/// Semantic search engine for Best mode embedding-based search
+/// Semantic search engine using embedding-based similarity
 ///
-/// Uses an embedding provider to convert query text into semantic vectors,
-/// then searches for chunks with similar embeddings using vector similarity.
+/// Converts query text into semantic vectors and searches for chunks with similar
+/// embeddings using cosine similarity. Applies score boosting based on file characteristics.
 pub struct SemanticSearchEngine<R: ChunkRepository> {
     repository: R,
     embedding_provider: Box<dyn EmbeddingProvider>,
@@ -26,7 +26,7 @@ pub struct SemanticSearchEngine<R: ChunkRepository> {
 }
 
 impl<R: ChunkRepository> SemanticSearchEngine<R> {
-    /// Create a new semantic search engine with the given repository and embedding provider
+    /// Create a semantic search engine
     pub fn new(
         repository: R,
         embedding_provider: Box<dyn EmbeddingProvider>,
