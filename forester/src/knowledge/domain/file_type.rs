@@ -1,26 +1,21 @@
 //! File type classification for indexing
 //!
-//! Determines which files should be indexed and how they should be processed.
-//! The file scanner uses [`FileType::from_path`] to classify files, then filters
-//! to only indexable types before dispatching to appropriate chunking strategies.
+//! The file scanner uses [`FileType::from_path`] to classify files by extension,
+//! then filters to indexable types before dispatching to chunking strategies.
 
 use std::path::Path;
 
-/// Classification of files for indexing
+/// File classification determining indexing strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FileType {
-    /// Markdown documentation files
     Markdown,
-    /// Rust source files (for doc comment extraction)
     Rust,
-    /// Files that should not be indexed
     #[serde(skip)]
     Unsupported,
 }
 
 impl FileType {
-    /// Classify a file by its path
     pub fn from_path(path: &Path) -> Self {
         match path.extension().and_then(|s| s.to_str()) {
             Some("md") => Self::Markdown,
@@ -29,7 +24,6 @@ impl FileType {
         }
     }
 
-    /// Check if this file type should be indexed
     pub fn is_indexable(&self) -> bool {
         matches!(self, Self::Markdown | Self::Rust)
     }

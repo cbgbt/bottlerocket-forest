@@ -1,6 +1,10 @@
 //! Domain types for knowledge indexing
 //!
-//! This module defines the core types used throughout the knowledge indexing system.
+//! Core abstractions:
+//! * [`Chunk`] and related types represent searchable documentation units
+//! * [`SearchQuery`] and [`SearchResults`] handle search operations
+//! * [`FileType`] classifies files for indexing
+//! * Newtypes provide type-safe wrappers for domain concepts
 
 pub mod chunk;
 pub mod file_type;
@@ -20,23 +24,18 @@ pub use chunk::{
 pub use file_type::FileType;
 pub use search::{FileSearchResult, SearchQuery, SearchResult, SearchResults};
 
-/// Configuration for file scanning
+/// Controls which files are scanned during indexing
 #[derive(Debug, Clone, Builder)]
 #[builder(on(_, into))]
 #[non_exhaustive]
 pub struct ScanConfig {
-    /// Respect .gitignore files
     #[builder(default = true)]
     pub respect_gitignore: bool,
 
-    /// Use .foresterignore files
     #[builder(default = true)]
     pub use_foresterignore: bool,
 
-    /// Scan targets relative to forest root
-    ///
-    /// Empty vector means scan from forest root.
-    /// Non-empty means scan only specified targets.
+    /// Empty means scan entire forest root; non-empty restricts to specified paths
     #[builder(default)]
     pub targets: Vec<PathBuf>,
 }
@@ -52,91 +51,66 @@ impl Default for ScanConfig {
 }
 
 /// Unique identifier for a documentation chunk
-///
-/// Each chunk in the index has a unique UUID to enable efficient lookups
-/// and prevent duplicates.
 #[nutype(derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq))]
 pub struct ChunkId(Uuid);
 
-/// Name of a repository in the forest
-///
-/// Used to identify which repository a chunk belongs to (e.g., "bottlerocket", "twoliter").
+/// Repository name within the forest
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct RepoName(String);
 
-/// Name of a Rust item (function, struct, module, etc.)
-///
-/// Extracted from Rust source files to provide context for doc comments.
+/// Name of a Rust item extracted from source
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct ItemName(String);
 
-/// Text of a markdown heading
-///
-/// Used to build heading hierarchies for markdown chunks, providing context
-/// about where in the document structure a chunk appears.
+/// Markdown heading text for building document hierarchies
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct HeadingText(String);
 
-/// User's search query text
-///
-/// The text that will be used for semantic or keyword search against the index.
+/// Search query text for semantic or keyword matching
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct QueryText(String);
 
-/// Path relative to the forest root
-///
-/// All indexed files are stored with paths relative to the forest root directory,
-/// making the index portable across different machines.
+/// File path relative to forest root for portable indexing
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Hash)
 )]
 pub struct ForestRelativePath(String);
 
-/// Absolute filesystem path
-///
-/// Used for file operations during indexing and scanning.
+/// Absolute filesystem path for file operations
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct AbsolutePath(String);
 
-/// Number of tokens in a text chunk
-///
-/// Used to enforce maximum chunk sizes and track index statistics.
-/// Must be greater than 0.
+/// Token count for chunk size enforcement
 #[nutype(
     validate(greater = 0),
     derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct TokenCount(usize);
 
-/// Maximum number of search results to return
-///
-/// Bounded between 1 and 100 to prevent excessive result sets.
+/// Maximum search results to return, bounded 1-100
 #[nutype(
     validate(greater = 0, less_or_equal = 100),
     derive(Debug, Clone, Copy, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct ResultLimit(usize);
 
-/// Relevance score for a search result
-///
-/// Normalized between 0.0 (not relevant) and 1.0 (highly relevant).
-/// Used for ranking search results.
+/// Search result relevance score normalized 0.0-1.0
 #[nutype(
     validate(greater_or_equal = 0.0, less_or_equal = 1.0),
     derive(
@@ -152,37 +126,27 @@ pub struct ResultLimit(usize);
 )]
 pub struct RelevanceScore(f32);
 
-/// Function or type signature from Rust source
-///
-/// Provides additional context for Rust doc comments by including the
-/// signature of the item being documented.
+/// Rust item signature for doc comment context
 #[nutype(
     validate(not_empty),
     derive(Debug, Clone, Display, Serialize, Deserialize, PartialEq, Eq)
 )]
 pub struct Signature(String);
 
-/// Semantic embedding vector for a chunk
-///
-/// A non-empty vector of floating-point values representing the semantic
-/// meaning of a text chunk. Used for similarity search in Best mode.
+/// Semantic embedding vector for similarity search
 #[nutype(
     validate(predicate = |v: &Vec<f32>| !v.is_empty()),
     derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRef, Deref)
 )]
 pub struct Embedding(Vec<f32>);
 
-/// Raw content to be chunked
-///
-/// Represents the text content that will be split into searchable chunks.
-/// No validation is applied as any text content is valid for chunking.
+/// Raw text content ready for chunking
 #[nutype(derive(Debug, Clone, Display, AsRef, Serialize, Deserialize, PartialEq, Eq))]
 pub struct ChunkableContent(String);
 
-/// Configuration for embedding model and chunking parameters
+/// Embedding model configuration that determines index structure
 ///
-/// These parameters are fundamental to the index structure. If any of these
-/// values change, the entire index must be rebuilt.
+/// Changes to these parameters require rebuilding the entire index.
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct EmbeddingModelConfig {
@@ -204,9 +168,7 @@ impl Default for EmbeddingModelConfig {
     }
 }
 
-/// A chunk with index-specific metadata
-///
-/// Wraps a domain `Chunk` with embedding data and a timestamp indicating when it was indexed.
+/// Domain chunk with embedding and indexing timestamp
 #[derive(Debug, Clone, Builder)]
 #[non_exhaustive]
 pub struct IndexedChunk {
@@ -215,25 +177,22 @@ pub struct IndexedChunk {
     pub indexed_at: Timestamp,
 }
 
-/// Unix timestamp in seconds
-///
-/// Represents when a chunk was indexed, used for staleness detection
-/// and incremental updates.
+/// Unix timestamp for staleness detection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(i64);
 
 impl Timestamp {
-    /// Create a timestamp from Unix seconds
+    /// Creates a timestamp from Unix seconds
     pub fn from_secs(secs: i64) -> Self {
         Self(secs)
     }
 
-    /// Get the Unix seconds value
+    /// Returns the Unix seconds value
     pub fn as_secs(&self) -> i64 {
         self.0
     }
 
-    /// Create a timestamp for the current time
+    /// Creates a timestamp for the current system time
     pub fn now() -> Self {
         Self(
             std::time::SystemTime::now()
@@ -244,7 +203,7 @@ impl Timestamp {
     }
 }
 
-/// Metadata about the index
+/// Statistics and configuration snapshot of the index
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IndexMetadata {

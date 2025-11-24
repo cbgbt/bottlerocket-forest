@@ -1,12 +1,10 @@
 //! Search domain types
 //!
-//! Types for representing search queries and results.
-//!
-//! The search flow:
-//! * [`SearchQuery`] specifies what to search for (text, limit)
-//! * [`SearchResult`] represents a single matched chunk with score and matched terms
-//! * [`SearchResults`] aggregates all results with metadata about the search operation
-//! * [`FileSearchResult`] groups multiple chunk matches from the same file
+//! Search flow:
+//! * [`SearchQuery`] specifies search parameters
+//! * [`SearchResult`] represents a single matched chunk with relevance score
+//! * [`SearchResults`] aggregates all results with search metadata
+//! * [`FileSearchResult`] groups chunk matches by source file
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};
@@ -14,7 +12,7 @@ use std::time::Duration;
 
 use super::{Chunk, ForestRelativePath, QueryText, RelevanceScore, RepoName, ResultLimit};
 
-/// A search query with parameters
+/// Search parameters combining query text and result limit
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -23,7 +21,7 @@ pub struct SearchQuery {
     pub limit: ResultLimit,
 }
 
-/// A single search result
+/// Single chunk match with relevance score
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -32,7 +30,7 @@ pub struct SearchResult {
     pub score: RelevanceScore,
 }
 
-/// Results from a search operation
+/// Complete search operation results with performance metrics
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -43,7 +41,7 @@ pub struct SearchResults {
     pub search_duration: Duration,
 }
 
-/// Search results grouped by file
+/// Chunk matches grouped by source file
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]

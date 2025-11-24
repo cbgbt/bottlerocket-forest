@@ -1,13 +1,10 @@
 //! Chunk domain types
 //!
-//! A chunk represents a searchable unit of documentation with metadata about its
-//! source location and context.
-//!
 //! Core abstractions:
-//! * [`Chunk`] - The main type combining source, content, and context
-//! * [`ChunkSource`] - Identifies where the chunk came from (file, repo, line range)
-//! * [`ChunkContent`] - The actual text and token count
-//! * [`ChunkContext`] - Type-specific metadata (markdown headings or Rust doc context)
+//! * [`Chunk`] combines source, content, and context
+//! * [`ChunkSource`] identifies origin file and repository
+//! * [`ChunkContent`] contains text and token count
+//! * [`ChunkContext`] provides type-specific metadata
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};
@@ -15,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{ChunkId, ForestRelativePath, HeadingText, ItemName, RepoName, Signature, TokenCount};
 use crate::knowledge::indexing::RustItemType;
 
-/// A searchable chunk of documentation with metadata
+/// Searchable documentation unit with source and context metadata
 #[derive(Debug, Clone, PartialEq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -26,7 +23,7 @@ pub struct Chunk {
     pub context: ChunkContext,
 }
 
-/// Source location of the chunk
+/// Origin location of a chunk
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -35,7 +32,7 @@ pub struct ChunkSource {
     pub repo_name: RepoName,
 }
 
-/// The actual content to be indexed
+/// Text content with token count for size tracking
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -44,14 +41,14 @@ pub struct ChunkContent {
     pub token_count: TokenCount,
 }
 
-/// Type-specific metadata about the chunk
+/// File-type-specific metadata for chunks
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ChunkContext {
     Markdown(MarkdownContext),
     RustDoc(RustDocContext),
 }
 
-/// Context for markdown chunks
+/// Heading hierarchy for markdown document structure
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
@@ -59,7 +56,7 @@ pub struct MarkdownContext {
     pub heading_hierarchy: Vec<HeadingText>,
 }
 
-/// Context for Rust doc comment chunks
+/// Rust item metadata for doc comment context
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
 #[builder(on(_, into))]
 #[non_exhaustive]
