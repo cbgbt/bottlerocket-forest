@@ -28,7 +28,7 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut index = KnowledgeIndex::open("/path/to/forest")?;
-//! let result = index.build()?;
+//! let result = index.build().call()?;
 //! let results = index.search("boot process", 10)?;
 //! # Ok(())
 //! # }
