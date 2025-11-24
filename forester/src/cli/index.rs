@@ -121,7 +121,7 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let progress = Box::new(CliProgressReporter::new());
+    let progress = Box::new(CliProgressReporter::default());
     let result = index
         .build_with_progress(Some(progress))
         .context(KnowledgeIndexSnafu)?;
@@ -140,7 +140,7 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let progress = Box::new(CliProgressReporter::new());
+    let progress = Box::new(CliProgressReporter::default());
     let result = index
         .rebuild_with_progress(Some(progress))
         .context(KnowledgeIndexSnafu)?;
@@ -159,7 +159,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
 
     let mut index = open_existing_index(&forest_root)?;
 
-    let progress = Box::new(CliProgressReporter::new());
+    let progress = Box::new(CliProgressReporter::default());
     let result = index
         .update_with_progress(Some(progress))
         .context(KnowledgeIndexSnafu)?;

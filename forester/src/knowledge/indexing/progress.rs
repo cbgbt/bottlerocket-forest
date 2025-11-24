@@ -30,7 +30,7 @@
 //!     }
 //!     
 //!     // ... implement other methods
-//! #   fn scanning_completed(&self, _total_files: usize) {}
+//! #   fn scanning_completed(&self) {}
 //! #   fn chunking_started(&self, _total_files: usize) {}
 //! #   fn file_chunked(&self, _path: &Path, _chunk_count: usize) {}
 //! #   fn chunking_completed(&self, _total_chunks: usize) {}

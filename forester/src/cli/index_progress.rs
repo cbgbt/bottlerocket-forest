@@ -24,20 +24,6 @@ pub struct CliProgressReporter {
 }
 
 impl CliProgressReporter {
-    /// Create a new CLI progress reporter with default styles
-    ///
-    /// Sets up three progress bars:
-    /// - Scan: Spinner showing file discovery
-    /// - Chunk: Progress bar for chunking files
-    /// - Embed: Spinner showing indexing
-    pub fn new() -> Self {
-        Self::with_styles(
-            Self::default_scan_style(),
-            Self::default_chunk_style(),
-            Self::default_embed_style(),
-        )
-    }
-
     /// Create with custom progress bar styles
     ///
     /// Allows full customization of progress bar appearance. Useful for
@@ -102,8 +88,18 @@ impl CliProgressReporter {
 }
 
 impl Default for CliProgressReporter {
+    /// Create a new CLI progress reporter with default styles
+    ///
+    /// Sets up three progress bars:
+    /// - Scan: Spinner showing file discovery
+    /// - Chunk: Progress bar for chunking files
+    /// - Embed: Spinner showing indexing
     fn default() -> Self {
-        Self::new()
+        Self::with_styles(
+            Self::default_scan_style(),
+            Self::default_chunk_style(),
+            Self::default_embed_style(),
+        )
     }
 }
 
