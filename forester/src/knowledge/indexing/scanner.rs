@@ -908,4 +908,45 @@ mod test {
         assert_eq!(files.len(), 1);
         assert!(files[0].relative_path.to_string().contains("keep.md"));
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_scanner_does_not_follow_symlinks() {
+        // Given A forest with a symlink pointing outside
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+
+        // Create file outside forest
+        fs::write(outside_dir.path().join("external.md"), "# External").unwrap();
+
+        // Create repo with symlink to external file
+        let repo_dir = temp_dir.path().join("repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join("internal.md"), "# Internal").unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(
+            outside_dir.path().join("external.md"),
+            repo_dir.join("link.md"),
+        )
+        .unwrap();
+
+        // When Scanning
+        let scanner = FileScanner::new(temp_dir.path()).unwrap();
+        let files = scanner.scan().unwrap();
+
+        // Then Only internal file should be found (symlink not followed)
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.to_string().contains("internal.md"));
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("link.md"))
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.relative_path.to_string().contains("external.md"))
+        );
+    }
 }
