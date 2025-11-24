@@ -39,9 +39,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::knowledge::domain::{EmbeddingModelConfig, SearchQuery, SearchResults};
+use crate::knowledge::indexing::IndexDataProvider;
+use crate::knowledge::indexing::provider::EmbeddingDataProvider;
 use crate::knowledge::indexing::{IndexResult, load_forester_config};
 use crate::knowledge::scoring::ScoreBooster;
-use crate::knowledge::search::{EmbeddingModel, SearchEngine, SemanticSearchEngine};
+use crate::knowledge::search::{
+    EmbeddingModel, LoadedEmbeddingModel, SearchEngine, SemanticSearchEngine,
+};
 use crate::knowledge::storage::ChunkRepository;
 use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 
@@ -138,7 +142,7 @@ impl KnowledgeIndex {
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
-        let provider = self.create_provider()?;
+        let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
@@ -173,7 +177,7 @@ impl KnowledgeIndex {
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
-        let provider = self.create_provider()?;
+        let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
@@ -209,7 +213,7 @@ impl KnowledgeIndex {
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
-        let provider = self.create_provider()?;
+        let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
@@ -335,22 +339,49 @@ impl KnowledgeIndex {
     ///
     /// Initializes the semantic search engine with the configured embedding model
     /// and score boosting rules from the forester configuration.
-    fn create_search_engine(&self) -> Result<Box<dyn SearchEngine>, IndexError> {
+    fn create_search_engine(
+        &self,
+    ) -> Result<SemanticSearchEngine<SqliteChunkRepository>, IndexError> {
+        let repo = self.repository()?;
+        let embedding_model = self.create_embedding_model()?;
+        let score_booster = self.load_score_booster()?;
+
+        Ok(SemanticSearchEngine::new(
+            repo,
+            Box::new(embedding_model),
+            score_booster,
+        ))
+    }
+
+    /// Create an embedding data provider for indexing operations
+    ///
+    /// Initializes the embedding model used to generate vector embeddings during indexing.
+    fn create_provider(&self) -> Result<EmbeddingDataProvider, IndexError> {
+        let embedding_model = self.create_embedding_model()?;
+        Ok(EmbeddingDataProvider::new(Box::new(embedding_model)))
+    }
+
+    /// Create an embedding model with the configured parameters
+    fn create_embedding_model(&self) -> Result<LoadedEmbeddingModel, IndexError> {
         use types::index_error::*;
 
-        let repo = self.repository()?;
-        let embedding_model = EmbeddingModel::builder()
+        EmbeddingModel::builder()
             .model_name(self.config.model_name.clone())
             .dimension(self.config.embedding_dim)
             .cache_dir(self.forest_root.join(".forester/cache/model"))
             .build()
             .load()
-            .context(EmbeddingProviderCreationFailedSnafu)?;
+            .context(EmbeddingProviderCreationFailedSnafu)
+    }
 
-        // Load boost rules from config, or use defaults
+    /// Load score booster from forester configuration
+    fn load_score_booster(&self) -> Result<ScoreBooster, IndexError> {
+        use types::index_error::*;
+
         let forester_config =
             load_forester_config(&self.forest_root).context(ConfigLoadFailedSnafu)?;
-        let score_booster = if let Some(config) = forester_config {
+
+        Ok(if let Some(config) = forester_config {
             if config.boost_rules.is_empty() {
                 ScoreBooster::default()
             } else {
@@ -358,35 +389,7 @@ impl KnowledgeIndex {
             }
         } else {
             ScoreBooster::default()
-        };
-
-        Ok(Box::new(SemanticSearchEngine::new(
-            repo,
-            Box::new(embedding_model),
-            score_booster,
-        )))
-    }
-
-    /// Create an embedding data provider for indexing operations
-    ///
-    /// Initializes the embedding model used to generate vector embeddings during indexing.
-    fn create_provider(
-        &self,
-    ) -> Result<Box<dyn crate::knowledge::indexing::IndexDataProvider>, IndexError> {
-        use types::index_error::*;
-
-        let embedding_model = EmbeddingModel::builder()
-            .model_name(self.config.model_name.clone())
-            .dimension(self.config.embedding_dim)
-            .cache_dir(self.forest_root.join(".forester/cache/model"))
-            .build()
-            .load()
-            .context(EmbeddingProviderCreationFailedSnafu)?;
-        Ok(Box::new(
-            crate::knowledge::indexing::provider::EmbeddingDataProvider::new(Box::new(
-                embedding_model,
-            )),
-        ))
+        })
     }
 
     /// Load scan configuration from `.forester.toml` if it exists
