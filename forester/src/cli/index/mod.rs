@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use self::progress::CliProgressReporter;
 use super::theme;
@@ -134,7 +135,7 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let progress = Box::new(CliProgressReporter::default());
+    let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .build()
         .progress(progress)
@@ -156,7 +157,7 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
 
     let mut index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let progress = Box::new(CliProgressReporter::default());
+    let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .rebuild()
         .progress(progress)
@@ -178,7 +179,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
 
     let mut index = open_existing_index(&forest_root)?;
 
-    let progress = Box::new(CliProgressReporter::default());
+    let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .update()
         .progress(progress)

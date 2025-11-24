@@ -36,6 +36,7 @@ pub use types::{IndexError, IndexStatus};
 use bon::Builder;
 use snafu::ResultExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::knowledge::domain::{EmbeddingModelConfig, SearchQuery, SearchResults};
 use crate::knowledge::indexing::{IndexResult, load_forester_config};
@@ -133,7 +134,7 @@ impl KnowledgeIndex {
     #[builder]
     pub fn build(
         &mut self,
-        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -142,8 +143,6 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let progress_arc = progress.map(std::sync::Arc::from);
-
         let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
@@ -151,7 +150,7 @@ impl KnowledgeIndex {
             provider,
             scan_config,
             filter,
-            progress_arc,
+            progress,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -170,7 +169,7 @@ impl KnowledgeIndex {
     #[builder]
     pub fn rebuild(
         &mut self,
-        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -179,8 +178,6 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let progress_arc = progress.map(std::sync::Arc::from);
-
         let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
@@ -188,7 +185,7 @@ impl KnowledgeIndex {
             provider,
             scan_config,
             filter,
-            progress_arc,
+            progress,
         )
         .context(IndexingFailedSnafu)?;
 
@@ -208,7 +205,7 @@ impl KnowledgeIndex {
     #[builder]
     pub fn update(
         &mut self,
-        progress: Option<Box<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -217,8 +214,6 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let progress_arc = progress.map(std::sync::Arc::from);
-
         let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
             &self.forest_root,
             repository,
@@ -226,7 +221,7 @@ impl KnowledgeIndex {
             provider,
             scan_config,
             filter,
-            progress_arc,
+            progress,
         )
         .context(IndexingFailedSnafu)?;
 
