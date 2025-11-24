@@ -21,13 +21,14 @@ use crate::knowledge::domain::{
 };
 use crate::knowledge::storage::ChunkRepository;
 
-/// Manage the knowledge index
+/// Top-level command for knowledge index operations
 #[derive(Parser)]
 pub struct IndexCommand {
     #[command(subcommand)]
     subcommand: IndexSubcommand,
 }
 
+/// Subcommands for index operations
 #[derive(Subcommand)]
 enum IndexSubcommand {
     /// Build the knowledge index
@@ -44,73 +45,74 @@ enum IndexSubcommand {
     Status(StatusArgs),
 }
 
-/// Build the knowledge index
+/// Arguments for building the knowledge index
 #[derive(Parser)]
 struct BuildArgs {
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Rebuild the knowledge index from scratch
+/// Arguments for rebuilding the knowledge index from scratch
 #[derive(Parser)]
 struct RebuildArgs {
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Update the knowledge index incrementally
+/// Arguments for incrementally updating the knowledge index
 #[derive(Parser)]
 struct UpdateArgs {
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Clear all chunks from the index
+/// Arguments for clearing all chunks from the index
 #[derive(Parser)]
 struct ClearArgs {
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 
-    /// skip confirmation prompt
+    /// Skip confirmation prompt
     #[arg(short = 'y', long)]
     yes: bool,
 }
 
-/// Search the knowledge index
+/// Arguments for searching the knowledge index
 #[derive(Parser)]
 struct SearchArgs {
-    /// search query
+    /// Search query
     query: String,
 
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 
-    /// maximum number of results (1-100, defaults to 10)
+    /// Maximum number of results (1-100, defaults to 10)
     #[arg(short = 'n', long)]
     limit: Option<usize>,
 
-    /// output format: human or json (defaults to human)
+    /// Output format: human or json (defaults to human)
     #[arg(short = 'f', long)]
     format: Option<String>,
 
-    /// show individual chunk matches under each file
+    /// Show individual chunk matches under each file
     #[arg(long)]
     show_chunks: bool,
 }
 
-/// Show index status and statistics
+/// Arguments for showing index status and statistics
 #[derive(Parser)]
 struct StatusArgs {
-    /// path to forest root (defaults to current directory)
+    /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
+/// Executes the index command by dispatching to the appropriate subcommand handler
 pub fn run(cmd: IndexCommand) -> Result<(), IndexError> {
     match cmd.subcommand {
         IndexSubcommand::Build(args) => handle_build(args),
@@ -122,6 +124,7 @@ pub fn run(cmd: IndexCommand) -> Result<(), IndexError> {
     }
 }
 
+/// Builds the knowledge index, processing all files in the forest
 fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -141,6 +144,7 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Rebuilds the knowledge index from scratch, clearing existing data first
 fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -160,6 +164,7 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Updates the knowledge index incrementally based on file changes
 fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -179,6 +184,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Clears all chunks from the knowledge index after user confirmation
 fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -200,6 +206,7 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Searches the knowledge index and displays results in the requested format
 fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -227,6 +234,7 @@ fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Displays index status and statistics including chunk count and model configuration
 fn handle_status(args: StatusArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -243,6 +251,7 @@ fn handle_status(args: StatusArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
+/// Opens an existing knowledge index, returning an error if it doesn't exist
 fn open_existing_index(forest_root: &std::path::Path) -> Result<KnowledgeIndex, IndexError> {
     use index_error::*;
 
@@ -272,6 +281,7 @@ fn open_existing_index(forest_root: &std::path::Path) -> Result<KnowledgeIndex, 
         .context(KnowledgeIndexSnafu)
 }
 
+/// Parses the output format string into an OutputFormat enum
 fn parse_output_format(format_str: Option<&str>) -> Result<OutputFormat, IndexError> {
     match format_str {
         Some("human") => Ok(OutputFormat::Human),
@@ -283,6 +293,7 @@ fn parse_output_format(format_str: Option<&str>) -> Result<OutputFormat, IndexEr
     }
 }
 
+/// Groups search results by file path, aggregating chunks and computing best scores
 fn group_results_by_file(results: &SearchResults) -> Vec<FileSearchResult> {
     let mut file_map: HashMap<ForestRelativePath, (RepoName, Vec<SearchResult>)> = HashMap::new();
 
@@ -326,6 +337,7 @@ fn group_results_by_file(results: &SearchResults) -> Vec<FileSearchResult> {
     file_results
 }
 
+/// Prints a formatted summary of build operation results
 fn format_build_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("Index build complete!");
     println!("  Files processed: {}", result.files_processed);
@@ -333,6 +345,7 @@ fn format_build_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("  Duration: {:.2}s", result.duration.as_secs_f64());
 }
 
+/// Prints a formatted summary of update operation results
 fn format_update_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("Index update complete!");
     println!("  Files added: {}", result.files_added);
@@ -342,6 +355,7 @@ fn format_update_result(result: &crate::knowledge::indexing::IndexResult) {
     println!("  Duration: {:.2}s", result.duration.as_secs_f64());
 }
 
+/// Prints file search results in human-readable format with color-coded scores
 fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: bool) {
     if file_results.is_empty() {
         println!("No files matched");
@@ -399,6 +413,7 @@ fn colorize_score(score: f32) -> String {
     }
 }
 
+/// Prints file search results as JSON
 fn format_file_results_json(file_results: &[FileSearchResult]) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -407,6 +422,7 @@ fn format_file_results_json(file_results: &[FileSearchResult]) -> Result<(), Ind
     Ok(())
 }
 
+/// Prints index status information including metadata and statistics
 fn format_status(status: &crate::knowledge::facade::IndexStatus) {
     println!("Knowledge Index Status");
     println!("  Exists: {}", status.exists);
@@ -426,6 +442,7 @@ fn format_status(status: &crate::knowledge::facade::IndexStatus) {
     }
 }
 
+/// Prompts the user for yes/no confirmation via stdin
 fn prompt_confirmation(message: &str) -> Result<bool, IndexError> {
     use index_error::*;
 
@@ -440,6 +457,7 @@ fn prompt_confirmation(message: &str) -> Result<bool, IndexError> {
     Ok(input == "yes" || input == "y")
 }
 
+/// Output format for search results
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 enum OutputFormat {
