@@ -3,9 +3,34 @@
 //! This module provides the top-level CLI structure and dispatches to subcommands:
 //! * [`index`] - Manages the forest repository index
 //! * [`registry`] - Manages the local OCI registry
+//!
+//! # Adding New Commands
+//!
+//! When implementing new CLI commands, use the [`theme`] module for consistent
+//! colorized output:
+//!
+//! ```ignore
+//! use super::theme;
+//!
+//! // Success/error indicators
+//! println!("{} Operation completed", theme::success("✓"));
+//! println!("{} Operation failed", theme::error("✗"));
+//!
+//! // Values and data
+//! println!("Found {} items", theme::value(count));
+//! println!("URL: {}", theme::url("http://localhost:5000"));
+//!
+//! // Labels and secondary info
+//! println!("Repository: {}", theme::label("bottlerocket"));
+//! println!("  {}", theme::muted("Additional details"));
+//! ```
+//!
+//! The theme module ensures visual consistency with clap-cargo's help styling.
+//! See [`theme`] for the complete list of available color functions.
 
 mod index;
 mod registry;
+mod theme;
 
 use clap::{Parser, Subcommand};
 use snafu::{ResultExt, Snafu};

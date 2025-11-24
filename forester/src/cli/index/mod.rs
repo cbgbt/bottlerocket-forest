@@ -7,12 +7,12 @@
 //! * [`progress`] - Progress reporting for indexing operations
 
 use clap::{Parser, Subcommand};
-use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use self::progress::CliProgressReporter;
+use super::theme;
 
 mod progress;
 use crate::knowledge::KnowledgeIndex;
@@ -362,21 +362,17 @@ fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: boo
         return;
     }
 
-    println!(
-        "Found {} unique files:\n",
-        file_results.len().to_string().cyan()
-    );
+    println!("Found {} unique files:\n", theme::value(file_results.len()));
 
     for (i, file_result) in file_results.iter().enumerate() {
         let score_value = file_result.best_score.into_inner();
-        let score_colored = colorize_score(score_value);
 
         println!(
             "{}. [Matches: {}, Best Score: {}] {}",
-            (i + 1).to_string().bright_blue(),
-            file_result.match_count.to_string().cyan(),
-            score_colored,
-            file_result.file_path.to_string().bright_white()
+            theme::value(i + 1),
+            theme::value(file_result.match_count),
+            theme::score(score_value),
+            theme::label(&file_result.file_path)
         );
 
         if show_chunks {
@@ -389,27 +385,11 @@ fn format_file_results_human(file_results: &[FileSearchResult], show_chunks: boo
                 let chunk_score = chunk_result.score.into_inner();
                 println!(
                     "   - [Score: {}] {}\n",
-                    colorize_score(chunk_score),
-                    preview.replace('\n', " ").dimmed()
+                    theme::score(chunk_score),
+                    theme::muted(preview.replace('\n', " "))
                 );
             }
         }
-    }
-}
-
-/// Returns a colorized score string based on relevance thresholds.
-///
-/// Colors automatically disable when output is not a TTY.
-fn colorize_score(score: f32) -> String {
-    let formatted = format!("{:.3}", score);
-    if score >= 0.8 {
-        formatted.green().to_string()
-    } else if score >= 0.6 {
-        formatted.yellow().to_string()
-    } else if score >= 0.4 {
-        formatted.truecolor(255, 165, 0).to_string() // orange
-    } else {
-        formatted.red().to_string()
     }
 }
 

@@ -11,6 +11,8 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::path::Path;
 use std::sync::Arc;
 
+use super::super::theme;
+
 /// CLI progress reporter with three concurrent progress bars
 ///
 /// Displays real-time progress for scanning, chunking, and embedding phases
@@ -61,7 +63,7 @@ impl CliProgressReporter {
     /// `[00:00:01.234] ⠋ Scanning... (123 files found)`
     fn default_scan_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan} files found)")
+            .template(theme::progress::SCAN)
             .unwrap()
     }
 
@@ -71,7 +73,7 @@ impl CliProgressReporter {
     /// `[00:00:02.456] ⠋ Chunking... (45/100 files)`
     fn default_chunk_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} files)")
+            .template(theme::progress::CHUNK)
             .unwrap()
             .progress_chars("█░")
     }
@@ -82,7 +84,7 @@ impl CliProgressReporter {
     /// `[00:00:03.789] ⠋ Indexing... (450/1000 chunks indexed)`
     fn default_embed_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
-            .template("[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} chunks indexed)")
+            .template(theme::progress::EMBED)
             .unwrap()
     }
 }

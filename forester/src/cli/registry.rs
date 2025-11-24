@@ -9,9 +9,10 @@
 use crate::{config, registry};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
-use owo_colors::OwoColorize;
 use snafu::{ResultExt, Snafu};
 use timeago::Formatter;
+
+use super::theme;
 
 /// Manage local OCI registry
 #[derive(Parser)]
@@ -65,8 +66,8 @@ fn start(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> 
     use registry_error::*;
 
     let url = registry::start(config).context(OperationSnafu)?;
-    println!("{} Registry started successfully", "✓".green().bold());
-    println!("  Available at: {}", url.to_string().cyan().underline());
+    println!("{} Registry started successfully", theme::success("✓"));
+    println!("  Available at: {}", theme::url(&url));
     Ok(())
 }
 
@@ -75,7 +76,7 @@ fn stop(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     use registry_error::*;
 
     registry::stop(config).context(OperationSnafu)?;
-    println!("{} Registry stopped", "✓".green().bold());
+    println!("{} Registry stopped", theme::success("✓"));
     Ok(())
 }
 
@@ -87,14 +88,14 @@ fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError>
 
     match status.state {
         registry::RegistryState::NotCreated => {
-            println!("Registry: {}", "Not created".dimmed());
+            println!("Registry: {}", theme::muted("Not created"));
         }
         registry::RegistryState::Stopped => {
-            println!("Registry: {}", "Stopped".yellow());
+            println!("Registry: {}", theme::warning("Stopped"));
         }
         registry::RegistryState::Running { ref url } => {
-            println!("Registry: {} 🚀", "Running".green().bold());
-            println!("  URL: {}", url.to_string().cyan().underline());
+            println!("Registry: {} 🚀", theme::success("Running"));
+            println!("  URL: {}", theme::url(url));
 
             // Fetch image stats if registry is running
             if let Ok(images) = registry::list_images(url) {
@@ -103,14 +104,14 @@ fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError>
 
                 println!(
                     "  Images: {} ({:.2} GB logical)",
-                    images.len().to_string().cyan(),
+                    theme::value(images.len()),
                     size_gb
                 );
                 println!(
                     "  {}",
-                    "Note: Actual disk usage may be lower due to layer deduplication"
-                        .dimmed()
-                        .italic()
+                    theme::muted_italic(
+                        "Note: Actual disk usage may be lower due to layer deduplication"
+                    )
                 );
             }
         }
@@ -119,9 +120,9 @@ fn status(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError>
     println!(
         "Volume: {}",
         if status.volume_exists {
-            "exists".green().to_string()
+            theme::success("exists")
         } else {
-            "not found".red().to_string()
+            theme::error("not found")
         }
     );
 
@@ -133,7 +134,7 @@ fn clean(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> 
     use registry_error::*;
 
     registry::clean(config).context(OperationSnafu)?;
-    println!("{} Registry cleaned", "✓".green().bold());
+    println!("{} Registry cleaned", theme::success("✓"));
     Ok(())
 }
 
@@ -168,7 +169,7 @@ fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
     let images = registry::list_images(&url).context(CatalogSnafu)?;
 
     if images.is_empty() {
-        println!("{}", "No images found in registry".dimmed());
+        println!("{}", theme::muted("No images found in registry"));
         return Ok(());
     }
 
@@ -183,9 +184,9 @@ fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
 
     println!(
         "{} {} with {} {}:\n",
-        "Registry".cyan().bold(),
-        url.to_string().dimmed(),
-        repos.len().to_string().cyan(),
+        theme::value("Registry"),
+        theme::muted(&url),
+        theme::value(repos.len()),
         if repos.len() == 1 {
             "repository"
         } else {
@@ -203,7 +204,11 @@ fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
         };
         let tag_prefix = if is_last_repo { "    " } else { "│   " };
 
-        println!("{} {}", repo_prefix.dimmed(), repo.as_ref().bright_white());
+        println!(
+            "{} {}",
+            theme::muted(repo_prefix),
+            theme::label(repo.as_ref())
+        );
 
         // Calculate max tag width for alignment
         let max_tag_width = images
@@ -230,17 +235,25 @@ fn list(config: &registry::RegistryRuntimeConfig) -> Result<(), RegistryError> {
             });
 
             let tag_display = format!(":{}", image.tag.as_ref());
+            let size_display = format!("{:.1}MB", size_mb);
+            let time_display = time_ago.as_deref().unwrap_or("");
 
-            println!(
-                "{}{} {:<width$} {:>8} {:>22} {}",
-                tag_prefix.dimmed(),
-                img_symbol.dimmed(),
-                tag_display.blue(),
-                format!("{:.1}MB", size_mb).yellow(),
-                time_ago.as_deref().unwrap_or("").green(),
-                digest_short.dimmed(),
-                width = max_tag_width + 1 // +1 for the colon
+            // Calculate padding manually to avoid color code interference
+            let tag_width = max_tag_width + 1;
+            let tag_padding = tag_width.saturating_sub(tag_display.len());
+            let size_padding = 8usize.saturating_sub(size_display.len());
+            let time_padding = 22usize.saturating_sub(time_display.len());
+
+            print!("{}", theme::muted(tag_prefix));
+            print!("{} ", theme::muted(img_symbol));
+            print!("{}{} ", theme::tag(&tag_display), " ".repeat(tag_padding));
+            print!(
+                "{}{} ",
+                " ".repeat(size_padding),
+                theme::size(&size_display)
             );
+            print!("{}{} ", " ".repeat(time_padding), theme::time(time_display));
+            println!("{}", theme::muted(digest_short));
         }
     }
 
