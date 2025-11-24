@@ -143,6 +143,40 @@ forester registry list     # List published images
 
 See `forester/README.md` for complete documentation.
 
+## Documentation Guidelines
+
+When creating or updating documentation in the forest:
+
+**Add Keywords for Semantic Search**
+
+Include a keywords line near the top of documentation files to improve discoverability via `forester index search`:
+
+```markdown
+**Keywords:** primary-topic, related-term, technical-concept, component-name, use-case
+```
+
+**Guidelines:**
+- Place keywords after the title and introduction, before main content
+- Include 5-15 relevant terms that users might search for
+- Use terms from different categories:
+  - Technical concepts (e.g., "systemd", "targets", "dependencies")
+  - Component names (e.g., "apiserver", "bootstrap-containers")
+  - Use cases (e.g., "boot", "configuration", "debugging")
+  - Related features (e.g., "FIPS", "settings", "updates")
+- Use lowercase, comma-separated format
+- Include both specific terms and broader concepts
+
+**Example:**
+```markdown
+# Bottlerocket Boot Process
+
+**Keywords:** boot, systemd, targets, preconfigured, configured, multi-user, 
+fipscheck, services, dependencies, API system, bootstrap containers, settings, 
+startup, initialization
+```
+
+This helps AI agents and developers find relevant documentation quickly using semantic search.
+
 ## Skills
 
 The `skills/` directory contains modular workflows for common Bottlerocket development tasks. **Skills are mandatory when they exist for a task** - they are not optional suggestions. Always check for applicable skills before starting any work. See `skills/README.md` for the complete protocol.
