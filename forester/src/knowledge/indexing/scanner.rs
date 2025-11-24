@@ -81,6 +81,12 @@ impl FileScanner {
                 path: forest_root.display().to_string()
             }
         );
+        snafu::ensure!(
+            forest_root.is_dir(),
+            ForestRootNotDirectorySnafu {
+                path: forest_root.display().to_string()
+            }
+        );
 
         Ok(Self {
             forest_root: forest_root.to_path_buf(),
@@ -295,6 +301,13 @@ pub enum ScanError {
     )]
     ForestRootNotFound { path: String },
 
+    #[snafu(display("Forest root is not a directory: {path}"))]
+    #[diagnostic(
+        code(forester::scanner::forest_root_not_directory),
+        help("The forest root must be a directory, not a file")
+    )]
+    ForestRootNotDirectory { path: String },
+
     #[snafu(display("Error walking directory tree"))]
     #[diagnostic(
         code(forester::scanner::walk_error),
@@ -360,6 +373,23 @@ mod test {
 
         // Then It should fail with ForestRootNotFound
         assert!(matches!(result, Err(ScanError::ForestRootNotFound { .. })));
+    }
+
+    #[test]
+    fn test_scanner_rejects_file_as_root() {
+        // Given A file path instead of directory
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("not_a_directory.txt");
+        fs::write(&file_path, "content").unwrap();
+
+        // When Creating a scanner with file path
+        let result = FileScanner::new(&file_path);
+
+        // Then It should fail with ForestRootNotDirectory
+        assert!(matches!(
+            result,
+            Err(ScanError::ForestRootNotDirectory { .. })
+        ));
     }
 
     #[test]
