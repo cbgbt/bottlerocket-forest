@@ -11,7 +11,7 @@ use bon::Builder;
 use snafu::Snafu;
 use std::time::SystemTime;
 
-use crate::knowledge::domain::EmbeddingModelConfig;
+use crate::knowledge::domain::{EmbeddingModelConfig, QueryTextError, ResultLimitError};
 
 /// Status information about the knowledge index
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -81,19 +81,19 @@ pub enum IndexError {
         source: crate::knowledge::search::SearchError,
     },
 
-    #[snafu(display("Invalid search query: {message}"))]
+    #[snafu(display("Invalid search query"))]
     #[diagnostic(
         code(forester::index::invalid_query),
         help("Provide a non-empty query string with valid characters")
     )]
-    InvalidQuery { message: String },
+    InvalidQuery { source: QueryTextError },
 
-    #[snafu(display("Result limit must be between 1 and 100, got {limit}"))]
+    #[snafu(display("Invalid result limit"))]
     #[diagnostic(
         code(forester::index::invalid_result_limit),
         help("Adjust the --limit parameter to be within the valid range")
     )]
-    InvalidResultLimit { limit: usize },
+    InvalidResultLimit { source: ResultLimitError },
 
     #[snafu(display("Knowledge index does not exist"))]
     #[diagnostic(

@@ -256,28 +256,9 @@ impl KnowledgeIndex {
         use crate::knowledge::domain::{QueryText, ResultLimit};
         use types::index_error::*;
 
-        let query_text = query.as_ref();
-
-        if query_text.is_empty() {
-            return Err(IndexError::InvalidQuery {
-                message: "Query cannot be empty".to_string(),
-            });
-        }
-
-        if !(1..=100).contains(&limit) {
-            return Err(IndexError::InvalidResultLimit { limit });
-        }
-
         let search_query = SearchQuery::builder()
-            .text(
-                QueryText::try_new(query_text).map_err(|e| IndexError::InvalidQuery {
-                    message: e.to_string(),
-                })?,
-            )
-            .limit(
-                ResultLimit::try_new(limit)
-                    .map_err(|_| IndexError::InvalidResultLimit { limit })?,
-            )
+            .text(QueryText::try_new(query.as_ref()).context(InvalidQuerySnafu)?)
+            .limit(ResultLimit::try_new(limit).context(InvalidResultLimitSnafu)?)
             .build();
 
         let engine = self.create_search_engine()?;
