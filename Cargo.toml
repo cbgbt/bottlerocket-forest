@@ -40,6 +40,9 @@ tokenizers = { version = "0.22", features = ["http"] }
 rusqlite = { version = "0.32", features = ["bundled", "functions"] }
 sqlite-vec = "0.1"
 
+# Cryptography
+sha2 = "0.10"
+
 # Text processing
 text-splitter = { version = "0.28", features = ["markdown", "tokenizers"] }
 quote = "1"

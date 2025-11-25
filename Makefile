@@ -10,10 +10,10 @@ clippy:
 test:
 	cargo test --workspace --release --locked --quiet --lib --bins
 
-.PHONY: test-install
-test-install:
-	cargo install --path crates/sembly-cli --debug --locked
-	cargo install --path crates/forester --debug --locked
+.PHONY: install
+install:
+	cargo install --path crates/sembly-cli --locked
+	cargo install --path crates/forester --locked
 
 .PHONY: deny
 deny:
@@ -23,7 +23,7 @@ deny:
 check: fmt clippy deny test
 
 .PHONY: integ
-integ: check test-install
+integ: check
 	cargo test --workspace --locked --quiet -- --ignored
 
 .PHONY: build

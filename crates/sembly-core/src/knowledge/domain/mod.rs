@@ -9,6 +9,7 @@
 pub mod chunk;
 pub mod context;
 pub mod file_type;
+pub mod hash;
 pub mod search;
 
 use bon::Builder;
@@ -24,6 +25,7 @@ pub use chunk::{
 };
 pub use context::{Context, ContextId};
 pub use file_type::FileType;
+pub use hash::{ChunkHash, FileHash};
 pub use search::{FileSearchResult, SearchQuery, SearchResult, SearchResults};
 
 /// Controls which files are scanned during indexing
