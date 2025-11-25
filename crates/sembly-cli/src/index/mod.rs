@@ -20,7 +20,6 @@ use sembly_core::knowledge::KnowledgeIndex;
 use sembly_core::knowledge::domain::{
     FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,
 };
-use sembly_core::knowledge::storage::ChunkRepository;
 
 /// Top-level command for knowledge index operations
 #[derive(Parser)]
@@ -177,7 +176,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let index = open_existing_index(&forest_root)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
@@ -191,7 +190,7 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Clears all chunks from the knowledge index after user confirmation
+/// Deletes the knowledge index database after user confirmation
 fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
     use index_error::*;
 
@@ -199,20 +198,16 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    if !args.yes && !prompt_confirmation("Are you sure you want to clear the index?")? {
+    if !args.yes && !prompt_confirmation("Are you sure you want to delete the index?")? {
         println!("{}", theme::muted("Cancelled"));
         return Ok(());
     }
 
-    let index = open_existing_index(&forest_root)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
-    let count = index.clear().context(KnowledgeIndexSnafu)?;
+    index.clear().context(KnowledgeIndexSnafu)?;
 
-    println!(
-        "{} Cleared {} chunks from the index",
-        theme::success("✓"),
-        theme::value(count)
-    );
+    println!("{} Deleted index database", theme::success("✓"));
 
     Ok(())
 }
@@ -229,7 +224,7 @@ fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
 
     let format = parse_output_format(args.format.as_deref())?;
 
-    let index = open_existing_index(&forest_root)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let results = index
         .search(&args.query, limit)
@@ -253,43 +248,13 @@ fn handle_status(args: StatusArgs) -> Result<(), IndexError> {
         .forest_root
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
 
-    let index = open_existing_index(&forest_root)?;
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
     let status = index.status().context(KnowledgeIndexSnafu)?;
 
     format_status(&status);
 
     Ok(())
-}
-
-/// Opens an existing knowledge index, returning an error if it doesn't exist
-fn open_existing_index(forest_root: &std::path::Path) -> Result<KnowledgeIndex, IndexError> {
-    use index_error::*;
-
-    let db_path = forest_root.join(".sembly/knowledge.db");
-
-    if !db_path.exists() {
-        return Err(IndexError::IndexNotFound {
-            path: db_path.display().to_string(),
-        });
-    }
-
-    let temp_repo = sembly_core::knowledge::storage::sqlite::SqliteChunkRepository::open(
-        &db_path,
-        &sembly_core::knowledge::domain::EmbeddingModelConfig::default(),
-    )
-    .map_err(|e| IndexError::KnowledgeIndex {
-        source: sembly_core::knowledge::facade::IndexError::DatabaseAccessFailed { source: e },
-    })?;
-
-    let metadata = temp_repo
-        .get_metadata()
-        .map_err(|e| IndexError::KnowledgeIndex {
-            source: sembly_core::knowledge::facade::IndexError::DatabaseAccessFailed { source: e },
-        })?;
-
-    KnowledgeIndex::open_with_config(forest_root, metadata.model_config)
-        .context(KnowledgeIndexSnafu)
 }
 
 /// Parses the output format string into an OutputFormat enum
@@ -492,13 +457,6 @@ pub enum IndexError {
         source: sembly_core::knowledge::facade::IndexError,
     },
 
-    #[snafu(display("Index not found at {path}"))]
-    #[diagnostic(
-        code(sembly::cli::index_not_found),
-        help("Run `sembly build` to create it")
-    )]
-    IndexNotFound { path: String },
-
     #[snafu(display("Invalid output format: {format}"))]
     #[diagnostic(
         code(sembly::cli::invalid_output_format),
@@ -574,38 +532,6 @@ mod test {
             result,
             Err(IndexError::InvalidOutputFormat { .. })
         ));
-    }
-
-    #[test]
-    fn test_open_existing_index_not_found() {
-        // Given A forest root with no index database
-        let temp_dir = tempfile::tempdir().unwrap();
-        let forest_root = temp_dir.path();
-
-        // When Opening the existing index
-        let result = open_existing_index(forest_root);
-
-        // Then It should return IndexNotFound error
-        assert!(matches!(result, Err(IndexError::IndexNotFound { .. })));
-    }
-
-    #[test]
-    fn test_open_existing_index_success() {
-        // Given A forest root with an existing index database
-        let temp_dir = tempfile::tempdir().unwrap();
-        let forest_root = temp_dir.path();
-        let sembly_dir = forest_root.join(".sembly");
-        std::fs::create_dir_all(&sembly_dir).unwrap();
-
-        // Create a valid index
-        let index = KnowledgeIndex::open(forest_root).unwrap();
-        index.build().call().unwrap();
-
-        // When Opening the existing index
-        let result = open_existing_index(forest_root);
-
-        // Then It should successfully return a KnowledgeIndex
-        assert!(result.is_ok());
     }
 
     #[test]

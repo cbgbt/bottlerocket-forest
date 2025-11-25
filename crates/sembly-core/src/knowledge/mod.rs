@@ -24,10 +24,10 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use sembly::knowledge::KnowledgeIndex;
+//! use sembly_core::knowledge::KnowledgeIndex;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut index = KnowledgeIndex::open("/path/to/forest")?;
+//! let index = KnowledgeIndex::open("/path/to/forest")?;
 //! let result = index.build().call()?;
 //! let results = index.search("boot process", 10)?;
 //! # Ok(())

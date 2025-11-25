@@ -6,13 +6,13 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use sembly::knowledge::KnowledgeIndex;
+//! use sembly_core::knowledge::KnowledgeIndex;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Open or create an index
+//! // Open an index handle
 //! let index = KnowledgeIndex::open("/path/to/forest")?;
 //!
-//! // Build the index
+//! // Build the index (creates database)
 //! let result = index.build().call()?;
 //! println!("Indexed {} files", result.files_processed);
 //!
@@ -68,18 +68,17 @@ pub struct KnowledgeIndex {
 
 #[bon::bon]
 impl KnowledgeIndex {
-    /// Open or create a knowledge index with default configuration
+    /// Open a knowledge index with default configuration
     ///
-    /// Creates the `.sembly/` directory and `knowledge.db` database if they don't exist.
-    /// Uses the default embedding model configuration.
+    /// Creates the `.sembly/` directory if it doesn't exist. Validates configuration
+    /// against existing database if present. Does not create the database.
     pub fn open(forest_root: impl AsRef<Path>) -> Result<Self, IndexError> {
         Self::open_with_config(forest_root, EmbeddingModelConfig::default())
     }
 
-    /// Open or create a knowledge index with custom configuration
+    /// Open a knowledge index with custom configuration
     ///
-    /// Allows specifying a custom embedding model configuration. The configuration
-    /// is validated against any existing index to ensure compatibility.
+    /// Validates the configuration against any existing index. Does not create the database.
     pub fn open_with_config(
         forest_root: impl AsRef<Path>,
         config: EmbeddingModelConfig,
@@ -101,34 +100,24 @@ impl KnowledgeIndex {
         }
 
         let db_path = Self::default_db_path(forest_root);
-        let is_new_db = !db_path.exists();
 
-        let mut repository =
-            SqliteChunkRepository::open(&db_path, &config).context(DatabaseAccessFailedSnafu)?;
-
-        if is_new_db {
-            let metadata = IndexMetadata::builder()
-                .last_build(std::time::SystemTime::now())
-                .chunk_count(0)
-                .file_count(0)
-                .model_config(config.clone())
-                .build();
-            repository
-                .set_metadata(&metadata)
+        // If database exists, validate config matches
+        if db_path.exists() {
+            let repository = SqliteChunkRepository::open(&db_path, &config)
                 .context(DatabaseAccessFailedSnafu)?;
-        }
 
-        let metadata = repository
-            .get_metadata()
-            .context(DatabaseAccessFailedSnafu)?;
+            let metadata = repository
+                .get_metadata()
+                .context(DatabaseAccessFailedSnafu)?;
 
-        if metadata.model_config != config {
-            return Err(IndexError::DatabaseAccessFailed {
-                source: StorageError::ConfigMismatch {
-                    expected: config.clone(),
-                    actual: metadata.model_config.clone(),
-                },
-            });
+            if metadata.model_config != config {
+                return Err(IndexError::DatabaseAccessFailed {
+                    source: StorageError::ConfigMismatch {
+                        expected: config.clone(),
+                        actual: metadata.model_config.clone(),
+                    },
+                });
+            }
         }
 
         Ok(Self {
@@ -138,9 +127,9 @@ impl KnowledgeIndex {
         })
     }
 
-    /// Build the index from scratch without clearing existing data
+    /// Build the index for the first time
     ///
-    /// Scans all files in the forest and indexes them. Existing chunks are preserved.
+    /// Creates a new index by scanning all files in the forest. Fails if an index already exists.
     #[builder]
     pub fn build(
         &self,
@@ -148,6 +137,27 @@ impl KnowledgeIndex {
         #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
+
+        snafu::ensure!(
+            !self.db_path.exists(),
+            IndexAlreadyExistsSnafu {
+                path: self.db_path.display().to_string()
+            }
+        );
+
+        // Create and initialize the database
+        let mut repository = SqliteChunkRepository::open(&self.db_path, &self.config)
+            .context(DatabaseAccessFailedSnafu)?;
+
+        let metadata = IndexMetadata::builder()
+            .last_build(std::time::SystemTime::now())
+            .chunk_count(0)
+            .file_count(0)
+            .model_config(self.config.clone())
+            .build();
+        repository
+            .set_metadata(&metadata)
+            .context(DatabaseAccessFailedSnafu)?;
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
@@ -177,9 +187,9 @@ impl KnowledgeIndex {
         Ok(result)
     }
 
-    /// Clear the index and rebuild from scratch
+    /// Delete the index and rebuild from scratch
     ///
-    /// Removes all existing chunks before scanning and indexing all files in the forest.
+    /// Deletes the existing index database and creates a new one by scanning all files.
     #[builder]
     pub fn rebuild(
         &self,
@@ -187,6 +197,24 @@ impl KnowledgeIndex {
         #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
+
+        if self.db_path.exists() {
+            std::fs::remove_file(&self.db_path).context(IndexDeletionFailedSnafu)?;
+        }
+
+        // Create and initialize the database
+        let mut repository = SqliteChunkRepository::open(&self.db_path, &self.config)
+            .context(DatabaseAccessFailedSnafu)?;
+
+        let metadata = IndexMetadata::builder()
+            .last_build(std::time::SystemTime::now())
+            .chunk_count(0)
+            .file_count(0)
+            .model_config(self.config.clone())
+            .build();
+        repository
+            .set_metadata(&metadata)
+            .context(DatabaseAccessFailedSnafu)?;
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
@@ -208,7 +236,7 @@ impl KnowledgeIndex {
             .context(IndexingFailedSnafu)?;
 
         let result = indexer
-            .index(IndexStrategy::Rebuild)
+            .index(IndexStrategy::Build)
             .context(IndexingFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
@@ -219,7 +247,7 @@ impl KnowledgeIndex {
     /// Update the index incrementally
     ///
     /// Processes only files that have been added, modified, or deleted since
-    /// the last index operation.
+    /// the last index operation. Requires an existing index.
     #[builder]
     pub fn update(
         &self,
@@ -227,6 +255,13 @@ impl KnowledgeIndex {
         #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
+
+        snafu::ensure!(
+            self.db_path.exists(),
+            IndexNotFoundSnafu {
+                path: self.db_path.display().to_string()
+            }
+        );
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
@@ -256,14 +291,17 @@ impl KnowledgeIndex {
         Ok(result)
     }
 
-    /// Remove all chunks from the index
+    /// Delete the index database
     ///
-    /// Returns the number of chunks removed.
-    pub fn clear(&self) -> Result<usize, IndexError> {
+    /// Removes the index database file completely.
+    pub fn clear(&self) -> Result<(), IndexError> {
         use types::index_error::*;
 
-        let mut repository = self.repository()?;
-        repository.clear().context(DatabaseAccessFailedSnafu)
+        if self.db_path.exists() {
+            std::fs::remove_file(&self.db_path).context(IndexDeletionFailedSnafu)?;
+        }
+
+        Ok(())
     }
 
     /// Search the index
@@ -463,7 +501,7 @@ mod test {
     }
 
     #[test]
-    fn test_open_creates_database_file() {
+    fn test_open_does_not_create_database_file() {
         // Given A forest root without existing database
         let temp_dir = TempDir::new().unwrap();
         let forest_root = temp_dir.path();
@@ -471,9 +509,9 @@ mod test {
         // When Opening an index
         let result = KnowledgeIndex::open(forest_root);
 
-        // Then It should create knowledge.db
+        // Then It should succeed but not create knowledge.db
         assert!(result.is_ok());
-        assert!(forest_root.join(".sembly/knowledge.db").exists());
+        assert!(!forest_root.join(".sembly/knowledge.db").exists());
     }
 
     #[test]
@@ -538,7 +576,12 @@ mod test {
     fn test_open_with_config_validates_existing_config() {
         // Given An existing index with default config
         let temp_dir = TempDir::new().unwrap();
-        let _index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let repo_dir = temp_dir.path().join("test-repo");
+        fs::create_dir(&repo_dir).unwrap();
+        fs::write(repo_dir.join("test.md"), "# Test").unwrap();
+
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        index.build().call().unwrap();
 
         // When Opening with different config
         let different_config = EmbeddingModelConfig::builder()
@@ -667,7 +710,7 @@ mod test {
     }
 
     #[test]
-    fn test_clear_removes_all_chunks() {
+    fn test_clear_deletes_database() {
         // Given An index with chunks
         let temp_dir = TempDir::new().unwrap();
         let repo_dir = temp_dir.path().join("test-repo");
@@ -677,25 +720,28 @@ mod test {
         let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
+        let db_path = temp_dir.path().join(".sembly/knowledge.db");
+        assert!(db_path.exists());
+
         // When Clearing the index
         let result = index.clear();
 
-        // Then It should succeed and return count
+        // Then It should succeed and delete the database
         assert!(result.is_ok());
-        assert!(result.unwrap() > 0);
+        assert!(!db_path.exists());
     }
 
     #[test]
-    fn test_clear_on_empty_index_returns_zero() {
-        // Given An empty index
+    fn test_clear_on_nonexistent_index_succeeds() {
+        // Given No index exists
         let temp_dir = TempDir::new().unwrap();
         let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Clearing
-        let result = index.clear().unwrap();
+        let result = index.clear();
 
-        // Then It should return zero
-        assert_eq!(result, 0);
+        // Then It should succeed (no-op)
+        assert!(result.is_ok());
     }
 
     #[test]

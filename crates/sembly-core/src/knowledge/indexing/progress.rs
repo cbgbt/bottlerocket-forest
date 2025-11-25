@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use sembly::knowledge::indexing::ProgressReporter;
+//! use sembly_core::knowledge::indexing::ProgressReporter;
 //! use std::path::Path;
 //!
 //! struct MyReporter;

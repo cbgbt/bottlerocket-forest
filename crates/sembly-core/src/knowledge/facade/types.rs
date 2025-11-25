@@ -128,4 +128,25 @@ pub enum IndexError {
     ConfigLoadFailed {
         source: crate::knowledge::indexing::SemblyConfigError,
     },
+
+    #[snafu(display("Index already exists at {path}"))]
+    #[diagnostic(
+        code(sembly::index::already_exists),
+        help("Use 'sembly rebuild' to recreate the index or 'sembly update' to refresh it")
+    )]
+    IndexAlreadyExists { path: String },
+
+    #[snafu(display("Index does not exist at {path}"))]
+    #[diagnostic(
+        code(sembly::index::not_found),
+        help("Use 'sembly build' to create the index")
+    )]
+    IndexNotFound { path: String },
+
+    #[snafu(display("Failed to delete index database"))]
+    #[diagnostic(
+        code(sembly::index::deletion_failed),
+        help("Check file permissions and ensure the database is not in use")
+    )]
+    IndexDeletionFailed { source: std::io::Error },
 }

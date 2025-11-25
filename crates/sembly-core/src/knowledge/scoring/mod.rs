@@ -7,11 +7,11 @@
 //! # Example
 //!
 //! ```no_run
-//! use sembly::knowledge::scoring::{ScoreBooster, default_boost_rules};
-//! use sembly::knowledge::domain::RelevanceScore;
+//! use sembly_core::knowledge::scoring::{ScoreBooster, default_boost_rules};
+//! use sembly_core::knowledge::domain::RelevanceScore;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # use sembly::knowledge::domain::*;
+//! # use sembly_core::knowledge::domain::*;
 //! # let chunk = Chunk::builder()
 //! #     .id(ChunkId::new(uuid::Uuid::new_v4()))
 //! #     .source(ChunkSource::builder()
