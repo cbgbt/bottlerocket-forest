@@ -13,12 +13,12 @@ This document contains the mandatory workflow for AI agents working in the Bottl
 ```
 
 **Run this every session.** It ensures:
-- Forester tool is built and available
+- Sembly and forester tools are built and available
 - Knowledge index is current
 - All repositories are present
 
 **If you skip this:**
-- ❌ Forester commands will fail
+- ❌ Sembly and forester commands will fail
 - ❌ Documentation search won't work
 - ❌ You'll reference outdated code
 
@@ -88,34 +88,40 @@ Process:
 1. **Read `skills/README.md`** to see the skill index
 2. Check if a skill exists for your task (e.g., `research-with-citations`)
 3. If yes: Follow the protocol from skills/README.md
-4. If no: Use `forester index search` to find relevant documentation
+4. If no: Use `sembly search` to find relevant documentation
 5. Always cite sources in your response
 
 Never guess or rely on training data for Bottlerocket-specific questions.
 
-## Forester Usage
+## Sembly Usage
 
-Forester provides semantic search and registry management.
+Sembly provides semantic search for Bottlerocket documentation.
 
 **⚠️ CRITICAL: Always run from forest root directory**
 
-Running from `forester/` or using `cargo run` inside `forester/` will NOT work.
-
-### Knowledge Index Commands
-
 ```bash
 # Build or rebuild the search index
-forester index build
+sembly build
 
 # Search documentation semantically
-forester index search "boot process"
-forester index search "systemd targets"
+sembly search "boot process"
+sembly search "systemd targets"
 
 # Check index status
-forester index status
+sembly status
+
+# Update index incrementally
+sembly update
+
+# Rebuild from scratch
+sembly rebuild
 ```
 
-### Local Registry Commands
+## Forester Usage
+
+Forester provides registry management for local kit development.
+
+**⚠️ CRITICAL: Always run from forest root directory**
 
 ```bash
 # Start local OCI registry for kit development
@@ -133,7 +139,7 @@ forester registry list
 ### Answering "How does X work?" Questions
 
 1. Check for `research-with-citations` skill
-2. Use `forester index search` to find relevant docs
+2. Use `sembly search` to find relevant docs
 3. Read the source files
 4. Cite specific files and line numbers in your answer
 
