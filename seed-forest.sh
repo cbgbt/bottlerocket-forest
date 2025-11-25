@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo "❌ Error on line $LINENO. Command: $BASH_COMMAND" >&2' ERR
 
 VERBOSE=false
 if [ "$1" = "--verbose" ]; then
@@ -20,7 +21,12 @@ clone_if_missing() {
         log "✓ $dir already exists"
     else
         log "Cloning $repo into $dir..."
-        git clone "git@github.com:bottlerocket-os/${repo}.git" "$dir" &>/dev/null
+        if ! git clone "git@github.com:bottlerocket-os/${repo}.git" "$dir" 2>&1 | \
+             grep -E "(Cloning|Receiving|Resolving)" >/dev/null; then
+            echo "❌ Failed to clone $repo. Check SSH authentication:" >&2
+            echo "   ssh -T git@github.com" >&2
+            return 1
+        fi
         log "✓ Cloned $dir"
     fi
 }
