@@ -95,10 +95,10 @@ pub fn score(value: f32) -> String {
 /// Progress bar template strings matching the theme
 ///
 /// These templates use indicatif's inline color syntax and should be used
-/// with `ProgressStyle::default_spinner().template()`.
+/// with `ProgressStyle::default_spinner().template()` or `ProgressStyle::default_bar().template()`.
 pub mod progress {
     pub const SCAN: &str =
-        "[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan} files found)";
-    pub const CHUNK: &str = "[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} files)";
-    pub const EMBED: &str = "[{elapsed_precise:.dimmed}] {spinner:.green} {msg:.blue} ({pos:.cyan}/{len:.bold.cyan} chunks indexed)";
+        "[{elapsed_precise:.dimmed}] {spinner:.green} {msg:<11.blue} ({pos:>4.cyan} files found)";
+    pub const CHUNK: &str = "[{elapsed_precise:.dimmed}]   {msg:<11.blue} [{bar:40.cyan/blue}] ({pos:>4.cyan}/{len:<4.bold.cyan} files)";
+    pub const EMBED: &str = "[{elapsed_precise:.dimmed}] {spinner:.green} {msg:<11.blue} ({pos:>4.cyan}/{len:<4.bold.cyan} chunks indexed)";
 }

@@ -70,9 +70,9 @@ impl CliProgressReporter {
     /// Get default chunk progress style
     ///
     /// Returns a progress bar style for chunking:
-    /// `[00:00:02.456] ⠋ Chunking... (45/100 files)`
+    /// `[00:00:02.456] Chunking... [████████░░] 45/100 files`
     fn default_chunk_style() -> ProgressStyle {
-        ProgressStyle::default_spinner()
+        ProgressStyle::default_bar()
             .template(theme::progress::CHUNK)
             .unwrap()
             .progress_chars("█░")
@@ -143,8 +143,6 @@ impl ProgressReporter for CliProgressReporter {
     fn embedding_started(&self, total_chunks: usize) {
         self.embed_bar.set_length(total_chunks as u64);
         self.embed_bar.set_message("Indexing...");
-        self.embed_bar
-            .enable_steady_tick(std::time::Duration::from_millis(100));
     }
 
     fn embeddings_generated(&self, chunk_count: usize) {
