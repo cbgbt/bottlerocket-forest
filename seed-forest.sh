@@ -26,7 +26,8 @@ clone_if_missing() {
 }
 
 get_workspace_version() {
-    grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2
+    local crate_name=$1
+    grep '^version = ' "crates/${crate_name}/Cargo.toml" | head -1 | cut -d'"' -f2
 }
 
 get_installed_version() {
@@ -40,7 +41,8 @@ get_installed_version() {
 
 install_if_needed() {
     local binary=$1
-    local workspace_version=$(get_workspace_version)
+    local crate_name=$2
+    local workspace_version=$(get_workspace_version "$crate_name")
     local installed_version=$(get_installed_version "$binary")
 
     if [ "$installed_version" = "$workspace_version" ]; then
@@ -54,7 +56,7 @@ install_if_needed() {
         log "Installing $binary $workspace_version..."
     fi
 
-    cargo install --path . -p "${binary}-cli" &>/dev/null || cargo install --path . -p "$binary" &>/dev/null
+    cargo install --path "crates/${crate_name}" &>/dev/null
     log "✓ $binary installed"
 }
 
@@ -71,8 +73,8 @@ clone_if_missing "bottlerocket-settings-sdk" "bottlerocket-settings-sdk"
 
 # Install forest tools
 log "Checking forest tools..."
-install_if_needed "sembly"
-install_if_needed "forester"
+install_if_needed "sembly" "sembly-cli"
+install_if_needed "forester" "forester"
 
 # Build knowledge index
 if ! sembly status &>/dev/null; then
