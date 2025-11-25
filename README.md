@@ -121,6 +121,16 @@ Use lowercase, comma-separated. Improves `sembly search` discoverability.
 fipscheck, services, dependencies, API system, bootstrap containers, settings
 ```
 
+**One Sentence Per Line:**
+
+Write each sentence on its own line in markdown files.
+This makes diffs easier to review—changes to one sentence don't affect adjacent lines.
+
+```bash
+# Format a file
+python3 scripts/sentence-split.py path/to/file.md --in-place
+```
+
 ## Skills
 
 The `skills/` directory contains modular workflows for common Bottlerocket development tasks. Skills are mandatory when they exist for a task. See `skills/README.md` for the complete protocol.
