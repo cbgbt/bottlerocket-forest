@@ -17,7 +17,7 @@ Build a Bottlerocket kit (core-kit or kernel-kit) and publish it to a local OCI 
 
 ## Prerequisites
 
-- Forester tool built
+- Forest tools installed (run `./seed-forest.sh` from forest root)
 - Docker installed and running
 - Kit repository cloned in `kits/` directory
 
@@ -26,7 +26,7 @@ Build a Bottlerocket kit (core-kit or kernel-kit) and publish it to a local OCI 
 ### 1. Ensure local registry is running
 
 ```bash
-./forester/target/release/forester registry start
+forester registry start
 ```
 
 ### 2. Configure Infra.toml for local registry
@@ -85,7 +85,7 @@ Should return the published version tags.
 ```
 Error: connection refused
 ```
-Solution: Run `./forester/target/release/forester registry start`
+Solution: Run `forester registry start`
 
 **Infra.toml not configured:**
 ```

@@ -53,11 +53,13 @@ bottlerocket-forest/
 
 This script will:
 1. Clone all Bottlerocket repositories
-2. Build the forest tools (sembly, forester)
+2. Install sembly and forester to your PATH (via `cargo install`)
 3. Build the knowledge index
 4. Verify everything works
 
 The script is idempotent and quiet by default. Use `./seed-forest.sh --verbose` for detailed output.
+
+After running, `sembly` and `forester` will be available as commands in your shell.
 
 ## Sembly
 

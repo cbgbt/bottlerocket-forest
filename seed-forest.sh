@@ -25,6 +25,39 @@ clone_if_missing() {
     fi
 }
 
+get_workspace_version() {
+    grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2
+}
+
+get_installed_version() {
+    local binary=$1
+    if command -v "$binary" &>/dev/null; then
+        "$binary" --version 2>/dev/null | awk '{print $2}'
+    else
+        echo ""
+    fi
+}
+
+install_if_needed() {
+    local binary=$1
+    local workspace_version=$(get_workspace_version)
+    local installed_version=$(get_installed_version "$binary")
+
+    if [ "$installed_version" = "$workspace_version" ]; then
+        log "✓ $binary $workspace_version already installed"
+        return 0
+    fi
+
+    if [ -n "$installed_version" ]; then
+        log "Updating $binary from $installed_version to $workspace_version..."
+    else
+        log "Installing $binary $workspace_version..."
+    fi
+
+    cargo install --path . -p "${binary}-cli" &>/dev/null || cargo install --path . -p "$binary" &>/dev/null
+    log "✓ $binary installed"
+}
+
 # Clone repositories
 log "Cloning repositories..."
 clone_if_missing "bottlerocket" "bottlerocket"
@@ -36,28 +69,22 @@ clone_if_missing "host-containers/bottlerocket-admin-container" "bottlerocket-ad
 clone_if_missing "host-containers/bottlerocket-control-container" "bottlerocket-control-container"
 clone_if_missing "bottlerocket-settings-sdk" "bottlerocket-settings-sdk"
 
-# Build forester
-if [ ! -f ./forester/target/release/forester ]; then
-    log "Building forester..."
-    cd forester
-    cargo build --release &>/dev/null
-    cd ..
-    log "✓ forester built"
-else
-    log "✓ forester already built"
-fi
+# Install forest tools
+log "Checking forest tools..."
+install_if_needed "sembly"
+install_if_needed "forester"
 
 # Build knowledge index
-if ! ./forester/target/release/forester index status &>/dev/null; then
+if ! sembly status &>/dev/null; then
     log "Building knowledge index..."
-    ./forester/target/release/forester index build &>/dev/null
+    sembly build &>/dev/null
     log "✓ Knowledge index built"
 else
     log "✓ Knowledge index already exists"
 fi
 
 # Verify
-if ! ./forester/target/release/forester index search "test" 2>/dev/null | head -1 | grep -q "Found"; then
+if ! sembly search "test" 2>/dev/null | head -1 | grep -q "Found"; then
     echo "❌ Setup verification failed" >&2
     exit 1
 fi

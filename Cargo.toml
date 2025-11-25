@@ -5,6 +5,7 @@ members = [
     "crates/sembly-cli",
     "crates/forester",
 ]
+default-members = ["crates/sembly-cli", "crates/forester"]
 
 [workspace.package]
 edition = "2024"

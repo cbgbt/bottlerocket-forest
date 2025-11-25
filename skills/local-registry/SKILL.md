@@ -18,14 +18,14 @@ Start and manage a local OCI registry for development. This allows building and 
 ## Prerequisites
 
 - Docker installed and running
-- Forester tool built (`cd forester && cargo build --release`)
+- Forest tools installed (run `./seed-forest.sh` from forest root)
 
 ## Procedure
 
 ### Start the registry
 
 ```bash
-./forester/target/release/forester registry start
+forester registry start
 ```
 
 This will:
@@ -37,7 +37,7 @@ This will:
 ### Verify registry is running
 
 ```bash
-./forester/target/release/forester registry status
+forester registry status
 ```
 
 Returns exit code 0 if running, non-zero otherwise.
@@ -45,18 +45,18 @@ Returns exit code 0 if running, non-zero otherwise.
 ### View registry logs
 
 ```bash
-./forester/target/release/forester registry logs
+forester registry logs
 ```
 
 To follow logs in real-time:
 ```bash
-./forester/target/release/forester registry logs --follow
+forester registry logs --follow
 ```
 
 ### Stop the registry
 
 ```bash
-./forester/target/release/forester registry stop
+forester registry stop
 ```
 
 Note: This preserves the registry data volume.
@@ -64,14 +64,14 @@ Note: This preserves the registry data volume.
 ### Clean registry data
 
 ```bash
-./forester/target/release/forester registry clean
+forester registry clean
 ```
 
 This removes both the container and the data volume.
 
 ## Configuration
 
-Forester uses environment variables for configuration. Create a `.env` file in the forester directory or set environment variables:
+Forester uses environment variables for configuration. Create a `.env` file in the forest root or set environment variables:
 
 ```bash
 # Custom port (default: 5000, minimum: 1024)

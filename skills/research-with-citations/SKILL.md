@@ -25,11 +25,9 @@ Ensures accurate, well-sourced answers to questions about Bottlerocket architect
 
 **YOU MUST COMPLETE THESE FIRST:**
 
-1. Run `./seed-forest.sh` from forest root
-2. Verify forester exists: `./forester/target/release/forester --version`
-3. Verify index exists: `./forester/target/release/forester index status`
+1. Run `./seed-forest.sh` from forest root (installs sembly and forester to PATH)
 
-**If any of these fail, STOP and run the seed script.**
+**If this fails, STOP and fix the error.**
 
 ## Procedure
 
@@ -39,7 +37,7 @@ Ensures accurate, well-sourced answers to questions about Bottlerocket architect
 
 Create a concise search query with key terms related to the question:
 ```bash
-./forester/target/release/forester index search "key terms from question"
+sembly search "key terms from question"
 ```
 
 **Tips for effective queries:**
@@ -114,7 +112,7 @@ If initial search doesn't yield complete information:
 
 **Step 1 - Search:**
 ```bash
-./forester/target/release/forester index search "root volume partition disk layout"
+sembly search "root volume partition disk layout"
 ```
 
 **Step 2 - Review results, identify top files:**
@@ -173,7 +171,7 @@ End your response with one of these to indicate documentation quality:
 
 ## Notes
 
-- The forester index covers documentation, not source code - use grep/find for code search
+- The sembly index covers documentation, not source code - use grep/find for code search
 - Documentation may be in multiple repos (bottlerocket, kits, twoliter, etc.)
 - README files are often the best starting point for a component
 - Changelog files can explain historical context for features
