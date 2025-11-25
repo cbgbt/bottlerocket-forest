@@ -38,6 +38,10 @@ When you identify that a skill should be used:
 - **build-variant-from-local-kits** - Build a variant using locally published kits for development validation
 - **test-local-twoliter** - Build and test local changes to twoliter before releasing
 - **update-twoliter** - Update all repositories to a new Twoliter version
+- **idea-honing** - Clarify feature ideas through iterative Q&A, recording insights to guide concept development
+- **propose-feature-concept** - Create a new feature concept document to pitch the idea and explain the problem/solution
+- **propose-feature-requirements** - Create or update feature requirements specification using EARS notation with examples and appendices
+- **propose-feature-design** - Create or update feature technical design document with architecture and implementation guidance
 
 ## Skill Format
 

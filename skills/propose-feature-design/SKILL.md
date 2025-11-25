@@ -1,0 +1,141 @@
+---
+name: propose-feature-design
+description: Create or update feature technical design document with architecture and implementation guidance
+---
+
+# Propose Feature Design Skill
+
+## Purpose
+
+Create a technical design document that guides implementation. This provides architecture, patterns, and design decisions without writing the actual code.
+
+## When to Use
+
+- Feature concept and requirements exist
+- Ready to plan the implementation approach
+- Need to document architecture and design patterns
+
+## Prerequisites
+
+- Feature concept exists in `docs/features/NNNN-feature-name/concept.md`
+- Requirements exist in `docs/features/NNNN-feature-name/requirements.md`
+- User understands the technical approach
+
+## Procedure
+
+### 1. Verify Prerequisites Exist
+
+```bash
+# Check that concept and requirements exist
+ls docs/features/NNNN-feature-name/concept.md
+ls docs/features/NNNN-feature-name/requirements.md
+```
+
+If either doesn't exist, complete those steps first.
+
+### 2. Check for Idea Honing Document
+
+```bash
+ls planning/NNNN-feature-name/idea-honing.md 2>/dev/null
+```
+
+If it exists, review it for design insights and technical considerations discussed during idea honing.
+
+### 3. Copy Design Template
+
+```bash
+cp docs/features/0000-templates/design.md docs/features/NNNN-feature-name/
+```
+
+### 4. Fill in Overview
+
+Write a high-level description of the architecture and design approach. Reference the concept and requirements.
+
+### 5. Define Architecture
+
+Describe the overall structure:
+- Component relationships
+- Data flow
+- Layer responsibilities
+- Integration points
+
+Use simple diagrams with ASCII art if helpful.
+
+### 6. Define Domain Model
+
+Specify the core types and operations:
+
+**Types**
+- Purpose and role
+- Key properties
+- Validation rules
+- Relationships to other types
+
+**Operations**
+- Function signatures (conceptual)
+- What they do
+- Key behaviors
+- Error conditions
+
+### 7. Define Module Structure
+
+Show how code should be organized:
+- Directory structure
+- Module responsibilities
+- File organization
+- Separation of concerns
+
+### 8. Document Design Patterns
+
+Describe relevant patterns and why they apply:
+- Which patterns to use
+- How they fit the problem
+- Implementation guidance
+
+### 9. Add Implementation Guidance
+
+Key considerations for implementors:
+- Important constraints
+- Performance considerations
+- Testing approach
+- Edge cases to handle
+
+### 10. Keep Code Minimal
+
+Remember:
+- Use minimal illustrative code
+- Focus on architecture and decisions
+- Guide implementors, don't implement
+- Reference requirements by ID when relevant
+
+## Validation
+
+Verify the design document:
+
+```bash
+# Check file exists
+ls docs/features/NNNN-feature-name/design.md
+
+# Verify it has content
+head -50 docs/features/NNNN-feature-name/design.md
+```
+
+## Common Issues
+
+**Too much code**: If there are large code blocks, remove them and focus on guidance.
+
+**Too abstract**: If the design is vague, add concrete type names and module structure.
+
+**Missing architecture**: Ensure the overall structure is clear before diving into details.
+
+**Not referencing requirements**: Link design decisions back to specific requirement IDs.
+
+## Next Steps
+
+After creating the design:
+1. Review with implementors for feasibility
+2. Refine based on feedback
+3. Update status in concept.md frontmatter to `in-development`
+4. Begin implementation guided by the design
+5. Update design document as implementation reveals new insights
+6. When complete, update status to `completed`
