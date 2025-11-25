@@ -1,6 +1,6 @@
 # Bottlerocket Forest
 
-A meta-repository for AI-assisted Bottlerocket development.
+A meta-repository for Bottlerocket development.
 
 ## 🤖 For AI Agents
 
@@ -8,7 +8,7 @@ A meta-repository for AI-assisted Bottlerocket development.
 
 **Quick checklist:**
 1. Run `./seed-forest.sh` (every session)
-2. Read `./docs/architecture.md` and `./docs/build-system.md`
+2. Read `./docs/*.md`, the top-level documents are almost always applicable to development
 3. Read `./skills/README.md` - contains skill protocol and index of available skills
 
 ## Purpose
@@ -89,12 +89,12 @@ See `crates/forester/README.md` for complete documentation.
 
 ## Development
 
-The forest uses a Cargo workspace. Build all tools:
+The forest uses a Cargo workspace for tools. Build all tools:
 
 ```bash
 make build          # Build all binaries
-make test           # Run unit tests
-make integ          # Run full test suite (fmt, clippy, deny, tests)
+make check          # Run unit tests, plus common checks (fmt, clippy, deny)
+make integ          # Run full test suite (fmt, clippy, deny, unit tests, integ tests)
 make release-build  # Build optimized binaries
 ```
 
