@@ -3,9 +3,11 @@
 //! Defines the contract for storing, retrieving, and searching indexed documentation chunks.
 
 use snafu::Snafu;
+use std::collections::HashSet;
 
 use crate::knowledge::domain::{
-    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
+    ChunkId, Context, ContextId, EmbeddingModelConfig, FileHash, ForestRelativePath, IndexMetadata,
+    IndexedChunk,
 };
 
 /// Abstract interface for chunk storage operations
@@ -56,6 +58,59 @@ pub trait ChunkRepository {
         query_embedding: &[f32],
         limit: usize,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
+}
+
+/// Abstract interface for context storage operations
+///
+/// Manages the lifecycle of contexts and their file mappings in multi-context indexing.
+/// Contexts represent registered working directories that share a common embedding database.
+#[cfg_attr(test, mockall::automock)]
+pub trait ContextRepository {
+    /// Retrieves all registered contexts
+    fn list_contexts(&self) -> Result<Vec<Context>, ContextRepositoryError>;
+
+    /// Retrieves a specific context by its identifier
+    fn get_context(
+        &self,
+        context_id: &ContextId,
+    ) -> Result<Option<Context>, ContextRepositoryError>;
+
+    /// Registers a new context in the workspace
+    fn insert_context(&self, context: &Context) -> Result<(), ContextRepositoryError>;
+
+    /// Removes a context and its file mappings
+    fn remove_context(&self, context_id: &ContextId) -> Result<(), ContextRepositoryError>;
+
+    /// Retrieves all file hashes associated with a context
+    fn get_file_hashes(
+        &self,
+        context_id: &ContextId,
+    ) -> Result<HashSet<FileHash>, ContextRepositoryError>;
+}
+
+#[derive(Debug, Snafu, miette::Diagnostic)]
+#[snafu(module, visibility(pub))]
+pub enum ContextRepositoryError {
+    #[snafu(display("Database operation failed"))]
+    #[diagnostic(
+        code(sembly::context::database_error),
+        help("The database may be locked, corrupted, or out of disk space")
+    )]
+    DatabaseError { source: rusqlite::Error },
+
+    #[snafu(display("Context not found: {context_id}"))]
+    #[diagnostic(
+        code(sembly::context::not_found),
+        help("Use `sembly context list` to see available contexts")
+    )]
+    NotFound { context_id: String },
+
+    #[snafu(display("Context already exists: {context_id}"))]
+    #[diagnostic(
+        code(sembly::context::already_exists),
+        help("Use a different path or remove the existing context first")
+    )]
+    AlreadyExists { context_id: String },
 }
 
 #[derive(Debug, Snafu, miette::Diagnostic)]
