@@ -7,6 +7,7 @@
 //! * Newtypes provide type-safe wrappers for domain concepts
 
 pub mod chunk;
+pub mod context;
 pub mod file_type;
 pub mod search;
 
@@ -21,6 +22,7 @@ use crate::knowledge::constants;
 pub use chunk::{
     Chunk, ChunkContent, ChunkContext, ChunkSource, MarkdownContext, RustDocContext, Visibility,
 };
+pub use context::{Context, ContextId};
 pub use file_type::FileType;
 pub use search::{FileSearchResult, SearchQuery, SearchResult, SearchResults};
 
