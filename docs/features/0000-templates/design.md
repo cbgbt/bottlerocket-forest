@@ -46,10 +46,19 @@ Component B
 
 ### Domain Operations
 
-**operation_name(params) -> Result<T, E>**
+Specify key operations with their signatures and error types:
+
+**operation_name(param: ParamType) -> Result<OutputType, OperationError>**
 - What it does
 - Key behaviors
-- Error conditions
+
+### Error Types
+
+Define error type hierarchy. Each fallible operation typically has its own error type.
+
+**OperationError**
+- Variants and when they occur
+- What lower-level errors it wraps
 
 ## Boundaries & Adapters
 
