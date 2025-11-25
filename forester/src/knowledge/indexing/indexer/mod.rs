@@ -98,6 +98,12 @@ impl<R: ChunkRepository> Indexer<R> {
         use rayon::prelude::*;
         use types::indexing_error::*;
 
+        // Configure thread pool to prevent CPU saturation
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(crate::knowledge::constants::MAX_INDEXING_THREADS)
+            .build_global()
+            .ok(); // Ignore error if already initialized
+
         let start = Instant::now();
 
         let files = self.scanner.scan().context(ScanFailedSnafu)?;
@@ -205,6 +211,12 @@ impl<R: ChunkRepository> Indexer<R> {
     fn incremental(&mut self) -> Result<IndexResult, IndexingError> {
         use rayon::prelude::*;
         use types::indexing_error::*;
+
+        // Configure thread pool to prevent CPU saturation
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(crate::knowledge::constants::MAX_INDEXING_THREADS)
+            .build_global()
+            .ok(); // Ignore error if already initialized
 
         let start = Instant::now();
 
