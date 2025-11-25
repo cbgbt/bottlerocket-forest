@@ -36,6 +36,7 @@ When you identify that a skill should be used:
 - **local-registry** - Start and manage a local OCI registry for development
 - **build-kit-locally** - Build a kit and publish it to a locally hosted registry for development testing
 - **build-variant-from-local-kits** - Build a variant using locally published kits for development validation
+- **test-local-twoliter** - Build and test local changes to twoliter before releasing
 - **update-twoliter** - Update all repositories to a new Twoliter version
 
 ## Skill Format
