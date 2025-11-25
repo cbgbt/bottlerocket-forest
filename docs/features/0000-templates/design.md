@@ -4,6 +4,9 @@
 
 High-level description of the architecture and design approach.
 
+**Design Philosophy**: Focus on types, their relationships, and key architectural decisions.
+Leave specific coding decisions to implementors—this document disambiguates the important changes, not every detail.
+
 ## Architecture
 
 Describe the overall structure:
@@ -20,13 +23,13 @@ Component B
 
 ### Layer Responsibilities
 
-**Layer 1**
-- Responsibility A
-- Responsibility B
+**Domain** - Core types and business logic, no external dependencies
 
-**Layer 2**
-- Responsibility C
-- Responsibility D
+**Ports** - Trait definitions for external capabilities
+
+**Adapters** - Implementations of port traits (filesystem, network, database, etc.)
+
+**Application** - Wires adapters to domain, orchestrates workflows
 
 ## Domain Model
 
@@ -48,18 +51,55 @@ Component B
 - Key behaviors
 - Error conditions
 
-## Module Structure
+## Boundaries & Adapters
 
-Describe how code should be organized:
+Define traits for external dependencies to enable testing and flexibility.
+
+**Trait: TraitName**
+- Purpose: What external capability this abstracts
+- Key methods and their semantics
+- Implementations: production impl, test/mock impl
+
+Adapters should be thin—translate between external systems and domain types.
+Domain logic should never depend on concrete adapters, only on trait definitions.
+
+## Module Structure
 
 ```
 src/
-├── module_a/
-│   ├── mod.rs
-│   └── types.rs
-└── module_b/
-    └── mod.rs
+├── domain/       # Core types and logic
+├── ports/        # Trait definitions
+├── adapters/     # Trait implementations
+└── app/          # Application wiring
 ```
+
+## Migration from Current Design
+
+*Remove this section for greenfield features.*
+
+### Current State
+
+- Key types and their roles
+- Current data flow
+- Pain points being addressed
+
+### Changes Required
+
+**Types**
+- `ExistingType` → changes to...
+- New type `NewType` introduced for...
+
+**Data Structures**
+- Current: describe current structure
+- New: describe new structure
+
+**Processes**
+- `existing_function()` currently does X, will change to Y
+- New process `new_function()` added for...
+
+### Affected Modules
+
+List modules that require changes and summarize the nature of changes.
 
 ## Design Patterns
 
@@ -76,16 +116,12 @@ Key considerations for implementors:
 
 ## Testing Strategy
 
-How this feature should be tested:
-- Unit tests for small, isolated units of code
-- Integration tests for component interactions
+- Unit tests: domain logic with mock adapters
+- Integration tests: real adapters, component interactions
 - Edge cases to cover
-
-Avoid performance evaluation tests in the design - focus on correctness.
 
 ## Notes
 
-- Keep code examples minimal and illustrative
-- Focus on architecture and design decisions
-- Guide implementors, don't write the implementation
+- Focus on types and their interactions
+- Guide architectural decisions, not implementation details
 - Reference requirements by ID when relevant
