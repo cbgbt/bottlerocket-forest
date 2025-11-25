@@ -1,0 +1,46 @@
+[licenses]
+
+# We want really high confidence when inferring licenses from text
+confidence-threshold = 0.93
+
+# Commented license types are allowed but not currently used
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    # "OpenSSL",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+exceptions = [
+    { name = "libfuzzer-sys", allow = ["NCSA"], version = "*" },
+]
+
+[bans]
+# Deny multiple versions or wildcard dependencies.
+multiple-versions = "deny"
+wildcards = "deny"
+
+skip-tree = [
+    # fastembed has many dependencies that clash with other dependencies of itself
+    { name = "fastembed", reason = "fastembed's transitive dependencies have many version conflicts within its own dependency tree" },
+]
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+include-path-dependencies = true
+unused = "deny"
+
+[sources]
+# Deny crates from unknown registries or git repositories.
+unknown-registry = "deny"
+unknown-git = "deny"

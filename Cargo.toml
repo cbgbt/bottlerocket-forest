@@ -1,0 +1,79 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sembly-core",
+    "crates/sembly-cli",
+    "crates/forester",
+]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+
+[workspace.dependencies]
+# Internal crates
+sembly-core = { path = "crates/sembly-core", version = "0.1.0" }
+
+# CLI and parsing
+clap = { version = "4", features = ["derive", "color"] }
+clap-cargo = "0.14"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Error handling
+miette = { version = "7", features = ["fancy"] }
+snafu = "0.8"
+
+# Builders and types
+bon = "3"
+nutype = { version = "0.5", features = ["serde"] }
+
+# Embeddings and ML
+fastembed = "4"
+tokenizers = { version = "0.22", features = ["http"] }
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled", "functions"] }
+sqlite-vec = "0.1"
+
+# Text processing
+text-splitter = { version = "0.28", features = ["markdown", "tokenizers"] }
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits"] }
+
+# File system and paths
+globset = "0.4"
+ignore = "0.4"
+path-clean = "1"
+dirs = "5"
+
+# Concurrency
+rayon = "1"
+
+# HTTP
+reqwest = { version = "0.12", features = ["blocking"] }
+
+# Time and dates
+chrono = { version = "0.4", features = ["serde"] }
+timeago = "0.4"
+
+# UUIDs
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# UI and progress
+indicatif = { version = "0.17", features = ["rayon"] }
+owo-colors = "4"
+
+# Configuration
+dotenvy = "0.15"
+envy = "0.4"
+
+# Testing
+assert_cmd = "2"
+mockall = "0.13"
+serial_test = "3"
+tempfile = "3"
+test-case = "3"

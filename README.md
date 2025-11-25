@@ -34,7 +34,10 @@ bottlerocket-forest/
 │   └── bottlerocket-control-container/ # Control container for orchestration
 ├── twoliter/                  # Bottlerocket build tool
 ├── bottlerocket-settings-sdk/ # SDK for settings plugins
-├── forester/                  # Forest orchestration CLI (Rust)
+├── crates/                    # Rust workspace
+│   ├── sembly-core/           # Semantic search library
+│   ├── sembly-cli/            # Sembly CLI tool
+│   └── forester/              # Forest orchestration CLI
 ├── skills/                    # AI agent skills for common workflows
 ├── docs/                      # High-level Bottlerocket documentation
 └── planning/                  # Scratch space for notes and planning (gitignored)
@@ -50,31 +53,50 @@ bottlerocket-forest/
 
 This script will:
 1. Clone all Bottlerocket repositories
-2. Build the forester tool
+2. Build the forest tools (sembly, forester)
 3. Build the knowledge index
 4. Verify everything works
 
 The script is idempotent and quiet by default. Use `./seed-forest.sh --verbose` for detailed output.
 
+## Sembly
+
+Semantic search tool for exploring Bottlerocket documentation. **Must run from forest root directory.**
+
+```bash
+sembly build                    # Build search index
+sembly search "boot process"    # Search documentation
+sembly status                   # Check index status
+sembly update                   # Update index incrementally
+sembly rebuild                  # Rebuild from scratch
+```
+
+Sembly is a standalone open-source tool that can be applied to any codebase. See `crates/sembly-cli/` for details.
+
 ## Forester
 
 Forest orchestration tool. **Must run from forest root directory.**
 
-**Knowledge Index:**
-```bash
-forester index build                    # Build search index
-forester index search "boot process"    # Search documentation
-forester index status                   # Check index status
-```
-
-**Local Registry:**
 ```bash
 forester registry start    # Start local registry
 forester registry status   # Check registry status
 forester registry list     # List published images
 ```
 
-See `forester/README.md` for complete documentation.
+See `crates/forester/README.md` for complete documentation.
+
+## Development
+
+The forest uses a Cargo workspace. Build all tools:
+
+```bash
+make build          # Build all binaries
+make test           # Run unit tests
+make integ          # Run full test suite (fmt, clippy, deny, tests)
+make release-build  # Build optimized binaries
+```
+
+Binaries are output to `./target/release/sembly` and `./target/release/forester`.
 
 ## Documentation Guidelines
 
@@ -87,7 +109,7 @@ Include a keywords line near the top of documentation files:
 ```
 
 Include 5-15 terms: technical concepts, component names, use cases, related features.
-Use lowercase, comma-separated. Improves `forester index search` discoverability.
+Use lowercase, comma-separated. Improves `sembly search` discoverability.
 
 **Example:**
 ```markdown
@@ -109,4 +131,4 @@ When developing features:
 3. Building a variant requires specifying kit versions
 4. Testing requires deploying the built variant image
 
-The forest tool helps orchestrate these dependencies.
+The forest tools help orchestrate these dependencies.
