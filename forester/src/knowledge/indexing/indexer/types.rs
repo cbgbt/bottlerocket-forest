@@ -11,6 +11,19 @@ use crate::knowledge::storage::StorageError;
 
 use super::super::{DispatchError, IndexDataError, ScanError};
 
+/// Configuration for batch writing during indexing
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchConfig {
+    /// Number of chunks to accumulate before writing to storage
+    pub batch_size: usize,
+}
+
+impl Default for BatchConfig {
+    fn default() -> Self {
+        Self { batch_size: 100 }
+    }
+}
+
 /// Statistics and metadata from a completed indexing operation
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[non_exhaustive]

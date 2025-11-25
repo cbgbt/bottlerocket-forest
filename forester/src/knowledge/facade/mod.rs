@@ -10,7 +10,7 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Open or create an index
-//! let mut index = KnowledgeIndex::open("/path/to/forest")?;
+//! let index = KnowledgeIndex::open("/path/to/forest")?;
 //!
 //! // Build the index
 //! let result = index.build().call()?;
@@ -38,10 +38,15 @@ use snafu::ResultExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::knowledge::domain::{EmbeddingModelConfig, SearchQuery, SearchResults};
-use crate::knowledge::indexing::IndexDataProvider;
+use crate::knowledge::domain::{
+    EmbeddingModelConfig, IndexMetadata, QueryText, ResultLimit, ScanConfig, SearchQuery,
+    SearchResults,
+};
 use crate::knowledge::indexing::provider::EmbeddingDataProvider;
-use crate::knowledge::indexing::{IndexResult, load_forester_config};
+use crate::knowledge::indexing::{
+    self, BatchConfig, IndexDataProvider, IndexResult, IndexStrategy, Indexer, IndexingFilter,
+    ProgressReporter, load_forester_config,
+};
 use crate::knowledge::scoring::ScoreBooster;
 use crate::knowledge::search::{
     EmbeddingModel, LoadedEmbeddingModel, SearchEngine, SemanticSearchEngine,
@@ -79,6 +84,7 @@ impl KnowledgeIndex {
         forest_root: impl AsRef<Path>,
         config: EmbeddingModelConfig,
     ) -> Result<Self, IndexError> {
+        use crate::knowledge::storage::StorageError;
         use types::index_error::*;
 
         let forest_root = forest_root.as_ref();
@@ -101,7 +107,7 @@ impl KnowledgeIndex {
             SqliteChunkRepository::open(&db_path, &config).context(DatabaseAccessFailedSnafu)?;
 
         if is_new_db {
-            let metadata = crate::knowledge::domain::IndexMetadata::builder()
+            let metadata = IndexMetadata::builder()
                 .last_build(std::time::SystemTime::now())
                 .chunk_count(0)
                 .file_count(0)
@@ -118,7 +124,7 @@ impl KnowledgeIndex {
 
         if metadata.model_config != config {
             return Err(IndexError::DatabaseAccessFailed {
-                source: crate::knowledge::storage::StorageError::ConfigMismatch {
+                source: StorageError::ConfigMismatch {
                     expected: config.clone(),
                     actual: metadata.model_config.clone(),
                 },
@@ -138,7 +144,8 @@ impl KnowledgeIndex {
     #[builder]
     pub fn build(
         &self,
-        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn ProgressReporter>>,
+        #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -147,19 +154,22 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
-            &self.forest_root,
-            repository,
-            &self.config,
-            provider,
-            scan_config,
-            filter,
-            progress,
-        )
-        .context(IndexingFailedSnafu)?;
+        let batch_config = BatchConfig { batch_size };
+
+        let mut indexer = Indexer::builder()
+            .forest_root(&self.forest_root)
+            .repository(repository)
+            .config(&self.config)
+            .provider(provider)
+            .scan_config(scan_config)
+            .filter(filter)
+            .maybe_progress(progress)
+            .batch_config(batch_config)
+            .build()
+            .context(IndexingFailedSnafu)?;
 
         let result = indexer
-            .index(crate::knowledge::indexing::IndexStrategy::Build)
+            .index(IndexStrategy::Build)
             .context(IndexingFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
@@ -173,7 +183,8 @@ impl KnowledgeIndex {
     #[builder]
     pub fn rebuild(
         &self,
-        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn ProgressReporter>>,
+        #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -182,19 +193,22 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
-            &self.forest_root,
-            repository,
-            &self.config,
-            provider,
-            scan_config,
-            filter,
-            progress,
-        )
-        .context(IndexingFailedSnafu)?;
+        let batch_config = BatchConfig { batch_size };
+
+        let mut indexer = Indexer::builder()
+            .forest_root(&self.forest_root)
+            .repository(repository)
+            .config(&self.config)
+            .provider(provider)
+            .scan_config(scan_config)
+            .filter(filter)
+            .maybe_progress(progress)
+            .batch_config(batch_config)
+            .build()
+            .context(IndexingFailedSnafu)?;
 
         let result = indexer
-            .index(crate::knowledge::indexing::IndexStrategy::Rebuild)
+            .index(IndexStrategy::Rebuild)
             .context(IndexingFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
@@ -209,7 +223,8 @@ impl KnowledgeIndex {
     #[builder]
     pub fn update(
         &self,
-        progress: Option<Arc<dyn crate::knowledge::indexing::ProgressReporter>>,
+        progress: Option<Arc<dyn ProgressReporter>>,
+        #[builder(default = 100)] batch_size: usize,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -218,19 +233,22 @@ impl KnowledgeIndex {
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
-        let mut indexer = crate::knowledge::indexing::Indexer::with_progress(
-            &self.forest_root,
-            repository,
-            &self.config,
-            provider,
-            scan_config,
-            filter,
-            progress,
-        )
-        .context(IndexingFailedSnafu)?;
+        let batch_config = BatchConfig { batch_size };
+
+        let mut indexer = Indexer::builder()
+            .forest_root(&self.forest_root)
+            .repository(repository)
+            .config(&self.config)
+            .provider(provider)
+            .scan_config(scan_config)
+            .filter(filter)
+            .maybe_progress(progress)
+            .batch_config(batch_config)
+            .build()
+            .context(IndexingFailedSnafu)?;
 
         let result = indexer
-            .index(crate::knowledge::indexing::IndexStrategy::Incremental)
+            .index(IndexStrategy::Incremental)
             .context(IndexingFailedSnafu)?;
 
         self.update_last_build_timestamp()?;
@@ -257,7 +275,6 @@ impl KnowledgeIndex {
         query: impl AsRef<str>,
         limit: usize,
     ) -> Result<SearchResults, IndexError> {
-        use crate::knowledge::domain::{QueryText, ResultLimit};
         use types::index_error::*;
 
         let search_query = SearchQuery::builder()
@@ -393,32 +410,28 @@ impl KnowledgeIndex {
     }
 
     /// Load scan configuration from `.forester.toml` if it exists
-    fn load_scan_config(&self) -> Result<crate::knowledge::domain::ScanConfig, IndexError> {
+    fn load_scan_config(&self) -> Result<ScanConfig, IndexError> {
         use types::index_error::*;
 
-        let forester_config = crate::knowledge::indexing::load_forester_config(&self.forest_root)
-            .context(ConfigLoadFailedSnafu)?;
+        let forester_config =
+            indexing::load_forester_config(&self.forest_root).context(ConfigLoadFailedSnafu)?;
 
         let targets = forester_config
             .as_ref()
             .map(|c| c.targets.clone())
             .unwrap_or_default();
 
-        Ok(crate::knowledge::domain::ScanConfig::builder()
-            .targets(targets)
-            .build())
+        Ok(ScanConfig::builder().targets(targets).build())
     }
 
     /// Load indexing filter rules from forester configuration
     ///
     /// Reads `.forester.toml` to determine which files should be excluded from indexing.
-    fn load_indexing_filter(
-        &self,
-    ) -> Result<crate::knowledge::indexing::IndexingFilter, IndexError> {
+    fn load_indexing_filter(&self) -> Result<IndexingFilter, IndexError> {
         use types::index_error::*;
 
-        let forester_config = crate::knowledge::indexing::load_forester_config(&self.forest_root)
-            .context(ConfigLoadFailedSnafu)?;
+        let forester_config =
+            indexing::load_forester_config(&self.forest_root).context(ConfigLoadFailedSnafu)?;
 
         let filter = forester_config
             .map(|c| c.to_indexing_filter())
@@ -552,7 +565,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("README.md"), "# Test\n\nContent here").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
         let result = index.build().call();
@@ -568,7 +581,7 @@ mod test {
     fn test_build_handles_empty_forest() {
         // Given An empty forest
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building
         let result = index.build().call().unwrap();
@@ -586,7 +599,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Rebuilding
@@ -604,7 +617,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
         let result = index.rebuild().call().unwrap();
@@ -618,7 +631,7 @@ mod test {
     fn test_update_detects_new_files() {
         // Given An index with no files
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Adding a new file and updating
@@ -642,7 +655,7 @@ mod test {
         let file_path = repo_dir.join("test.md");
         fs::write(&file_path, "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Deleting the file and updating
@@ -662,7 +675,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Clearing the index
@@ -677,7 +690,7 @@ mod test {
     fn test_clear_on_empty_index_returns_zero() {
         // Given An empty index
         let temp_dir = TempDir::new().unwrap();
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Clearing
         let result = index.clear().unwrap();
@@ -694,7 +707,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Boot Process\n\nHow boot works").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Searching
@@ -718,7 +731,7 @@ mod test {
         )
         .unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Searching with limit 2
@@ -775,7 +788,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Getting status
@@ -813,7 +826,7 @@ mod test {
         fs::create_dir(&repo_dir).unwrap();
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Getting status
@@ -947,7 +960,7 @@ targets = ["docs", "bottlerocket"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Building the index
         let result = index.build().call().unwrap();
@@ -975,7 +988,7 @@ targets = ["docs"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
 
         // When Rebuilding
         let result = index.rebuild().call().unwrap();
@@ -998,7 +1011,7 @@ targets = ["docs"]
 "#;
         fs::write(temp_dir.path().join(".forester.toml"), config_content).unwrap();
 
-        let mut index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
         index.build().call().unwrap();
 
         // When Adding files to both directories and updating

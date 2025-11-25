@@ -38,7 +38,7 @@ pub mod scanner;
 
 pub use config::{ForesterConfig, ForesterConfigError, load_forester_config};
 pub use filter::{IndexingFilter, RustFilter, RustItemType};
-pub use indexer::{IndexResult, IndexStrategy, Indexer, IndexingError};
+pub use indexer::{BatchConfig, IndexResult, IndexStrategy, Indexer, IndexingError};
 pub use progress::{ProgressReporter, SilentReporter};
 pub use provider::{IndexDataError, IndexDataProvider};
 pub use scanner::{FileScanner, IndexableFile, ScanError};

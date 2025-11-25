@@ -598,7 +598,7 @@ mod test {
         std::fs::create_dir_all(&forester_dir).unwrap();
 
         // Create a valid index
-        let mut index = KnowledgeIndex::open(forest_root).unwrap();
+        let index = KnowledgeIndex::open(forest_root).unwrap();
         index.build().call().unwrap();
 
         // When Opening the existing index
