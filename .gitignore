@@ -8,7 +8,7 @@ forester/target/
 /worktrees
 
 # Forester data directory
-.forester/
+.sembly/
 
 # Bottlerocket component repositories
 /bottlerocket
