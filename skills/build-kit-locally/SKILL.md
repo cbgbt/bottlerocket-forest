@@ -1,13 +1,13 @@
 ---
-name: build-and-publish-kit
-description: Build a Bottlerocket kit and publish it to the local development registry
+name: build-kit-locally
+description: Build a kit and publish it to a locally hosted registry for development testing
 ---
 
 # Skill: Build and Publish Kit
 
 ## Purpose
 
-Build a Bottlerocket kit (core-kit or kernel-kit) and publish it to a local OCI registry for development and testing.
+Build a Bottlerocket kit (core-kit or kernel-kit) and publish it to a local OCI registry for development testing and validation. This allows you to test kit changes in variant builds without publishing to production registries.
 
 ## When to Use
 

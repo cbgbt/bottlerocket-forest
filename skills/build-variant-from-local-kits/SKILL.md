@@ -1,13 +1,13 @@
 ---
 name: build-variant-from-local-kits
-description: Build a Bottlerocket variant using kits from the local development registry
+description: Build a variant using locally published kits for development validation
 ---
 
 # Skill: Build Variant from Local Kits
 
 ## Purpose
 
-Build a complete Bottlerocket variant image using kits published to the local development registry.
+Build a complete Bottlerocket variant image using kits published to the local development registry. This enables end-to-end testing of kit changes before publishing to production registries.
 
 ## When to Use
 
@@ -17,7 +17,7 @@ Build a complete Bottlerocket variant image using kits published to the local de
 
 ## Prerequisites
 
-- Kits already built and published to local registry (use `build-and-publish-kit` skill)
+- Kits already built and published to local registry (use `build-kit-locally` skill)
 - Local registry running
 - Bottlerocket variant repository
 

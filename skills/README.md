@@ -34,8 +34,8 @@ When you identify that a skill should be used:
 
 - **research-with-citations** - Answer questions about Bottlerocket by finding and reading relevant documentation
 - **local-registry** - Start and manage a local OCI registry for development
-- **build-and-publish-kit** - Build a kit and publish it to the local registry
-- **build-variant-from-local-kits** - Build a variant using locally published kits
+- **build-kit-locally** - Build a kit and publish it to a locally hosted registry for development testing
+- **build-variant-from-local-kits** - Build a variant using locally published kits for development validation
 - **update-twoliter** - Update all repositories to a new Twoliter version
 
 ## Skill Format
