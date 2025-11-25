@@ -74,30 +74,43 @@ fs_read with mode: "Line", start_line: 1, end_line: -1
 When providing the answer:
 - Synthesize information from multiple sources
 - Structure the response logically
-- **Use numeric references [1], [2], etc. inline** when stating facts
+- **Use superscript references `<sup>[1]</sup>`, `<sup>[2]</sup>`, etc. inline** when stating facts
 - **Always include a "Sources" section** at the end with numbered citations
 
 **Citation format:**
 ```
-The root filesystem is immutable [1] and verified with dm-verity [2].
-Bottlerocket uses dual partition sets [1] for atomic updates.
+The root filesystem is immutable <sup>[1]</sup> and verified with dm-verity <sup>[2]</sup>.
+Bottlerocket uses dual partition sets <sup>[1]</sup> for atomic updates.
 
 ## Sources
 
-[1] **`bottlerocket/SECURITY_FEATURES.md`**
-    - Immutable rootfs backed by dm-verity
-    - Dual partition sets for updates
+<sup>[1]</sup> [`SECURITY_FEATURES.md`](https://github.com/bottlerocket-os/bottlerocket/blob/develop/SECURITY_FEATURES.md) (bottlerocket repo)
+- Immutable rootfs backed by dm-verity
+- Dual partition sets for updates
 
-[2] **`kits/bottlerocket-core-kit/sources/updater/signpost/README.md`**
-    - Partition structure details
-    - GPT priority bits system
+<sup>[2]</sup> [`sources/updater/signpost/README.md`](../sources/updater/signpost/README.md)
+- Partition structure details
+- GPT priority bits system
 ```
+
+**Citation path guidelines:**
+- **Use paths relative to the repository where the documentation will live**
+- If documenting in `bottlerocket-core-kit`, use paths like `sources/api/README.md`, not `kits/bottlerocket-core-kit/sources/api/README.md`
+- If documenting in `bottlerocket`, use paths like `variants/README.md`, not `bottlerocket/variants/README.md`
+- **Make file paths into markdown links** using relative paths from the documentation location
+- For files in the same repo: `[`path/to/file.md`](../path/to/file.md)`
+- For files in other repos: use GitHub URLs to the `develop` branch: `[`FILE.md`](https://github.com/bottlerocket-os/REPO/blob/develop/FILE.md)` and note the repo name
+
+**Why superscript format:**
+- Markdown treats `[1]` as a potential link reference, which can cause rendering issues
+- `<sup>[1]</sup>` renders as superscript and doesn't conflict with markdown link syntax
+- More visually distinct from regular text
 
 **Guidelines:**
 - Number sources in order of first reference
 - Use the same number for multiple facts from the same source
-- Include full file paths in the Sources section
-- Briefly describe what information came from each source
+- Include relative file paths in the Sources section
+- Use bullet points to describe what information came from each source
 
 ### 5. Iterate if Needed
 
@@ -125,19 +138,19 @@ sembly search "root volume partition disk layout"
 - Search variants README for layout options
 
 **Step 4 - Provide answer with citations:**
-- Explain dual partition sets with inline reference [1]
-- Describe security features with inline references [2]
-- Use numeric citations throughout the answer
+- Explain dual partition sets with inline reference `<sup>[1]</sup>`
+- Describe security features with inline references `<sup>[2]</sup>`
+- Use superscript citations throughout the answer
 - List all sources at the end with numbers matching inline references
 
 ## Validation
 
 A good research response includes:
 - ✓ Information directly from documentation files
-- ✓ Numeric references [1], [2], etc. inline with facts
+- ✓ Superscript references `<sup>[1]</sup>`, `<sup>[2]</sup>`, etc. inline with facts
 - ✓ Multiple sources cross-referenced
 - ✓ Numbered Sources section at the end
-- ✓ Complete file paths cited
+- ✓ File paths relative to the target repository
 - ✓ Specific details attributed to sources
 - ✓ No speculation or general knowledge where docs exist
 
