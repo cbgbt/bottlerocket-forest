@@ -137,7 +137,8 @@ mod test {
     use crate::knowledge::chunking::ChunkingStrategy;
     use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::domain::{
-        ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, RepoName,
+        ChunkContext, ChunkSource, ChunkableContent, FileHash, ForestRelativePath, ItemName,
+        RepoName,
     };
     use test_case::test_case;
 
@@ -152,6 +153,7 @@ mod test {
                 .file_path(ForestRelativePath::try_new("test.rs").unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
                 .build(),
+            file_hash: FileHash::new([0u8; 32]),
         }
     }
 

@@ -59,11 +59,16 @@ impl ChunkHash {
         Self(bytes)
     }
 
+    /// Computes hash from text content
+    pub fn from_text(text: &str) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(text.as_bytes());
+        Self(hasher.finalize().into())
+    }
+
     /// Computes hash from a Chunk's text content
     pub fn from_chunk(chunk: &Chunk) -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(chunk.content.text.as_bytes());
-        Self(hasher.finalize().into())
+        Self::from_text(&chunk.content.text)
     }
 
     /// Returns the hash as a byte slice
@@ -96,6 +101,8 @@ mod test {
     fn make_chunk(text: &str) -> Chunk {
         Chunk::builder()
             .id(ChunkId::new(Uuid::new_v4()))
+            .chunk_hash(ChunkHash::new([0u8; 32]))
+            .file_hash(FileHash::new([0u8; 32]))
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())

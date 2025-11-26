@@ -729,8 +729,14 @@ mod test {
     }
 
     fn create_test_chunk() -> Chunk {
+        use sembly_core::knowledge::domain::{ChunkHash, FileHash};
+        use std::io::Cursor;
+
+        let text = "Test content";
         Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(ChunkHash::from_text(text))
+            .file_hash(FileHash::from_reader(Cursor::new(text.as_bytes())).unwrap())
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
@@ -739,7 +745,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("Test content")
+                    .text(text)
                     .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )

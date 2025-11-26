@@ -9,7 +9,9 @@
 //! * `search`: Provides semantic search using vector embeddings
 //! * `context`: Context repository for multi-context indexing
 //! * `files`: Storage queries for indexed files
+//! * `chunks`: Content-addressed chunk storage queries
 
+pub mod chunks;
 mod context;
 pub mod files;
 mod queries;

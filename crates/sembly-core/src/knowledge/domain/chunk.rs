@@ -9,7 +9,10 @@
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 
-use super::{ChunkId, ForestRelativePath, HeadingText, ItemName, RepoName, Signature, TokenCount};
+use super::{
+    ChunkHash, ChunkId, FileHash, ForestRelativePath, HeadingText, ItemName, RepoName, Signature,
+    TokenCount,
+};
 use crate::knowledge::indexing::RustItemType;
 
 /// Searchable documentation unit with source and context metadata
@@ -18,6 +21,10 @@ use crate::knowledge::indexing::RustItemType;
 #[non_exhaustive]
 pub struct Chunk {
     pub id: ChunkId,
+    /// Content-addressed identifier for this chunk.
+    pub chunk_hash: ChunkHash,
+    /// Hash of the file that produced this chunk.
+    pub file_hash: FileHash,
     pub source: ChunkSource,
     pub content: ChunkContent,
     pub context: ChunkContext,

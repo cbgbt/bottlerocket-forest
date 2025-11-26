@@ -15,7 +15,7 @@ use tokenizers::Tokenizer;
 use super::{ChunkingError, ChunkingInput, ChunkingStrategy};
 use crate::knowledge::domain::EmbeddingModelConfig;
 use crate::knowledge::domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, HeadingText, MarkdownContext, TokenCount,
+    Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, HeadingText, MarkdownContext, TokenCount,
 };
 
 /// Chunks markdown files while preserving heading hierarchy.
@@ -148,8 +148,11 @@ impl ChunkingStrategy for MarkdownChunker {
 
                 let token_count = encoding.len().max(1);
 
+                let chunk_hash = ChunkHash::from_text(trimmed);
                 let chunk = Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .chunk_hash(chunk_hash)
+                    .file_hash(input.file_hash)
                     .source(input.source.clone())
                     .content(
                         ChunkContent::builder()
@@ -176,7 +179,9 @@ impl ChunkingStrategy for MarkdownChunker {
 mod test {
     use super::*;
     use crate::knowledge::domain::EmbeddingModelConfig;
-    use crate::knowledge::domain::{ChunkSource, ChunkableContent, ForestRelativePath, RepoName};
+    use crate::knowledge::domain::{
+        ChunkSource, ChunkableContent, FileHash, ForestRelativePath, RepoName,
+    };
     use test_case::test_case;
 
     fn test_config() -> EmbeddingModelConfig {
@@ -190,6 +195,7 @@ mod test {
                 .file_path(ForestRelativePath::try_new("test.md").unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
                 .build(),
+            file_hash: FileHash::new([0u8; 32]),
         }
     }
 

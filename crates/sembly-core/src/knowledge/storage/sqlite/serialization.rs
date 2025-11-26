@@ -7,30 +7,47 @@ use snafu::ResultExt;
 
 use crate::knowledge::constants::EMBEDDING_DIM;
 use crate::knowledge::domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-    IndexedChunk, MarkdownContext, RepoName, RustDocContext, Timestamp, TokenCount,
+    Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, Embedding, FileHash,
+    ForestRelativePath, IndexedChunk, MarkdownContext, RepoName, RustDocContext, Timestamp,
+    TokenCount,
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
 /// Reconstructs an IndexedChunk from a database row
 ///
-/// Expects columns: id, file_path, repo_name, context_type, context_data,
+/// Expects columns: id, chunk_hash, file_hash, file_path, repo_name, context_type, context_data,
 /// content, token_count, last_modified.
 pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, StorageError> {
     let id_str: String = row.get(0).context(DatabaseSnafu)?;
-    let file_path: String = row.get(1).context(DatabaseSnafu)?;
-    let repo_name: String = row.get(2).context(DatabaseSnafu)?;
-    let context_type: String = row.get(3).context(DatabaseSnafu)?;
-    let context_data: String = row.get(4).context(DatabaseSnafu)?;
-    let content: String = row.get(5).context(DatabaseSnafu)?;
-    let token_count: i64 = row.get(6).context(DatabaseSnafu)?;
-    let last_modified: i64 = row.get(7).context(DatabaseSnafu)?;
+    let chunk_hash_bytes: Vec<u8> = row.get(1).context(DatabaseSnafu)?;
+    let file_hash_bytes: Vec<u8> = row.get(2).context(DatabaseSnafu)?;
+    let file_path: String = row.get(3).context(DatabaseSnafu)?;
+    let repo_name: String = row.get(4).context(DatabaseSnafu)?;
+    let context_type: String = row.get(5).context(DatabaseSnafu)?;
+    let context_data: String = row.get(6).context(DatabaseSnafu)?;
+    let content: String = row.get(7).context(DatabaseSnafu)?;
+    let token_count: i64 = row.get(8).context(DatabaseSnafu)?;
+    let last_modified: i64 = row.get(9).context(DatabaseSnafu)?;
 
     let uuid = uuid::Uuid::parse_str(&id_str)
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
         .context(InvalidFieldSnafu {
             field: "chunk_id".to_string(),
         })?;
+
+    let chunk_hash_array: [u8; 32] = chunk_hash_bytes.try_into().map_err(|_| {
+        InvalidDataSnafu {
+            message: "chunk_hash must be 32 bytes".to_string(),
+        }
+        .build()
+    })?;
+
+    let file_hash_array: [u8; 32] = file_hash_bytes.try_into().map_err(|_| {
+        InvalidDataSnafu {
+            message: "file_hash must be 32 bytes".to_string(),
+        }
+        .build()
+    })?;
 
     let context = deserialize_context(&context_type, &context_data)?;
 
@@ -45,6 +62,8 @@ pub fn indexed_chunk_from_row(row: &rusqlite::Row) -> Result<IndexedChunk, Stora
 
     let chunk = Chunk::builder()
         .id(ChunkId::new(uuid))
+        .chunk_hash(ChunkHash::new(chunk_hash_array))
+        .file_hash(FileHash::new(file_hash_array))
         .source(
             ChunkSource::builder()
                 .file_path(

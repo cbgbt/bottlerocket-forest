@@ -86,8 +86,8 @@ mod test {
     use super::*;
     use crate::knowledge::chunking::strategy::MockChunkingStrategy;
     use crate::knowledge::domain::{
-        ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, ForestRelativePath,
-        MarkdownContext, RepoName, TokenCount,
+        ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, ChunkableContent, FileHash,
+        ForestRelativePath, MarkdownContext, RepoName, TokenCount,
     };
     use test_case::test_case;
 
@@ -98,12 +98,15 @@ mod test {
                 .file_path(ForestRelativePath::try_new(file_path).unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
                 .build(),
+            file_hash: FileHash::new([0u8; 32]),
         }
     }
 
     fn create_test_chunk() -> Chunk {
         Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(ChunkHash::new([0u8; 32]))
+            .file_hash(FileHash::new([0u8; 32]))
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())

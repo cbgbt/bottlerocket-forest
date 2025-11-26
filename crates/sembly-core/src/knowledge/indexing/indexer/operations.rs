@@ -9,7 +9,9 @@ use snafu::ResultExt;
 use super::super::{IndexDataProvider, IndexableFile, ProgressReporter};
 use super::types::IndexingError;
 use crate::knowledge::chunking::{ChunkingDispatcher, ChunkingError, ChunkingInput, DispatchError};
-use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, IndexedChunk, Timestamp};
+use crate::knowledge::domain::{
+    Chunk, ChunkSource, ChunkableContent, FileHash, IndexedChunk, Timestamp,
+};
 
 /// Process a file with graceful error handling for parse failures
 ///
@@ -78,12 +80,20 @@ pub(super) fn process_file(
         })
         .context(ScanFailedSnafu)?;
 
+    let file_hash = FileHash::from_reader(std::io::Cursor::new(content.as_bytes()))
+        .map_err(|e| super::super::ScanError::IoError {
+            source: e,
+            path: file.absolute_path.to_string(),
+        })
+        .context(ScanFailedSnafu)?;
+
     let input = ChunkingInput {
         content: ChunkableContent::new(content),
         source: ChunkSource::builder()
             .file_path(file.relative_path.clone())
             .repo_name(file.repo_name.clone())
             .build(),
+        file_hash,
     };
 
     let chunks = match dispatcher.chunk_file(&input) {

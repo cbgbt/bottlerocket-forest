@@ -105,8 +105,9 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, Embedding, ForestRelativePath,
-        IndexedChunk, MarkdownContext, QueryText, RepoName, ResultLimit, Timestamp, TokenCount,
+        Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, Embedding, FileHash,
+        ForestRelativePath, IndexedChunk, MarkdownContext, QueryText, RepoName, ResultLimit,
+        Timestamp, TokenCount,
     };
     use crate::knowledge::search::embeddings::model::MockEmbeddingProvider;
     use crate::knowledge::storage::repository::MockChunkRepository;
@@ -121,6 +122,8 @@ mod test {
             .chunk(
                 Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .chunk_hash(ChunkHash::new([0u8; 32]))
+                    .file_hash(FileHash::new([0u8; 32]))
                     .source(
                         ChunkSource::builder()
                             .file_path(
@@ -441,6 +444,8 @@ mod test {
             .chunk(
                 Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .chunk_hash(ChunkHash::new([0u8; 32]))
+                    .file_hash(FileHash::new([0u8; 32]))
                     .source(
                         ChunkSource::builder()
                             .file_path(ForestRelativePath::try_new("src/main.rs").unwrap())
@@ -466,6 +471,8 @@ mod test {
             .chunk(
                 Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .chunk_hash(ChunkHash::new([0u8; 32]))
+                    .file_hash(FileHash::new([0u8; 32]))
                     .source(
                         ChunkSource::builder()
                             .file_path(ForestRelativePath::try_new("docs/guide.md").unwrap())

@@ -3,7 +3,7 @@
 use snafu::Snafu;
 use std::path::Path;
 
-use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent};
+use crate::knowledge::domain::{Chunk, ChunkSource, ChunkableContent, FileHash};
 
 /// Strategy for chunking file content into searchable units
 #[cfg_attr(test, mockall::automock)]
@@ -20,6 +20,8 @@ pub trait ChunkingStrategy: Send + Sync {
 pub struct ChunkingInput {
     pub content: ChunkableContent,
     pub source: ChunkSource,
+    /// Hash of the source file for content-addressed storage.
+    pub file_hash: FileHash,
 }
 
 /// Errors that can occur during chunking

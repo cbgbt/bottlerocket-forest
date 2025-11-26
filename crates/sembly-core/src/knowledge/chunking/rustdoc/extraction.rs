@@ -6,8 +6,8 @@ use tokenizers::Tokenizer;
 
 use crate::knowledge::chunking::{ChunkingError, ChunkingInput};
 use crate::knowledge::domain::{
-    Chunk, ChunkContent, ChunkContext, ChunkId, ItemName, RustDocContext, Signature, TokenCount,
-    Visibility,
+    Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ItemName, RustDocContext, Signature,
+    TokenCount, Visibility,
 };
 
 pub(crate) struct DocExtractor<'a> {
@@ -300,8 +300,11 @@ impl<'a> DocExtractor<'a> {
                     .item_type(item_type)
                     .build();
 
+                let chunk_hash = ChunkHash::from_text(text);
                 Ok(Chunk::builder()
                     .id(ChunkId::new(uuid::Uuid::new_v4()))
+                    .chunk_hash(chunk_hash)
+                    .file_hash(input.file_hash)
                     .source(input.source.clone())
                     .content(
                         ChunkContent::builder()
@@ -322,8 +325,8 @@ mod test {
     use crate::knowledge::chunking::{ChunkingStrategy, RustDocChunker};
     use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::domain::{
-        ChunkContext, ChunkSource, ChunkableContent, ForestRelativePath, ItemName, RepoName,
-        Visibility,
+        ChunkContext, ChunkSource, ChunkableContent, FileHash, ForestRelativePath, ItemName,
+        RepoName, Visibility,
     };
     use test_case::test_case;
 
@@ -338,6 +341,7 @@ mod test {
                 .file_path(ForestRelativePath::try_new("test.rs").unwrap())
                 .repo_name(RepoName::try_new("test-repo").unwrap())
                 .build(),
+            file_hash: FileHash::new([0u8; 32]),
         }
     }
 

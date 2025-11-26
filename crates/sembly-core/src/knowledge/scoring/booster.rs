@@ -73,14 +73,16 @@ pub enum RelevanceScoreError {
 mod test {
     use super::*;
     use crate::knowledge::domain::{
-        Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ForestRelativePath,
-        MarkdownContext, RepoName, TokenCount,
+        Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, FileHash,
+        ForestRelativePath, MarkdownContext, RepoName, TokenCount,
     };
     use crate::knowledge::scoring::rules::{BoostPattern, BoostRule};
 
     fn create_test_chunk(file_path: &str) -> Chunk {
         Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(ChunkHash::new([0u8; 32]))
+            .file_hash(FileHash::new([0u8; 32]))
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new(file_path).unwrap())
