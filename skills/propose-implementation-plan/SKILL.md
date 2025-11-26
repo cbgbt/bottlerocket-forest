@@ -50,6 +50,17 @@ Read the design thoroughly, noting:
 - Migration requirements from current state
 - Testing strategy
 
+### 3a. Extract Critical Constraints
+
+Review the design's Critical Constraints table (CC-1, CC-2, etc.).
+For each constraint:
+1. Identify which commit(s) implement it
+2. Copy the constraint and anti-pattern to those commits' Acceptance Criteria
+3. These become explicit review checkpoints
+
+**This step prevents the most common implementation mistakes.**
+If the design lacks critical constraints, ask for clarification before proceeding.
+
 ### 4. Identify Natural Boundaries
 
 Look for logical separation points:
@@ -177,6 +188,11 @@ For each commit, document:
 **Files Changed**: List files with brief description of changes.
 
 **Key Changes**: Bullet points of specific modifications.
+
+**Acceptance Criteria** *(for commits implementing critical constraints)*:
+- Copy from design doc's Critical Constraints table
+- Make them checkable (e.g., "SQL query contains JOIN to indexed_files")
+- Include anti-patterns for reviewers to reject
 
 **Testing**: How to verify the commit works.
 

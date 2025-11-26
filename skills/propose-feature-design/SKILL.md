@@ -51,7 +51,23 @@ cp docs/features/0000-templates/design.md docs/features/NNNN-feature-name/
 
 Write a high-level description of the architecture and design approach. Reference the concept and requirements.
 
-### 5. Define Architecture
+### 5. Identify Critical Constraints
+
+For each key operation, ask:
+- What would be a WRONG way to implement this?
+- What performance characteristics are required?
+- What invariants must hold?
+
+Fill in the Critical Constraints table with:
+- **ID**: CC-1, CC-2, etc.
+- **Constraint**: What MUST be done a specific way
+- **Rationale**: Why (performance, correctness, security)
+- **Anti-pattern**: The wrong approach to reject in review
+
+This is the most important section for preventing implementation mistakes.
+Be specific—vague constraints don't help.
+
+### 6. Define Architecture
 
 Describe the overall structure:
 - Component relationships
@@ -61,7 +77,7 @@ Describe the overall structure:
 
 Use simple diagrams with ASCII art if helpful.
 
-### 6. Define Domain Model
+### 7. Define Domain Model
 
 Specify the core types and operations:
 
@@ -75,9 +91,9 @@ Specify the core types and operations:
 - Function signatures (conceptual)
 - What they do
 - Key behaviors
-- Error conditions
+- Invariants (what must always be true)
 
-### 7. Define Module Structure
+### 8. Define Module Structure
 
 Show how code should be organized:
 - Directory structure
@@ -85,22 +101,32 @@ Show how code should be organized:
 - File organization
 - Separation of concerns
 
-### 8. Document Design Patterns
+### 9. Document Design Patterns
 
 Describe relevant patterns and why they apply:
 - Which patterns to use
 - How they fit the problem
 - Implementation guidance
 
-### 9. Add Implementation Guidance
+### 10. Document Design Decisions
+
+For significant choices between alternatives, add entries to the Design Decisions section:
+- What was decided
+- What alternatives were considered
+- Why this option was chosen
+- What it implies for implementation
+
+This creates a record that helps implementors understand the reasoning.
+
+### 11. Add Implementation Guidance
 
 Key considerations for implementors:
-- Important constraints
+- Reference Critical Constraints by ID
 - Performance considerations
 - Testing approach
 - Edge cases to handle
 
-### 10. Keep Code Minimal
+### 12. Keep Code Minimal
 
 Remember:
 - Use minimal illustrative code

@@ -7,6 +7,16 @@ High-level description of the architecture and design approach.
 **Design Philosophy**: Focus on types, their relationships, and key architectural decisions.
 Leave specific coding decisions to implementors—this document disambiguates the important changes, not every detail.
 
+## Critical Constraints
+
+Non-negotiable implementation requirements.
+Deviating from these requires updating this document first.
+
+| ID | Constraint | Rationale | Anti-pattern to avoid |
+|----|------------|-----------|----------------------|
+| CC-1 | *What MUST be done* | *Why it matters* | *Wrong approach to reject* |
+| CC-2 | *Another constraint* | *Performance/correctness reason* | *What NOT to do* |
+
 ## Architecture
 
 Describe the overall structure:
@@ -51,6 +61,7 @@ Specify key operations with their signatures and error types:
 **operation_name(param: ParamType) -> Result<OutputType, OperationError>**
 - What it does
 - Key behaviors
+- **Invariants**: What must always be true (e.g., "filtering happens in database, not application")
 
 ### Error Types
 
@@ -128,6 +139,23 @@ Key considerations for implementors:
 - Unit tests: domain logic with mock adapters
 - Integration tests: real adapters, component interactions
 - Edge cases to cover
+
+## Design Decisions
+
+Document significant choices between alternatives.
+
+### DD-1: *Decision title*
+
+**Decision**: *What was chosen*
+
+**Alternatives considered**:
+1. *Option A*
+2. *Option B*
+3. *Option C (chosen)*
+
+**Rationale**: *Why this option was selected*
+
+**Implications**: *What this means for implementation*
 
 ## Notes
 

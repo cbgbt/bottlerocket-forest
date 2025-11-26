@@ -30,6 +30,13 @@ Later phases depend on these being complete.
 - Specific change 1
 - Specific change 2
 
+**Acceptance Criteria** *(for commits implementing critical constraints)*:
+- [ ] Verifiable criterion from design doc (e.g., "SQL query contains JOIN")
+- [ ] Another measurable requirement
+
+**Anti-patterns** *(reviewer: reject if present)*:
+- What NOT to do (from design doc CC table)
+
 **Testing**: How to verify this commit works (unit tests, manual verification, etc.)
 
 **Dependencies**: None (first commit) or list prior commits

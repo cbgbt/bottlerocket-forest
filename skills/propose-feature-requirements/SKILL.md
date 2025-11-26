@@ -83,6 +83,14 @@ Add performance, usability, security, or other quality requirements:
 **THEN** the system **SHALL** [performance requirement]
 ```
 
+**Scalability prompts** (ask these for each major operation):
+- What happens when there are 1000x more items? 1M files? 10M rows?
+- Should memory usage scale with data size, or stay constant?
+- What's the acceptable latency? Does it degrade with scale?
+
+These questions surface constraints that will become Critical Constraints in the design phase.
+If an operation must be O(1) memory or O(log n) time, state it here.
+
 ### 8. Define Error Handling
 
 Specify how errors should be handled:
