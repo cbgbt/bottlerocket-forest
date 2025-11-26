@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Embed files in prompt context with XML structure to reduce tool calls."""
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Embed files in prompt context with XML structure"
+    )
+    parser.add_argument(
+        "--file",
+        action="append",
+        required=True,
+        help="File to embed (can be specified multiple times)",
+    )
+    parser.add_argument(
+        "--reasoning",
+        required=True,
+        help="Description of why these files are included",
+    )
+    parser.add_argument(
+        "--line-numbers",
+        action="store_true",
+        help="Include line numbers in file contents",
+    )
+
+    args = parser.parse_args()
+
+    print("<!-- Files provided below to reduce need for tool calls -->")
+    print(f'<file-collection description="{args.reasoning}">')
+
+    for file_path in args.file:
+        path = Path(file_path)
+        
+        if not path.exists():
+            print(f"<!-- WARNING: File not found: {file_path} -->", file=sys.stderr)
+            continue
+
+        try:
+            content = path.read_text()
+        except Exception as e:
+            print(f"<!-- ERROR reading {file_path}: {e} -->", file=sys.stderr)
+            continue
+
+        print(f'    <file path="{path.absolute()}">')
+        
+        if args.line_numbers:
+            print("        <!-- Line numbers included for reference -->")
+            for i, line in enumerate(content.splitlines(), start=1):
+                print(f"        {i:4d} | {line}")
+        else:
+            for line in content.splitlines():
+                print(f"        {line}")
+        
+        print("    </file>")
+
+    print("</file-collection>")
+
+
+if __name__ == "__main__":
+    main()
