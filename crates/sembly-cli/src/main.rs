@@ -1,19 +1,48 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use miette::Result;
 
+mod context;
 mod index;
 mod theme;
 
-/// Semantic search and knowledge indexing tool
+/// Semantic search and knowledge indexing tool.
 #[derive(Parser)]
 #[command(version, about, styles = clap_cargo::style::CLAP_STYLING)]
 struct Args {
-    #[command(flatten)]
-    command: index::IndexCommand,
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// Top-level commands.
+#[derive(Subcommand)]
+enum Command {
+    /// Build the knowledge index.
+    Build(index::BuildArgs),
+    /// Rebuild the knowledge index from scratch.
+    Rebuild(index::RebuildArgs),
+    /// Update the knowledge index incrementally.
+    Update(index::UpdateArgs),
+    /// Clear all chunks from the index.
+    Clear(index::ClearArgs),
+    /// Search the knowledge index.
+    Search(index::SearchArgs),
+    /// Show index status and statistics.
+    Status(index::StatusArgs),
+    /// Manage contexts.
+    Context(context::ContextCommand),
 }
 
 fn main() -> Result<()> {
     miette::set_panic_hook();
     let args = Args::parse();
-    Ok(index::run(args.command)?)
+
+    match args.command {
+        Command::Build(args) => Ok(index::handle_build(args)?),
+        Command::Rebuild(args) => Ok(index::handle_rebuild(args)?),
+        Command::Update(args) => Ok(index::handle_update(args)?),
+        Command::Clear(args) => Ok(index::handle_clear(args)?),
+        Command::Search(args) => Ok(index::handle_search(args)?),
+        Command::Status(args) => Ok(index::handle_status(args)?),
+        Command::Context(cmd) => Ok(context::run(cmd)?),
+    }
 }

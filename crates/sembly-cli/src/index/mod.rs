@@ -6,7 +6,7 @@
 //! Submodules:
 //! * [`progress`] - Progress reporting for indexing operations
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,57 +21,33 @@ use sembly_core::knowledge::domain::{
     FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,
 };
 
-/// Top-level command for knowledge index operations
+/// Arguments for building the knowledge index.
 #[derive(Parser)]
-pub struct IndexCommand {
-    #[command(subcommand)]
-    subcommand: IndexSubcommand,
-}
-
-/// Subcommands for index operations
-#[derive(Subcommand)]
-enum IndexSubcommand {
-    /// Build the knowledge index
-    Build(BuildArgs),
-    /// Rebuild the knowledge index from scratch
-    Rebuild(RebuildArgs),
-    /// Update the knowledge index incrementally
-    Update(UpdateArgs),
-    /// Clear all chunks from the index
-    Clear(ClearArgs),
-    /// Search the knowledge index
-    Search(SearchArgs),
-    /// Show index status and statistics
-    Status(StatusArgs),
-}
-
-/// Arguments for building the knowledge index
-#[derive(Parser)]
-struct BuildArgs {
+pub struct BuildArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Arguments for rebuilding the knowledge index from scratch
+/// Arguments for rebuilding the knowledge index from scratch.
 #[derive(Parser)]
-struct RebuildArgs {
+pub struct RebuildArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Arguments for incrementally updating the knowledge index
+/// Arguments for incrementally updating the knowledge index.
 #[derive(Parser)]
-struct UpdateArgs {
+pub struct UpdateArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Arguments for clearing all chunks from the index
+/// Arguments for clearing all chunks from the index.
 #[derive(Parser)]
-struct ClearArgs {
+pub struct ClearArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
@@ -81,9 +57,9 @@ struct ClearArgs {
     yes: bool,
 }
 
-/// Arguments for searching the knowledge index
+/// Arguments for searching the knowledge index.
 #[derive(Parser)]
-struct SearchArgs {
+pub struct SearchArgs {
     /// Search query
     query: String,
 
@@ -104,28 +80,16 @@ struct SearchArgs {
     show_chunks: bool,
 }
 
-/// Arguments for showing index status and statistics
+/// Arguments for showing index status and statistics.
 #[derive(Parser)]
-struct StatusArgs {
+pub struct StatusArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
 }
 
-/// Executes the index command by dispatching to the appropriate subcommand handler
-pub fn run(cmd: IndexCommand) -> Result<(), IndexError> {
-    match cmd.subcommand {
-        IndexSubcommand::Build(args) => handle_build(args),
-        IndexSubcommand::Rebuild(args) => handle_rebuild(args),
-        IndexSubcommand::Update(args) => handle_update(args),
-        IndexSubcommand::Clear(args) => handle_clear(args),
-        IndexSubcommand::Search(args) => handle_search(args),
-        IndexSubcommand::Status(args) => handle_status(args),
-    }
-}
-
-/// Builds the knowledge index, processing all files in the forest
-fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
+/// Builds the knowledge index, processing all files in the forest.
+pub fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
@@ -146,8 +110,8 @@ fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Rebuilds the knowledge index from scratch, clearing existing data first
-fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
+/// Rebuilds the knowledge index from scratch, clearing existing data first.
+pub fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
@@ -168,8 +132,8 @@ fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Updates the knowledge index incrementally based on file changes
-fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
+/// Updates the knowledge index incrementally based on file changes.
+pub fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
@@ -190,8 +154,8 @@ fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Deletes the knowledge index database after user confirmation
-fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
+/// Deletes the knowledge index database after user confirmation.
+pub fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
@@ -212,8 +176,8 @@ fn handle_clear(args: ClearArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Searches the knowledge index and displays results in the requested format
-fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
+/// Searches the knowledge index and displays results in the requested format.
+pub fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
@@ -240,8 +204,8 @@ fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
     Ok(())
 }
 
-/// Displays index status and statistics including chunk count and model configuration
-fn handle_status(args: StatusArgs) -> Result<(), IndexError> {
+/// Displays index status and statistics including chunk count and model configuration.
+pub fn handle_status(args: StatusArgs) -> Result<(), IndexError> {
     use index_error::*;
 
     let forest_root = args
