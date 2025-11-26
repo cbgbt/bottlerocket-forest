@@ -7,10 +7,14 @@
 //! * `serialization`: Converts between domain types and database formats
 //! * `queries`: Implements CRUD operations for chunk storage
 //! * `search`: Provides semantic search using vector embeddings
+//! * `context`: Context repository for multi-context indexing
 
+mod context;
 mod queries;
 mod search;
 mod serialization;
+
+pub use context::SqliteContextRepository;
 
 use rusqlite::Connection;
 use snafu::ResultExt;

@@ -4,6 +4,7 @@
 //! Contexts enable multiple directories to share a single embedding database
 //! while maintaining isolated file mappings.
 
+use bon::Builder;
 use chrono::{DateTime, Utc};
 use path_clean::PathClean;
 use serde::{Deserialize, Serialize};
@@ -78,11 +79,14 @@ impl std::error::Error for ContextIdError {}
 /// Contexts track which files belong to a specific working directory.
 /// Multiple contexts can share the same underlying embeddings through
 /// content-addressed storage.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder)]
+#[builder(on(_, into))]
+#[non_exhaustive]
 pub struct Context {
     /// Unique identifier for this context.
     pub context_id: ContextId,
     /// When this context was first registered.
+    #[builder(default = Utc::now())]
     pub created_at: DateTime<Utc>,
     /// When this context was last indexed, if ever.
     pub last_indexed: Option<DateTime<Utc>>,

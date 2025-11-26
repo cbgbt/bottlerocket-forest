@@ -20,4 +20,4 @@ pub mod sqlite;
 
 pub use repository::{ChunkRepository, ContextRepository, ContextRepositoryError, StorageError};
 pub use schema::SchemaError;
-pub use sqlite::SqliteChunkRepository;
+pub use sqlite::{SqliteChunkRepository, SqliteContextRepository};

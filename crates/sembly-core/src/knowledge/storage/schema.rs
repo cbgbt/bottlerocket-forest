@@ -27,7 +27,7 @@ const CREATE_CONTEXTS: &str = r#"
 CREATE TABLE IF NOT EXISTS contexts (
     context_id TEXT PRIMARY KEY,
     created_at INTEGER NOT NULL,
-    last_indexed INTEGER NOT NULL
+    last_indexed INTEGER
 )
 "#;
 
