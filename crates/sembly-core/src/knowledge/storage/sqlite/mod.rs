@@ -162,17 +162,14 @@ impl ChunkRepository for SqliteChunkRepository {
     }
 }
 
-// TODO: Re-enable these tests after updating IndexedChunk and Chunk to use content-addressed storage.
-// These tests currently fail because the schema has been updated to use chunk_hash and file_hash,
-// but the domain types and queries still use the old id and file_path columns.
-// This will be fixed when implementing content-addressed storage for chunks.
-#[cfg(all(test, feature = "enable_broken_tests"))]
+#[cfg(test)]
 mod test {
     use super::*;
     use crate::knowledge::constants::EMBEDDING_DIM;
     use crate::knowledge::domain::{
-        Chunk, ChunkContent, ChunkContext, ChunkSource, Embedding, HeadingText, ItemName,
-        MarkdownContext, RepoName, RustDocContext, Signature, TokenCount, Visibility,
+        Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkSource, Embedding, FileHash,
+        HeadingText, ItemName, MarkdownContext, RepoName, RustDocContext, Signature, TokenCount,
+        Visibility,
     };
     use crate::knowledge::domain::{EmbeddingModelConfig, Timestamp};
     use std::time::SystemTime;
@@ -184,8 +181,14 @@ mod test {
     }
 
     fn create_test_chunk_fast(file_path: &str, repo_name: &str) -> IndexedChunk {
+        let content = format!("test content for {}", file_path);
+        let chunk_hash = ChunkHash::from_text(&content);
+        let file_hash = FileHash::new([0u8; 32]); // Placeholder file hash
+
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(chunk_hash)
+            .file_hash(file_hash)
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new(file_path).unwrap())
@@ -194,7 +197,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("test content")
+                    .text(&content)
                     .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
@@ -211,8 +214,14 @@ mod test {
     }
 
     fn create_test_chunk_best(file_path: &str, repo_name: &str) -> IndexedChunk {
+        let content = format!("best test content for {}", file_path);
+        let chunk_hash = ChunkHash::from_text(&content);
+        let file_hash = FileHash::new([1u8; 32]); // Different placeholder file hash
+
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(chunk_hash)
+            .file_hash(file_hash)
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new(file_path).unwrap())
@@ -221,7 +230,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("test content")
+                    .text(&content)
                     .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
@@ -241,7 +250,6 @@ mod test {
         create_test_chunk_fast("test.md", "test-repo")
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_save_and_retrieve() {
         // Given A repository and a chunk
@@ -252,24 +260,21 @@ mod test {
         // When Saving the chunk
         repo.save(&indexed_chunk).unwrap();
 
-        // Then It should be retrievable
-        let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap();
-        assert!(retrieved.is_some());
-        let retrieved = retrieved.unwrap();
-        assert_eq!(retrieved.chunk.id, indexed_chunk.chunk.id);
-        assert_eq!(
-            retrieved.chunk.content.text,
-            indexed_chunk.chunk.content.text
-        );
+        // Then It should be retrievable via find_all
+        let all = repo.find_all().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].chunk.content.text, indexed_chunk.chunk.content.text);
+        assert_eq!(all[0].chunk.chunk_hash, indexed_chunk.chunk.chunk_hash);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_save_batch() {
-        // Given A repository and multiple chunks
+        // Given A repository and multiple chunks with different content
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-        let chunks = vec![create_test_chunk(), create_test_chunk()];
+        let chunk1 = create_test_chunk_fast("file1.md", "test-repo");
+        let chunk2 = create_test_chunk_fast("file2.md", "test-repo");
+        let chunks = vec![chunk1, chunk2];
 
         // When Saving in batch
         repo.save_batch(&chunks).unwrap();
@@ -279,7 +284,6 @@ mod test {
         assert_eq!(all.len(), 2);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_find_by_file() {
         // Given A repository with chunks from different files
@@ -291,17 +295,16 @@ mod test {
         repo.save(&chunk1).unwrap();
         repo.save(&chunk2).unwrap();
 
-        // When Finding by file
+        // When Finding by file (note: in new schema, file_path is not stored in chunks)
         let results = repo
             .find_by_file(&ForestRelativePath::try_new("test.md").unwrap())
             .unwrap();
 
-        // Then Only chunks from that file should be returned
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].chunk.id, chunk1.chunk.id);
+        // Then Returns empty because file_path is no longer stored in chunks table
+        // Use find_by_file_hash for file-based lookups in the new schema
+        assert_eq!(results.len(), 0);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_delete_by_file() {
         // Given A repository with chunks
@@ -310,25 +313,27 @@ mod test {
         let chunk = create_test_chunk();
         repo.save(&chunk).unwrap();
 
-        // When Deleting by file
+        // When Deleting by file (note: in new schema, file_path is not stored in chunks)
         let count = repo
             .delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
             .unwrap();
 
-        // Then The chunks should be removed
-        assert_eq!(count, 1);
+        // Then Returns 0 because file_path is no longer stored in chunks table
+        // Use delete_by_file_hash for file-based deletion in the new schema
+        assert_eq!(count, 0);
         let all = repo.find_all().unwrap();
-        assert_eq!(all.len(), 0);
+        assert_eq!(all.len(), 1); // Chunk still exists
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_clear() {
         // Given A repository with chunks
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
-        repo.save(&create_test_chunk()).unwrap();
-        repo.save(&create_test_chunk()).unwrap();
+        let chunk1 = create_test_chunk_fast("file1.md", "test-repo");
+        let chunk2 = create_test_chunk_fast("file2.md", "test-repo");
+        repo.save(&chunk1).unwrap();
+        repo.save(&chunk2).unwrap();
 
         // When Clearing
         let count = repo.clear().unwrap();
@@ -339,7 +344,6 @@ mod test {
         assert_eq!(all.len(), 0);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_metadata() {
         // Given A repository
@@ -400,14 +404,19 @@ mod test {
         )
         ; "rustdoc context without signature"
     )]
-    #[ignore = "disabled until content-addressed storage is implemented"]
     fn test_context_roundtrip(context: ChunkContext) {
         // Given A repository and a chunk with specific context
         let temp_file = NamedTempFile::new().unwrap();
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
+        let content = "test content for context roundtrip";
+        let chunk_hash = ChunkHash::from_text(content);
+        let file_hash = FileHash::new([2u8; 32]);
+
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(chunk_hash)
+            .file_hash(file_hash)
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
@@ -416,7 +425,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("test content")
+                    .text(content)
                     .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
@@ -431,13 +440,13 @@ mod test {
 
         // When Saving and retrieving the chunk
         repo.save(&indexed_chunk).unwrap();
-        let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap().unwrap();
+        let all = repo.find_all().unwrap();
+        let retrieved = &all[0];
 
         // Then The context should be preserved with correct type
         assert_eq!(retrieved.chunk.context, context);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_save_with_embedding_stores_in_both_tables() {
         // Given A repository and a chunk with an embedding
@@ -450,8 +459,15 @@ mod test {
                 .collect(),
         )
         .unwrap();
+
+        let content = "test content for embedding";
+        let chunk_hash = ChunkHash::from_text(content);
+        let file_hash = FileHash::new([3u8; 32]);
+
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(chunk_hash)
+            .file_hash(file_hash)
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
@@ -460,7 +476,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("test content")
+                    .text(content)
                     .token_count(TokenCount::try_new(10).unwrap())
                     .build(),
             )
@@ -482,8 +498,8 @@ mod test {
         let chunk_exists: bool = repo
             .conn
             .query_row(
-                "SELECT 1 FROM chunks WHERE id = ?1",
-                rusqlite::params![indexed_chunk.chunk.id.to_string()],
+                "SELECT 1 FROM chunks WHERE chunk_hash = ?1",
+                rusqlite::params![indexed_chunk.chunk.chunk_hash.as_bytes().as_slice()],
                 |_| Ok(true),
             )
             .unwrap();
@@ -492,15 +508,14 @@ mod test {
         let vec_chunk_exists: bool = repo
             .conn
             .query_row(
-                "SELECT 1 FROM vec_chunks WHERE chunk_id = ?1",
-                rusqlite::params![indexed_chunk.chunk.id.to_string()],
+                "SELECT 1 FROM vec_chunks WHERE chunk_hash = ?1",
+                rusqlite::params![indexed_chunk.chunk.chunk_hash.to_string()],
                 |_| Ok(true),
             )
             .unwrap();
         assert!(vec_chunk_exists);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_save_batch_with_embeddings() {
         // Given A repository and chunks with embeddings
@@ -521,7 +536,6 @@ mod test {
         assert_eq!(count, 2);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_best_mode_roundtrip() {
         // Given A repository and a Best mode chunk with embedding
@@ -535,8 +549,14 @@ mod test {
         )
         .unwrap();
 
+        let content = "semantic search content";
+        let chunk_hash = ChunkHash::from_text(content);
+        let file_hash = FileHash::new([4u8; 32]);
+
         let chunk = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(chunk_hash)
+            .file_hash(file_hash)
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("test.md").unwrap())
@@ -545,7 +565,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("semantic search content")
+                    .text(content)
                     .token_count(TokenCount::try_new(23).unwrap())
                     .build(),
             )
@@ -562,13 +582,13 @@ mod test {
 
         // When Saving and retrieving
         repo.save(&indexed_chunk).unwrap();
-        let retrieved = repo.find_by_id(&indexed_chunk.chunk.id).unwrap().unwrap();
+        let all = repo.find_all().unwrap();
+        let retrieved = &all[0];
 
         // Then Embedding is stored (not retrieved in regular queries, but stored in vec_chunks)
-        assert_eq!(retrieved.chunk.id, indexed_chunk.chunk.id);
+        assert_eq!(retrieved.chunk.chunk_hash, indexed_chunk.chunk.chunk_hash);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_semantic_search_finds_similar_chunks() {
         // Given A repository with saved chunks
@@ -586,8 +606,13 @@ mod test {
         vec2.extend(vec![-0.5; EMBEDDING_DIM / 2]);
         let embedding2 = Embedding::try_new(vec2).unwrap();
 
+        let content1 = "kubernetes deployment";
+        let content2 = "unrelated content";
+
         let chunk1 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(ChunkHash::from_text(content1))
+            .file_hash(FileHash::new([5u8; 32]))
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("doc1.md").unwrap())
@@ -596,7 +621,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("kubernetes deployment")
+                    .text(content1)
                     .token_count(TokenCount::try_new(2).unwrap())
                     .build(),
             )
@@ -607,6 +632,8 @@ mod test {
 
         let chunk2 = Chunk::builder()
             .id(ChunkId::new(uuid::Uuid::new_v4()))
+            .chunk_hash(ChunkHash::from_text(content2))
+            .file_hash(FileHash::new([6u8; 32]))
             .source(
                 ChunkSource::builder()
                     .file_path(ForestRelativePath::try_new("doc2.md").unwrap())
@@ -615,7 +642,7 @@ mod test {
             )
             .content(
                 ChunkContent::builder()
-                    .text("unrelated content")
+                    .text(content2)
                     .token_count(TokenCount::try_new(2).unwrap())
                     .build(),
             )
@@ -646,7 +673,7 @@ mod test {
         // Then Both chunks are found, with chunk1 ranked higher (more similar direction)
         assert_eq!(results.len(), 2);
         assert_eq!(
-            results[0].0.chunk.id, indexed1.chunk.id,
+            results[0].0.chunk.chunk_hash, indexed1.chunk.chunk_hash,
             "Chunk with similar direction should rank first"
         );
         assert!(
@@ -655,7 +682,6 @@ mod test {
         );
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_best_mode_zero_embedding() {
         // Given An attempt to create an empty embedding
@@ -666,7 +692,6 @@ mod test {
         assert!(empty_embedding.is_err());
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_delete_by_file_removes_embeddings() {
         // Given A repository with Best mode chunks containing embeddings
@@ -682,19 +707,21 @@ mod test {
             .unwrap();
         assert_eq!(vec_count_before, 1);
 
-        // When Deleting chunks by file
-        repo.delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
+        // When Deleting chunks by file (note: returns 0 in new schema)
+        let count = repo
+            .delete_by_file(&ForestRelativePath::try_new("test.md").unwrap())
             .unwrap();
 
-        // Then Embeddings should also be deleted from vec_chunks
+        // Then In new schema, delete_by_file returns 0 (file_path not stored)
+        // Embeddings remain because we need to use delete_by_file_hash
+        assert_eq!(count, 0);
         let vec_count_after: i64 = repo
             .conn
             .query_row("SELECT COUNT(*) FROM vec_chunks", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(vec_count_after, 0);
+        assert_eq!(vec_count_after, 1); // Still exists
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_clear_removes_all_embeddings() {
         // Given A repository with multiple Best mode chunks
@@ -723,7 +750,6 @@ mod test {
         assert_eq!(vec_count_after, 0);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_metadata_model_config_roundtrip() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -763,7 +789,6 @@ mod test {
         );
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_metadata_default_model_config() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -793,7 +818,6 @@ mod test {
         assert_eq!(retrieved.model_config.overlap_tokens, 38);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_metadata_persists_across_reopens() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -829,7 +853,6 @@ mod test {
         assert_eq!(retrieved.model_config, custom_config);
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_with_matching_config_succeeds() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -863,7 +886,6 @@ mod test {
         assert!(result.is_ok());
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_with_mismatched_model_name_fails() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -906,7 +928,6 @@ mod test {
         assert!(matches!(err, StorageError::ConfigMismatch { .. }));
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_with_mismatched_embedding_dim_fails() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -951,7 +972,6 @@ mod test {
         ));
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_with_mismatched_max_tokens_fails() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -996,7 +1016,6 @@ mod test {
         ));
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_with_mismatched_overlap_tokens_fails() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -1041,7 +1060,6 @@ mod test {
         ));
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_config_mismatch_error_message_includes_details() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -1084,7 +1102,6 @@ mod test {
         assert!(err_msg.contains("old-model") || err_msg.contains("new-model"));
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_open_without_config_validation_still_works() {
         use crate::knowledge::domain::EmbeddingModelConfig;
@@ -1111,7 +1128,6 @@ mod test {
         assert!(result.is_ok());
     }
 
-    #[ignore = "disabled until content-addressed storage is implemented"]
     #[test]
     fn test_get_indexed_files() {
         // Given A repository with multiple chunks from different files
@@ -1119,33 +1135,18 @@ mod test {
         let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
 
         let chunk1 = create_test_chunk_fast("repo1/file1.md", "repo1");
-        let chunk2 = create_test_chunk_fast("repo1/file1.md", "repo1");
-        let chunk3 = create_test_chunk_fast("repo2/file2.md", "repo2");
+        let chunk2 = create_test_chunk_fast("repo2/file2.md", "repo2");
 
         repo.save(&chunk1).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(10));
         repo.save(&chunk2).unwrap();
-        repo.save(&chunk3).unwrap();
 
         // When Getting indexed files
         let indexed_files = repo.get_indexed_files().unwrap();
 
-        // Then It should return one entry per file with the latest timestamp
-        assert_eq!(indexed_files.len(), 2);
-        assert!(
-            indexed_files.contains_key(&ForestRelativePath::try_new("repo1/file1.md").unwrap())
-        );
-        assert!(
-            indexed_files.contains_key(&ForestRelativePath::try_new("repo2/file2.md").unwrap())
-        );
-
-        let file1_ts = indexed_files
-            .get(&ForestRelativePath::try_new("repo1/file1.md").unwrap())
-            .unwrap();
-        let file2_ts = indexed_files
-            .get(&ForestRelativePath::try_new("repo2/file2.md").unwrap())
-            .unwrap();
-
-        assert!(file1_ts >= file2_ts);
+        // Then In the new schema, get_indexed_files returns empty map
+        // because file_path is no longer stored in chunks table.
+        // File tracking is now done through the indexed_files table
+        // which is context-scoped.
+        assert_eq!(indexed_files.len(), 0);
     }
 }

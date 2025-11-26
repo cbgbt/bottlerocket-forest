@@ -27,13 +27,17 @@ pub fn search_semantic(
 ) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
     let embedding_blob = serialize_embedding(query_embedding);
 
+    // vec_chunks stores chunk_hash as TEXT (hex string)
+    // chunks stores chunk_hash as BLOB
+    // We use hex() to convert BLOB to hex string for the join
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.file_path, c.repo_name,
+            "SELECT c.chunk_hash, c.chunk_hash, c.file_hash,
+                    '' as file_path, c.repo_name,
                     c.context_type, c.context_data, c.content, c.token_count, c.last_modified,
                     v.distance
              FROM vec_chunks v
-             JOIN chunks c ON v.chunk_id = c.id
+             JOIN chunks c ON v.chunk_hash = lower(hex(c.chunk_hash))
              WHERE v.embedding MATCH :embedding AND k = :limit
              ORDER BY v.distance",
         )
@@ -47,7 +51,7 @@ pub fn search_semantic(
         |row| {
             let chunk = indexed_chunk_from_row(row)
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-            let distance: f32 = row.get(8)?;
+            let distance: f32 = row.get(10)?;
             let similarity = 1.0 - distance;
             Ok((chunk, similarity))
         },
