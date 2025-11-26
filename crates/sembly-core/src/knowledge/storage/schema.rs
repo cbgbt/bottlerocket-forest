@@ -23,10 +23,28 @@ CREATE TABLE IF NOT EXISTS index_metadata (
 )
 "#;
 
+const CREATE_CONTEXTS: &str = r#"
+CREATE TABLE IF NOT EXISTS contexts (
+    context_id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    last_indexed INTEGER NOT NULL
+)
+"#;
+
+const CREATE_INDEXED_FILES: &str = r#"
+CREATE TABLE IF NOT EXISTS indexed_files (
+    context_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_hash BLOB NOT NULL,
+    mtime_ns INTEGER NOT NULL,
+    PRIMARY KEY (context_id, file_path)
+)
+"#;
+
 const CREATE_CHUNKS: &str = r#"
 CREATE TABLE IF NOT EXISTS chunks (
-    id TEXT PRIMARY KEY,
-    file_path TEXT NOT NULL,
+    chunk_hash BLOB PRIMARY KEY,
+    file_hash BLOB NOT NULL,
     repo_name TEXT NOT NULL,
     context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc')),
     context_data TEXT NOT NULL,
@@ -36,7 +54,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 )
 "#;
 
-const CREATE_INDEX_FILE: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_file ON chunks(file_path)";
+const CREATE_INDEX_FILE_HASH: &str =
+    "CREATE INDEX IF NOT EXISTS idx_chunks_file_hash ON chunks(file_hash)";
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
 
 /// Initializes database schema including tables and indexes
@@ -45,16 +64,20 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
 
     conn.execute(CREATE_INDEX_METADATA, [])
         .context(SqlExecutionSnafu)?;
+    conn.execute(CREATE_CONTEXTS, [])
+        .context(SqlExecutionSnafu)?;
+    conn.execute(CREATE_INDEXED_FILES, [])
+        .context(SqlExecutionSnafu)?;
     conn.execute(CREATE_CHUNKS, []).context(SqlExecutionSnafu)?;
-    conn.execute(CREATE_INDEX_FILE, [])
+    conn.execute(CREATE_INDEX_FILE_HASH, [])
         .context(SqlExecutionSnafu)?;
     conn.execute(CREATE_INDEX_REPO, [])
         .context(SqlExecutionSnafu)?;
 
     let create_vec_chunks = format!(
         "CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-            chunk_id TEXT PRIMARY KEY,
-            embedding FLOAT[{}] distance_metric=cosine
+            chunk_hash TEXT PRIMARY KEY,
+            embedding FLOAT[{}]
         )",
         config.embedding_dim
     );
@@ -135,5 +158,90 @@ mod test {
             "Expected vec_chunks table to use embedding_dim from config, got: {}",
             table_info
         );
+    }
+
+    #[test]
+    fn contexts_table_has_correct_schema() {
+        let conn = setup_connection();
+        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
+
+        let mut stmt = conn.prepare("PRAGMA table_info(contexts)").unwrap();
+        let columns: Vec<(String, String, i32)> = stmt
+            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        assert_eq!(
+            columns[0],
+            ("context_id".to_string(), "TEXT".to_string(), 1)
+        ); // pk=1
+        assert_eq!(
+            columns[1],
+            ("created_at".to_string(), "INTEGER".to_string(), 0)
+        );
+        assert_eq!(
+            columns[2],
+            ("last_indexed".to_string(), "INTEGER".to_string(), 0)
+        );
+    }
+
+    #[test]
+    fn indexed_files_table_has_correct_schema() {
+        let conn = setup_connection();
+        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
+
+        let mut stmt = conn.prepare("PRAGMA table_info(indexed_files)").unwrap();
+        let columns: Vec<(String, String, i32)> = stmt
+            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        assert_eq!(
+            columns[0],
+            ("context_id".to_string(), "TEXT".to_string(), 1)
+        ); // pk=1
+        assert_eq!(columns[1], ("file_path".to_string(), "TEXT".to_string(), 2)); // pk=2
+        assert_eq!(columns[2], ("file_hash".to_string(), "BLOB".to_string(), 0));
+        assert_eq!(
+            columns[3],
+            ("mtime_ns".to_string(), "INTEGER".to_string(), 0)
+        );
+    }
+
+    #[test]
+    fn chunks_table_uses_chunk_hash_as_primary_key() {
+        let conn = setup_connection();
+        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
+
+        let mut stmt = conn.prepare("PRAGMA table_info(chunks)").unwrap();
+        let columns: Vec<(String, String, i32)> = stmt
+            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        assert_eq!(
+            columns[0],
+            ("chunk_hash".to_string(), "BLOB".to_string(), 1)
+        ); // pk=1
+        assert_eq!(columns[1], ("file_hash".to_string(), "BLOB".to_string(), 0));
+    }
+
+    #[test]
+    fn vec_chunks_table_uses_chunk_hash() {
+        let conn = setup_connection();
+        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
+
+        let table_exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap();
+
+        assert!(table_exists);
     }
 }

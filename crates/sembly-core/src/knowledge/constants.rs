@@ -22,3 +22,9 @@ pub const DEFAULT_CHUNK_OVERLAP_TOKENS: usize =
 /// fastembed) also uses multiple threads per embedding generation, so limiting
 /// file-level parallelism prevents thread oversubscription.
 pub const MAX_INDEXING_THREADS: usize = 4;
+
+/// Database schema version for multi-context indexing
+///
+/// Version 2 introduces content-addressed storage with contexts table,
+/// modified indexed_files and chunks tables. Requires rebuild from version 1.
+pub const SCHEMA_VERSION: u32 = 2;
