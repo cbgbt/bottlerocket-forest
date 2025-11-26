@@ -63,7 +63,7 @@ Look for logical separation points:
 **Each commit MUST be:**
 
 1. **Buildable** - The project compiles after this commit
-2. **Tested** - New code has tests; existing tests pass
+2. **Tested** - New code has tests; existing tests pass (or are explicitly disabled with TODO)
 3. **Focused** - Does one logical thing
 4. **Reviewable** - Small enough to review in one sitting (target: <400 lines changed)
 
@@ -72,6 +72,54 @@ Look for logical separation points:
 1. **Be independently valuable** - Provides some benefit even if later commits aren't merged
 2. **Have a clear purpose** - The commit message explains why, not just what
 3. **Minimize risk** - Smaller commits are easier to revert if problems arise
+
+### 5a. Handle Test Breakage During Refactors
+
+When a commit breaks tests in distant modules (e.g., schema changes that break integration tests), **do not leave broken tests**.
+Instead, explicitly disable them with a TODO that references when they should be re-enabled.
+
+**Pattern for disabling tests:**
+
+```rust
+// TODO: Re-enable in Commit 9a after updating domain types
+#[cfg(all(test, feature = "enable_broken_tests"))]
+mod tests {
+    // ...
+}
+```
+
+Or for individual tests:
+
+```rust
+#[test]
+#[ignore] // TODO: Re-enable in Commit 12a after facade integration
+fn test_search_returns_results() {
+    // ...
+}
+```
+
+**When planning commits that break existing tests:**
+
+1. **Identify which tests will break** - Note them in the commit description
+2. **Disable tests explicitly** - Use `#[ignore]` or feature flags, not deletion
+3. **Add a TODO comment** - Reference the specific commit that will re-enable them
+4. **Plan a re-enablement commit** - Add a commit (e.g., "9a", "12a") that fixes and re-enables the tests
+5. **Place re-enablement after dependencies are ready** - The re-enable commit comes after all changes needed to fix the tests
+
+**Example from a real plan:**
+
+```markdown
+- [ ] **Commit 4**: Update database schema (disables incompatible tests)
+- [ ] **Commit 8**: Update IndexedFile to include new fields
+- [ ] **Commit 9**: Update Chunk to use content-addressed storage
+- [ ] **Commit 9a**: Re-enable and fix storage layer tests  ← Re-enablement commit
+```
+
+This approach:
+- Keeps the build green at every commit
+- Makes test debt explicit and trackable
+- Ensures tests aren't forgotten
+- Gives coders clear guidance on when to fix tests
 
 ### 6. Size Commits Appropriately
 
@@ -237,6 +285,8 @@ Review the plan for:
 **Missing tests**: Every commit should include tests for new code.
 
 **Vague descriptions**: Be specific about files and changes.
+
+**Refactor breaks distant tests**: Don't leave tests broken or delete them. Disable with `#[ignore]` or feature flag, add a TODO referencing the re-enablement commit, and plan a specific commit to fix and re-enable them. See section 5a.
 
 ## Next Steps
 
