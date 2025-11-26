@@ -6,8 +6,8 @@ use snafu::Snafu;
 use std::collections::HashSet;
 
 use crate::knowledge::domain::{
-    ChunkId, Context, ContextId, EmbeddingModelConfig, FileHash, ForestRelativePath, IndexMetadata,
-    IndexedChunk,
+    ChunkHash, ChunkId, Context, ContextId, EmbeddingModelConfig, FileHash, ForestRelativePath,
+    IndexMetadata, IndexedChunk,
 };
 
 /// Abstract interface for chunk storage operations
@@ -58,6 +58,17 @@ pub trait ChunkRepository {
         query_embedding: &[f32],
         limit: usize,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
+
+    /// Checks if an embedding exists for the given chunk hash
+    fn has_embedding(&self, chunk_hash: &ChunkHash) -> Result<bool, StorageError>;
+
+    /// Checks which chunk hashes already have embeddings
+    ///
+    /// Returns the subset of input hashes that have existing embeddings.
+    fn has_embedding_batch(
+        &self,
+        chunk_hashes: &[ChunkHash],
+    ) -> Result<HashSet<ChunkHash>, StorageError>;
 }
 
 /// Abstract interface for context storage operations

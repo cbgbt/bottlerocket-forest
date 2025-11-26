@@ -27,7 +27,7 @@ use std::path::Path;
 use super::repository::{ChunkRepository, StorageError, storage_error::*};
 use super::schema;
 use crate::knowledge::domain::{
-    ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
+    ChunkHash, ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
 };
 
 /// SQLite-backed implementation of chunk repository with vector search
@@ -159,6 +159,49 @@ impl ChunkRepository for SqliteChunkRepository {
         limit: usize,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
         search::search_semantic(&self.conn, query_embedding, limit)
+    }
+
+    fn has_embedding(&self, chunk_hash: &ChunkHash) -> Result<bool, StorageError> {
+        let result = self.has_embedding_batch(&[*chunk_hash])?;
+        Ok(result.contains(chunk_hash))
+    }
+
+    fn has_embedding_batch(
+        &self,
+        chunk_hashes: &[ChunkHash],
+    ) -> Result<std::collections::HashSet<ChunkHash>, StorageError> {
+        use super::repository::storage_error::*;
+
+        if chunk_hashes.is_empty() {
+            return Ok(std::collections::HashSet::new());
+        }
+
+        let placeholders = chunk_hashes
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
+        let query = format!(
+            "SELECT chunk_hash FROM vec_chunks WHERE chunk_hash IN ({})",
+            placeholders
+        );
+
+        let mut stmt = self.conn.prepare(&query).context(DatabaseSnafu)?;
+        let params: Vec<String> = chunk_hashes.iter().map(|h| h.to_string()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+
+        let mut rows = stmt.query(params_refs.as_slice()).context(DatabaseSnafu)?;
+        let mut existing = std::collections::HashSet::new();
+
+        while let Some(row) = rows.next().context(DatabaseSnafu)? {
+            let hash_str: String = row.get(0).context(DatabaseSnafu)?;
+            if let Some(hash) = chunk_hashes.iter().find(|h| h.to_string() == hash_str) {
+                existing.insert(*hash);
+            }
+        }
+
+        Ok(existing)
     }
 }
 
@@ -1148,5 +1191,120 @@ mod test {
         // File tracking is now done through the indexed_files table
         // which is context-scoped.
         assert_eq!(indexed_files.len(), 0);
+    }
+
+    #[test]
+    fn has_embedding_returns_true_when_embedding_exists() {
+        // Given a repository with a saved chunk (which has an embedding in vec_chunks)
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+        let chunk = create_test_chunk();
+        repo.save(&chunk).unwrap();
+
+        // When checking if the embedding exists
+        let result = repo.has_embedding(&chunk.chunk.chunk_hash);
+
+        // Then it should return true
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn has_embedding_returns_false_when_embedding_does_not_exist() {
+        // Given a repository with no chunks
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+        let nonexistent_hash = ChunkHash::from_text("nonexistent content");
+
+        // When checking if an embedding exists for a hash that was never stored
+        let result = repo.has_embedding(&nonexistent_hash);
+
+        // Then it should return false
+        assert!(!result.unwrap());
+    }
+
+    #[test]
+    fn has_embedding_batch_returns_empty_set_when_no_embeddings_exist() {
+        // Given a repository with no chunks
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+        let hashes = vec![
+            ChunkHash::from_text("content1"),
+            ChunkHash::from_text("content2"),
+            ChunkHash::from_text("content3"),
+        ];
+
+        // When checking which hashes have embeddings
+        let result = repo.has_embedding_batch(&hashes);
+
+        // Then it should return an empty set
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn has_embedding_batch_returns_subset_of_hashes_that_have_embeddings() {
+        // Given a repository with some chunks saved
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+
+        let chunk1 = create_test_chunk_fast("file1.md", "repo");
+        let chunk2 = create_test_chunk_fast("file2.md", "repo");
+        repo.save(&chunk1).unwrap();
+        repo.save(&chunk2).unwrap();
+
+        // When checking a mix of existing and non-existing hashes
+        let existing_hash1 = chunk1.chunk.chunk_hash;
+        let existing_hash2 = chunk2.chunk.chunk_hash;
+        let nonexistent_hash = ChunkHash::from_text("nonexistent content");
+        let hashes = vec![existing_hash1, nonexistent_hash, existing_hash2];
+
+        let result = repo.has_embedding_batch(&hashes).unwrap();
+
+        // Then it should return only the hashes that exist
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&existing_hash1));
+        assert!(result.contains(&existing_hash2));
+        assert!(!result.contains(&nonexistent_hash));
+    }
+
+    #[test]
+    fn has_embedding_batch_returns_all_hashes_when_all_have_embeddings() {
+        // Given a repository with chunks saved
+        let temp_file = NamedTempFile::new().unwrap();
+        let mut repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+
+        let chunk1 = create_test_chunk_fast("file1.md", "repo");
+        let chunk2 = create_test_chunk_fast("file2.md", "repo");
+        let chunk3 = create_test_chunk_best("file3.md", "repo");
+        repo.save(&chunk1).unwrap();
+        repo.save(&chunk2).unwrap();
+        repo.save(&chunk3).unwrap();
+
+        // When checking hashes that all exist
+        let hashes = vec![
+            chunk1.chunk.chunk_hash,
+            chunk2.chunk.chunk_hash,
+            chunk3.chunk.chunk_hash,
+        ];
+
+        let result = repo.has_embedding_batch(&hashes).unwrap();
+
+        // Then it should return all hashes
+        assert_eq!(result.len(), 3);
+        for hash in &hashes {
+            assert!(result.contains(hash));
+        }
+    }
+
+    #[test]
+    fn has_embedding_batch_handles_empty_input() {
+        // Given a repository
+        let temp_file = NamedTempFile::new().unwrap();
+        let repo = SqliteChunkRepository::open(temp_file.path(), &test_config()).unwrap();
+
+        // When checking an empty list of hashes
+        let result = repo.has_embedding_batch(&[]);
+
+        // Then it should return an empty set
+        assert!(result.unwrap().is_empty());
     }
 }
