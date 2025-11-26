@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::knowledge::chunking::ChunkingDispatcher;
-use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig};
+use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig, Timestamp};
 use crate::knowledge::storage::ChunkRepository;
 
 use super::{FileScanner, IndexDataProvider, IndexingFilter, ProgressReporter};
@@ -127,7 +127,7 @@ impl<R: ChunkRepository> Indexer<R> {
                 {
                     progress.file_chunked(Path::new(&file.absolute_path.to_string()), chunks.len());
                 }
-                result
+                (file, result)
             })
             .collect();
 
@@ -137,8 +137,10 @@ impl<R: ChunkRepository> Indexer<R> {
 
         // Count total chunks for progress reporting
         let mut total_chunks = 0;
-        for chunks in results.iter().flatten() {
-            total_chunks += chunks.len();
+        for (_, result) in &results {
+            if let Ok(chunks) = result {
+                total_chunks += chunks.len();
+            }
         }
 
         if let Some(progress) = &self.progress {
@@ -148,12 +150,22 @@ impl<R: ChunkRepository> Indexer<R> {
 
         let mut batch_buffer = Vec::with_capacity(self.batch_config.batch_size);
 
-        for result in results {
+        for (file, result) in results {
             match result {
                 Ok(indexed_chunks) => {
                     files_added += 1;
                     if !indexed_chunks.is_empty() {
                         chunks_affected += indexed_chunks.len();
+
+                        // Track the file in indexed_files table
+                        let first_chunk = &indexed_chunks[0];
+                        self.repository
+                            .track_indexed_file(
+                                &file.relative_path,
+                                &first_chunk.chunk.file_hash,
+                                Timestamp::from_secs(file.last_modified.as_secs()),
+                            )
+                            .context(StorageFailedSnafu)?;
 
                         for chunk in indexed_chunks {
                             batch_buffer.push(chunk);
@@ -434,6 +446,10 @@ mod test {
         fs::write(repo_dir.join("README.md"), "# Test\nContent here").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
+        mock_repo
+            .expect_track_indexed_file()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|chunks| {
             assert!(!chunks.is_empty());
             Ok(())
@@ -479,6 +495,10 @@ mod test {
         .unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
+        mock_repo
+            .expect_track_indexed_file()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|chunks| {
             assert!(!chunks.is_empty());
             Ok(())
@@ -519,6 +539,10 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
+        mock_repo
+            .expect_track_indexed_file()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
@@ -595,6 +619,10 @@ mod test {
         fs::write(repo_dir.join("test.md"), "# Test\n\nContent").unwrap();
 
         let mut mock_repo = MockChunkRepository::new();
+        mock_repo
+            .expect_track_indexed_file()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
         mock_repo.expect_save_batch().returning(|_| {
             Err(StorageError::InvalidData {
                 message: "test error".to_string(),
@@ -664,6 +692,10 @@ mod test {
 
         let mut mock_repo = MockChunkRepository::new();
         mock_repo.expect_clear().times(1).returning(|| Ok(5));
+        mock_repo
+            .expect_track_indexed_file()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();

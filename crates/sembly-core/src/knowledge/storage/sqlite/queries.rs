@@ -195,28 +195,79 @@ pub fn find_all(conn: &Connection) -> Result<Vec<IndexedChunk>, StorageError> {
     .context(DatabaseSnafu)
 }
 
-/// Retrieves file hashes and their most recent indexing timestamps
+/// Retrieves file paths and their most recent indexing timestamps from indexed_files table
 ///
-/// Note: This function returns an empty map because the new schema stores
-/// file_hash in chunks, not file_path. The indexed_files table is now
-/// context-scoped and should be queried through the context repository.
+/// Returns all files tracked in the default context (".").
 pub fn get_indexed_files(
-    _conn: &Connection,
+    conn: &Connection,
 ) -> Result<std::collections::HashMap<ForestRelativePath, Timestamp>, StorageError> {
-    Ok(std::collections::HashMap::new())
+    use std::collections::HashMap;
+
+    let mut stmt = conn
+        .prepare("SELECT file_path, mtime_ns FROM indexed_files WHERE context_id = '.'")
+        .context(DatabaseSnafu)?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let file_path: String = row.get(0)?;
+            let mtime_ns: i64 = row.get(1)?;
+            Ok((file_path, mtime_ns))
+        })
+        .context(DatabaseSnafu)?;
+
+    let mut result = HashMap::new();
+    for row in rows {
+        let (file_path, mtime_ns) = row.context(DatabaseSnafu)?;
+        if let Ok(path) = ForestRelativePath::try_new(&file_path) {
+            result.insert(path, Timestamp::from_secs(mtime_ns / 1_000_000_000));
+        }
+    }
+
+    Ok(result)
 }
 
 /// Removes all chunks associated with a specific file path
 ///
-/// Note: In the new schema, chunks are keyed by file_hash, not file_path.
-/// This function returns 0 for backward compatibility.
-/// For file-based deletion, use delete_by_file_hash instead.
+/// Looks up the file_hash from indexed_files table and deletes associated chunks.
+/// Also removes the indexed_files record.
 pub fn delete_by_file(
-    _conn: &mut Connection,
-    _path: &ForestRelativePath,
+    conn: &mut Connection,
+    path: &ForestRelativePath,
 ) -> Result<usize, StorageError> {
-    // In the new schema, file_path is not stored in chunks table.
-    Ok(0)
+    // Look up file_hash from indexed_files
+    let path_str = path.to_string();
+    let file_hash_bytes: Option<Vec<u8>> = conn
+        .query_row(
+            "SELECT file_hash FROM indexed_files WHERE context_id = '.' AND file_path = ?",
+            [&path_str],
+            |row| row.get(0),
+        )
+        .optional()
+        .context(DatabaseSnafu)?;
+
+    let Some(file_hash_bytes) = file_hash_bytes else {
+        return Ok(0);
+    };
+
+    let file_hash_array: [u8; 32] =
+        file_hash_bytes
+            .try_into()
+            .map_err(|_| StorageError::InvalidData {
+                message: "file_hash has wrong length".to_string(),
+            })?;
+    let file_hash = FileHash::new(file_hash_array);
+
+    // Delete chunks by file_hash
+    let count = delete_by_file_hash(conn, &file_hash)?;
+
+    // Remove the indexed_files record
+    conn.execute(
+        "DELETE FROM indexed_files WHERE context_id = '.' AND file_path = ?",
+        [&path_str],
+    )
+    .context(DatabaseSnafu)?;
+
+    Ok(count)
 }
 
 /// Removes all chunks associated with a specific file_hash

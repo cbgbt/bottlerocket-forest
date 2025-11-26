@@ -27,8 +27,8 @@ use std::path::Path;
 use super::repository::{ChunkRepository, StorageError, storage_error::*};
 use super::schema;
 use crate::knowledge::domain::{
-    ChunkHash, ChunkId, ContextId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata,
-    IndexedChunk,
+    ChunkHash, ChunkId, ContextId, EmbeddingModelConfig, FileHash, ForestRelativePath,
+    IndexMetadata, IndexedChunk, Timestamp,
 };
 
 /// SQLite-backed implementation of chunk repository with vector search
@@ -209,6 +209,29 @@ impl ChunkRepository for SqliteChunkRepository {
         }
 
         Ok(existing)
+    }
+
+    fn track_indexed_file(
+        &mut self,
+        file_path: &ForestRelativePath,
+        file_hash: &FileHash,
+        mtime: Timestamp,
+    ) -> Result<(), StorageError> {
+        // Uses the default context "." for now. When multi-context support is fully
+        // implemented, this will accept a context_id parameter to support indexing
+        // files in different contexts (e.g., worktrees).
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+                rusqlite::params![
+                    ".",
+                    file_path.to_string(),
+                    file_hash.as_bytes().as_slice(),
+                    mtime.as_secs() * 1_000_000_000,
+                ],
+            )
+            .context(DatabaseSnafu)?;
+        Ok(())
     }
 }
 
