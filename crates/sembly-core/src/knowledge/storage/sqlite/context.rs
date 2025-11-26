@@ -2,12 +2,10 @@
 //!
 //! Provides persistent storage for context management in multi-context indexing.
 
-use std::collections::HashSet;
-
 use rusqlite::Connection;
 use snafu::ResultExt;
 
-use crate::knowledge::domain::{Context, ContextId, FileHash};
+use crate::knowledge::domain::{Context, ContextId};
 use crate::knowledge::storage::repository::{ContextRepository, ContextRepositoryError};
 
 /// SQLite-backed implementation of context repository
@@ -132,36 +130,12 @@ impl ContextRepository for SqliteContextRepository<'_> {
 
         Ok(())
     }
-
-    fn get_file_hashes(
-        &self,
-        context_id: &ContextId,
-    ) -> Result<HashSet<FileHash>, ContextRepositoryError> {
-        use crate::knowledge::storage::repository::context_repository_error::*;
-
-        let mut stmt = self
-            .conn
-            .prepare("SELECT file_hash FROM indexed_files WHERE context_id = ?")
-            .context(DatabaseSnafu)?;
-
-        let hashes = stmt
-            .query_map([context_id.as_str()], |row| {
-                let hash_bytes: Vec<u8> = row.get(0)?;
-                let hash_array: [u8; 32] = hash_bytes
-                    .try_into()
-                    .map_err(|_| rusqlite::Error::InvalidQuery)?;
-                Ok(FileHash::new(hash_array))
-            })
-            .context(DatabaseSnafu)?
-            .collect::<Result<HashSet<_>, _>>()
-            .context(DatabaseSnafu)?;
-
-        Ok(hashes)
-    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::knowledge::domain::EmbeddingModelConfig;
     use crate::knowledge::storage::schema::create_tables;
@@ -264,54 +238,6 @@ mod test {
         // Then get_context should return None
         let result = repo.get_context(&context.context_id).unwrap();
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn get_file_hashes_for_context() {
-        // Given a repository with a context and indexed files
-        let conn = setup_connection();
-        let repo = SqliteContextRepository::new(&conn);
-        let context = Context::builder()
-            .context_id(ContextId::from_path("with-files").unwrap())
-            .build();
-        repo.insert_context(&context).unwrap();
-
-        // Insert file records directly into indexed_files table
-        let hash1 = [1u8; 32];
-        let hash2 = [2u8; 32];
-        conn.execute(
-            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
-            rusqlite::params!["with-files", "file1.md", hash1.as_slice(), 1000i64],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
-            rusqlite::params!["with-files", "file2.md", hash2.as_slice(), 2000i64],
-        ).unwrap();
-
-        // When getting file hashes for the context
-        let hashes = repo.get_file_hashes(&context.context_id).unwrap();
-
-        // Then it should return the file hashes
-        assert_eq!(hashes.len(), 2);
-        assert!(hashes.contains(&FileHash::new(hash1)));
-        assert!(hashes.contains(&FileHash::new(hash2)));
-    }
-
-    #[test]
-    fn get_file_hashes_empty_for_context_without_files() {
-        // Given a repository with a context but no indexed files
-        let conn = setup_connection();
-        let repo = SqliteContextRepository::new(&conn);
-        let context = Context::builder()
-            .context_id(ContextId::from_path("empty-context").unwrap())
-            .build();
-        repo.insert_context(&context).unwrap();
-
-        // When getting file hashes
-        let hashes = repo.get_file_hashes(&context.context_id).unwrap();
-
-        // Then it should return an empty set
-        assert!(hashes.is_empty());
     }
 
     #[test]

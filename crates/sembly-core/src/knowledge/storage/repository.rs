@@ -6,7 +6,7 @@ use snafu::Snafu;
 use std::collections::HashSet;
 
 use crate::knowledge::domain::{
-    ChunkHash, ChunkId, Context, ContextId, EmbeddingModelConfig, FileHash, ForestRelativePath,
+    ChunkHash, ChunkId, Context, ContextId, EmbeddingModelConfig, ForestRelativePath,
     IndexMetadata, IndexedChunk,
 };
 
@@ -91,12 +91,6 @@ pub trait ContextRepository {
 
     /// Removes a context and its file mappings
     fn remove_context(&self, context_id: &ContextId) -> Result<(), ContextRepositoryError>;
-
-    /// Retrieves all file hashes associated with a context
-    fn get_file_hashes(
-        &self,
-        context_id: &ContextId,
-    ) -> Result<HashSet<FileHash>, ContextRepositoryError>;
 }
 
 #[derive(Debug, Snafu, miette::Diagnostic)]
