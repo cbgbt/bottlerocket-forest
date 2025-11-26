@@ -255,6 +255,29 @@ pub fn has_chunk(conn: &Connection, chunk_hash: &ChunkHash) -> Result<bool, Chun
     Ok(count > 0)
 }
 
+/// Deletes chunks not referenced by any context's indexed files.
+///
+/// Removes orphaned chunks whose file_hash is not present in the indexed_files table.
+/// Also removes associated embeddings. Returns the count of deleted chunks.
+pub fn delete_orphaned_chunks(conn: &Connection) -> Result<u64, ChunkStorageError> {
+    use chunk_storage_error::*;
+
+    let deleted_chunks = conn
+        .execute(
+            "DELETE FROM chunks WHERE file_hash NOT IN (SELECT DISTINCT file_hash FROM indexed_files)",
+            [],
+        )
+        .context(DatabaseSnafu)?;
+
+    conn.execute(
+        "DELETE FROM vec_chunks WHERE chunk_hash NOT IN (SELECT chunk_hash FROM chunks)",
+        [],
+    )
+    .context(DatabaseSnafu)?;
+
+    Ok(deleted_chunks as u64)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -448,5 +471,154 @@ mod test {
 
         // Then it should return false
         assert!(!exists);
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_returns_zero_on_empty_database() {
+        // Given an empty database with no chunks
+        let conn = setup_connection();
+
+        // When running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return zero deleted chunks
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_returns_zero_when_all_chunks_referenced() {
+        // Given a database with chunks that are all referenced by indexed_files
+        let conn = setup_connection();
+        let indexed_chunk = make_indexed_chunk("Referenced content");
+        save_chunk(&conn, &indexed_chunk).unwrap();
+
+        // And the chunk's file_hash is in indexed_files
+        conn.execute(
+            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+            rusqlite::params![
+                ".",
+                "test.md",
+                indexed_chunk.chunk.file_hash.as_bytes().as_slice(),
+                1700000000_i64 * 1_000_000_000,
+            ],
+        ).unwrap();
+
+        // When running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return zero (no orphans)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+
+        // And the chunk should still exist
+        assert!(has_chunk(&conn, &indexed_chunk.chunk.chunk_hash).unwrap());
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_deletes_unreferenced_chunks() {
+        // Given a database with a chunk not referenced by any indexed_files
+        let conn = setup_connection();
+        let orphan_chunk = make_indexed_chunk("Orphaned content");
+        save_chunk(&conn, &orphan_chunk).unwrap();
+
+        // And no entry in indexed_files for this file_hash
+
+        // When running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return 1 (one orphan deleted)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+
+        // And the chunk should no longer exist
+        assert!(!has_chunk(&conn, &orphan_chunk.chunk.chunk_hash).unwrap());
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_preserves_shared_content() {
+        // Given a database with a chunk referenced by one context
+        let conn = setup_connection();
+        let file_hash = make_file_hash(b"shared file content");
+        let chunk = make_indexed_chunk_with_file_hash("Shared content", file_hash);
+        save_chunk(&conn, &chunk).unwrap();
+
+        // And two contexts reference the same file_hash
+        conn.execute(
+            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+            rusqlite::params!["context-a", "file.md", file_hash.as_bytes().as_slice(), 1700000000_i64 * 1_000_000_000],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+            rusqlite::params!["context-b", "file.md", file_hash.as_bytes().as_slice(), 1700000000_i64 * 1_000_000_000],
+        ).unwrap();
+
+        // When removing one context's reference
+        conn.execute(
+            "DELETE FROM indexed_files WHERE context_id = ?",
+            ["context-a"],
+        )
+        .unwrap();
+
+        // And running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return zero (chunk still referenced by context-b)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+
+        // And the chunk should still exist
+        assert!(has_chunk(&conn, &chunk.chunk.chunk_hash).unwrap());
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_deletes_after_all_references_removed() {
+        // Given a database with a chunk referenced by two contexts
+        let conn = setup_connection();
+        let file_hash = make_file_hash(b"shared file content for deletion");
+        let chunk = make_indexed_chunk_with_file_hash("Content to be orphaned", file_hash);
+        save_chunk(&conn, &chunk).unwrap();
+
+        conn.execute(
+            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+            rusqlite::params!["context-a", "file.md", file_hash.as_bytes().as_slice(), 1700000000_i64 * 1_000_000_000],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
+            rusqlite::params!["context-b", "file.md", file_hash.as_bytes().as_slice(), 1700000000_i64 * 1_000_000_000],
+        ).unwrap();
+
+        // When removing all references
+        conn.execute("DELETE FROM indexed_files", []).unwrap();
+
+        // And running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return 1 (orphan deleted)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+
+        // And the chunk should no longer exist
+        assert!(!has_chunk(&conn, &chunk.chunk.chunk_hash).unwrap());
+    }
+
+    #[test]
+    fn delete_orphaned_chunks_returns_correct_count_for_multiple_orphans() {
+        // Given a database with multiple orphaned chunks
+        let conn = setup_connection();
+        let chunk1 = make_indexed_chunk("Orphan 1");
+        let chunk2 =
+            make_indexed_chunk_with_file_hash("Orphan 2", make_file_hash(b"different file"));
+        let chunk3 = make_indexed_chunk_with_file_hash("Orphan 3", make_file_hash(b"another file"));
+        save_chunk(&conn, &chunk1).unwrap();
+        save_chunk(&conn, &chunk2).unwrap();
+        save_chunk(&conn, &chunk3).unwrap();
+
+        // When running garbage collection
+        let result = delete_orphaned_chunks(&conn);
+
+        // Then it should return 3 (all orphans deleted)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3);
     }
 }

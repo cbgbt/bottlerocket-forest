@@ -2,6 +2,7 @@
 //!
 //! This module defines the public API types for interacting with the knowledge index:
 //! * [`IndexStatus`] provides metadata about the current state of the index
+//! * [`GcStats`] provides statistics from garbage collection operations
 //! * [`IndexError`] represents all errors that can occur during facade operations
 //!
 //! These types form the boundary between the high-level facade API and the underlying
@@ -12,6 +13,17 @@ use snafu::Snafu;
 use std::time::SystemTime;
 
 use crate::knowledge::domain::{ContextId, EmbeddingModelConfig, QueryTextError, ResultLimitError};
+
+/// Statistics from a garbage collection operation
+#[derive(Debug, Clone, PartialEq, Eq, Builder)]
+#[non_exhaustive]
+pub struct GcStats {
+    /// Number of orphaned chunks deleted
+    pub chunks_deleted: usize,
+
+    /// Number of orphaned embeddings deleted
+    pub embeddings_deleted: usize,
+}
 
 /// Status information about the knowledge index
 #[derive(Debug, Clone, PartialEq, Builder)]

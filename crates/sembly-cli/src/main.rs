@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use miette::Result;
 
 mod context;
+mod gc;
 mod index;
 mod theme;
 
@@ -30,6 +31,8 @@ enum Command {
     Status(index::StatusArgs),
     /// Manage contexts.
     Context(context::ContextCommand),
+    /// Remove orphaned chunks not referenced by any context.
+    Gc(gc::GcArgs),
 }
 
 fn main() -> Result<()> {
@@ -44,5 +47,6 @@ fn main() -> Result<()> {
         Command::Search(args) => Ok(index::handle_search(args)?),
         Command::Status(args) => Ok(index::handle_status(args)?),
         Command::Context(cmd) => Ok(context::run(cmd)?),
+        Command::Gc(args) => Ok(gc::handle_gc(args)?),
     }
 }

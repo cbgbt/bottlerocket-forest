@@ -83,6 +83,12 @@ pub trait ChunkRepository {
         mtime: Timestamp,
         context_id: &ContextId,
     ) -> Result<(), StorageError>;
+
+    /// Deletes chunks not referenced by any context's indexed files
+    ///
+    /// Removes orphaned chunks whose file_hash is not present in the indexed_files table.
+    /// Also removes associated embeddings. Returns the count of deleted chunks.
+    fn delete_orphaned_chunks(&mut self) -> Result<u64, StorageError>;
 }
 
 /// Abstract interface for context storage operations
