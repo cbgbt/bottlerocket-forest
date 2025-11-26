@@ -22,7 +22,23 @@ Create a feature concept document that pitches the feature idea and explains the
 
 ## Procedure
 
-### 0. Offer Idea Honing (Optional)
+### 0. Brownfield Check and Preparation
+
+Ask the user:
+
+> Does this feature modify existing functionality, or is it entirely new (greenfield)?
+
+**If brownfield** (modifies existing code):
+1. Use `brownfield-research` skill first to understand current state
+2. Then offer idea-honing (informed by research)
+3. If idea-honing surfaces new code questions, do another research pass
+4. Return here after both are complete
+
+**If greenfield** (entirely new):
+1. Offer idea-honing directly (see below)
+2. Return here after complete
+
+### 0a. Offer Idea Honing (Optional)
 
 Ask the user:
 

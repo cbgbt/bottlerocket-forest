@@ -93,6 +93,32 @@ Process:
 
 Never guess or rely on training data for Bottlerocket-specific questions.
 
+## Reading Code
+
+**Use `./scripts/show` when you need accurate line numbers.**
+
+This is essential when:
+- Citing code in documentation or responses
+- Researching existing code (brownfield development)
+- Referencing specific functions or types
+- Creating implementation plans with file:line references
+
+```bash
+# View specific line range
+./scripts/show path/to/file.rs:50:100
+
+# View from line to end of file
+./scripts/show path/to/file.rs:200:
+
+# Search for pattern and show context
+./scripts/show path/to/file.rs -p "function_name"
+
+# View whole file with line numbers
+./scripts/show path/to/file.rs
+```
+
+**When citing code**, use the `file.rs:45-60` format and verify line numbers with `./scripts/show`.
+
 ## Sembly Usage
 
 Sembly provides semantic search for Bottlerocket documentation.

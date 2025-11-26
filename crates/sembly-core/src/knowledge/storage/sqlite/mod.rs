@@ -217,9 +217,9 @@ impl ChunkRepository for SqliteChunkRepository {
         file_hash: &FileHash,
         mtime: Timestamp,
     ) -> Result<(), StorageError> {
-        // Uses the default context "." for now. When multi-context support is fully
-        // implemented, this will accept a context_id parameter to support indexing
-        // files in different contexts (e.g., worktrees).
+        // TODO: Accept context_id parameter instead of hardcoding "." to support
+        // indexing files in different contexts (e.g., worktrees). This requires
+        // updating the ChunkRepository trait signature and all callers.
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",

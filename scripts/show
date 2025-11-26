@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Show file contents with line numbers. Optimized for AI agent use.
+#
+# Usage:
+#   ./scripts/show FILE                    # whole file
+#   ./scripts/show FILE:START:END          # line range (e.g., file.rs:10:50)
+#   ./scripts/show FILE:START:             # from line to end
+#   ./scripts/show FILE -p PATTERN         # lines matching pattern with context
+
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 FILE[:START:END] [-p PATTERN]" >&2
+    exit 1
+fi
+
+FILE_ARG="$1"
+shift
+
+# Parse FILE:START:END format
+if [[ "$FILE_ARG" =~ ^(.+):([0-9]+):([0-9]*)$ ]]; then
+    FILE="${BASH_REMATCH[1]}"
+    START="${BASH_REMATCH[2]}"
+    END="${BASH_REMATCH[3]:-}"
+else
+    FILE="$FILE_ARG"
+    START=""
+    END=""
+fi
+
+if [[ ! -f "$FILE" ]]; then
+    echo "Error: File not found: $FILE" >&2
+    exit 1
+fi
+
+# Check for pattern search
+if [[ "${1:-}" == "-p" && -n "${2:-}" ]]; then
+    PATTERN="$2"
+    echo "=== Matches for '$PATTERN' in $FILE ==="
+    grep -n "$PATTERN" "$FILE" | head -20
+    echo ""
+    # Show first match with context
+    LINE=$(grep -n "$PATTERN" "$FILE" | head -1 | cut -d: -f1)
+    if [[ -n "$LINE" ]]; then
+        echo "=== Context around first match (line $LINE) ==="
+        START=$((LINE > 5 ? LINE - 5 : 1))
+        END=$((LINE + 10))
+        sed -n "${START},${END}p" "$FILE" | nl -ba -v "$START"
+    fi
+elif [[ -n "$START" ]]; then
+    # Line range specified
+    if [[ -n "$END" ]]; then
+        sed -n "${START},${END}p" "$FILE" | nl -ba -v "$START"
+    else
+        sed -n "${START},\$p" "$FILE" | nl -ba -v "$START"
+    fi
+else
+    # Whole file
+    nl -ba "$FILE"
+fi
