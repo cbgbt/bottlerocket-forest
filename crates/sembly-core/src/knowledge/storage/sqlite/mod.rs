@@ -27,7 +27,8 @@ use std::path::Path;
 use super::repository::{ChunkRepository, StorageError, storage_error::*};
 use super::schema;
 use crate::knowledge::domain::{
-    ChunkHash, ChunkId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata, IndexedChunk,
+    ChunkHash, ChunkId, ContextId, EmbeddingModelConfig, ForestRelativePath, IndexMetadata,
+    IndexedChunk,
 };
 
 /// SQLite-backed implementation of chunk repository with vector search
@@ -157,8 +158,9 @@ impl ChunkRepository for SqliteChunkRepository {
         &self,
         query_embedding: &[f32],
         limit: usize,
+        context_id: Option<ContextId>,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError> {
-        search::search_semantic(&self.conn, query_embedding, limit)
+        search::search_semantic(&self.conn, query_embedding, limit, context_id)
     }
 
     fn has_embedding(&self, chunk_hash: &ChunkHash) -> Result<bool, StorageError> {
@@ -711,7 +713,7 @@ mod test {
 
         // When Searching with an embedding similar in direction to chunk1
         let query = vec![0.85; EMBEDDING_DIM]; // All positive, similar to embedding1
-        let results = repo.search_semantic(&query, 10).unwrap();
+        let results = repo.search_semantic(&query, 10, None).unwrap();
 
         // Then Both chunks are found, with chunk1 ranked higher (more similar direction)
         assert_eq!(results.len(), 2);

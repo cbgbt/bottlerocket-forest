@@ -10,7 +10,9 @@ use bon::Builder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::{Chunk, ForestRelativePath, QueryText, RelevanceScore, RepoName, ResultLimit};
+use super::{
+    Chunk, ContextId, ForestRelativePath, QueryText, RelevanceScore, RepoName, ResultLimit,
+};
 
 /// Search parameters combining query text and result limit
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
@@ -19,6 +21,8 @@ use super::{Chunk, ForestRelativePath, QueryText, RelevanceScore, RepoName, Resu
 pub struct SearchQuery {
     pub text: QueryText,
     pub limit: ResultLimit,
+    /// Optional context to scope search results; None searches all contexts
+    pub context_id: Option<ContextId>,
 }
 
 /// Single chunk match with relevance score

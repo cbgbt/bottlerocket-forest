@@ -53,10 +53,13 @@ pub trait ChunkRepository {
     /// Searches for chunks semantically similar to the query embedding
     ///
     /// Returns chunks ranked by similarity score in descending order.
+    /// When context_id is Some, results are filtered to files in that context.
+    /// When context_id is None, all chunks are searched.
     fn search_semantic(
         &self,
         query_embedding: &[f32],
         limit: usize,
+        context_id: Option<ContextId>,
     ) -> Result<Vec<(IndexedChunk, f32)>, StorageError>;
 
     /// Checks if an embedding exists for the given chunk hash

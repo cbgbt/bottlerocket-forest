@@ -55,7 +55,11 @@ impl<R: ChunkRepository> SearchEngine for SemanticSearchEngine<R> {
 
         let results = self
             .repository
-            .search_semantic(query_embedding.as_ref(), query.limit.into_inner())
+            .search_semantic(
+                query_embedding.as_ref(),
+                query.limit.into_inner(),
+                query.context_id.clone(),
+            )
             .context(StorageSnafu)?;
 
         let search_duration = start.elapsed();
@@ -154,7 +158,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _, _| Ok(vec![]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -182,7 +186,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _, _| Ok(vec![]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -217,7 +221,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(move |_, _| Ok(vec![(chunk2.clone(), 0.95), (chunk1.clone(), 0.75)]));
+            .returning(move |_, _, _| Ok(vec![(chunk2.clone(), 0.95), (chunk1.clone(), 0.75)]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -255,7 +259,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(move |_, limit| {
+            .returning(move |_, limit, _| {
                 let all_results = vec![
                     (chunk1.clone(), 0.9),
                     (chunk2.clone(), 0.8),
@@ -318,7 +322,7 @@ mod test {
     fn test_semantic_search_propagates_storage_errors() {
         // Given A repository that returns an error
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_search_semantic().returning(|_, _| {
+        mock_repo.expect_search_semantic().returning(|_, _, _| {
             Err(crate::knowledge::storage::StorageError::InvalidData {
                 message: "test error".to_string(),
             })
@@ -353,8 +357,8 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .withf(move |embedding, _| embedding == expected_embedding.as_slice())
-            .returning(|_, _| Ok(vec![]));
+            .withf(move |embedding, _, _| embedding == expected_embedding.as_slice())
+            .returning(|_, _, _| Ok(vec![]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -385,7 +389,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(move |_, _| Ok(vec![(chunk.clone(), 0.8)]));
+            .returning(move |_, _, _| Ok(vec![(chunk.clone(), 0.8)]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -414,7 +418,7 @@ mod test {
         let mut mock_repo = MockChunkRepository::new();
         mock_repo
             .expect_search_semantic()
-            .returning(move |_, _| Ok(vec![(chunk.clone(), 0.85)]));
+            .returning(move |_, _, _| Ok(vec![(chunk.clone(), 0.85)]));
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
@@ -495,10 +499,12 @@ mod test {
             .build();
 
         let mut mock_repo = MockChunkRepository::new();
-        mock_repo.expect_search_semantic().returning(move |_, _| {
-            // Repository returns in raw score order (chunk1 first)
-            Ok(vec![(chunk1.clone(), 0.9), (chunk2.clone(), 0.7)])
-        });
+        mock_repo
+            .expect_search_semantic()
+            .returning(move |_, _, _| {
+                // Repository returns in raw score order (chunk1 first)
+                Ok(vec![(chunk1.clone(), 0.9), (chunk2.clone(), 0.7)])
+            });
 
         let mut mock_provider = MockEmbeddingProvider::new();
         mock_provider
