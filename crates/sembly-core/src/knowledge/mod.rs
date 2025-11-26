@@ -36,6 +36,7 @@
 
 pub mod chunking;
 pub mod constants;
+pub mod context;
 pub mod domain;
 pub mod facade;
 pub mod indexing;
@@ -44,6 +45,7 @@ pub mod search;
 pub mod storage;
 
 pub use chunking::{ChunkingError, ChunkingInput, ChunkingStrategy};
+pub use context::{DiscoveryError, Workspace, discover_workspace};
 pub use domain::{
     Chunk, ChunkContent, ChunkContext, ChunkId, ChunkSource, ChunkableContent, Embedding,
     EmbeddingModelConfig, FileType, ForestRelativePath, IndexMetadata, IndexedChunk,
