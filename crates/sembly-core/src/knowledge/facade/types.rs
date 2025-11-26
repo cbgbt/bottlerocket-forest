@@ -185,4 +185,20 @@ pub enum IndexError {
     ContextRegistrationFailed {
         source: crate::knowledge::storage::ContextRepositoryError,
     },
+
+    #[snafu(display("Cannot remove the default context"))]
+    #[diagnostic(
+        code(sembly::index::cannot_remove_default_context),
+        help(
+            "The default context '.' cannot be removed as it is required for workspace operation"
+        )
+    )]
+    CannotRemoveDefaultContext,
+
+    #[snafu(display("Context does not exist: {context_id}"))]
+    #[diagnostic(
+        code(sembly::index::context_does_not_exist),
+        help("Use 'sembly context list' to see available contexts")
+    )]
+    ContextDoesNotExist { context_id: String },
 }

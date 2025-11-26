@@ -451,6 +451,36 @@ impl KnowledgeIndex {
             .context(ContextRegistrationFailedSnafu)
     }
 
+    /// Remove a registered context from the workspace
+    ///
+    /// Removes the context's indexed file records and the context itself.
+    /// The default context (`.`) cannot be removed.
+    pub fn remove_context(&self, context_id: &ContextId) -> Result<(), IndexError> {
+        use types::index_error::*;
+
+        snafu::ensure!(context_id.as_str() != ".", CannotRemoveDefaultContextSnafu);
+
+        let repository = self.repository()?;
+        let context_repo = repository.context_repository();
+
+        let context = context_repo
+            .get_context(context_id)
+            .context(ContextRegistrationFailedSnafu)?;
+
+        snafu::ensure!(
+            context.is_some(),
+            ContextDoesNotExistSnafu {
+                context_id: context_id.as_str().to_string()
+            }
+        );
+
+        context_repo
+            .remove_context(context_id)
+            .context(ContextRegistrationFailedSnafu)?;
+
+        Ok(())
+    }
+
     /// Get the forest root path
     pub fn forest_root(&self) -> &Path {
         &self.forest_root
@@ -1327,5 +1357,80 @@ mod context_tests {
         assert!(result.is_ok());
         let context = result.unwrap();
         assert_eq!(context.context_id.as_str(), "worktrees/feature-a");
+    }
+
+    #[test]
+    fn remove_context_removes_existing_context() {
+        // Given a workspace with a non-default context registered
+        let temp = TempDir::new().unwrap();
+        let sembly_dir = temp.path().join(".sembly");
+        fs::create_dir_all(&sembly_dir).unwrap();
+        let db_path = sembly_dir.join("knowledge.db");
+        let config = EmbeddingModelConfig::default();
+        let repo = SqliteChunkRepository::open(&db_path, &config).unwrap();
+
+        let default_context = Context::builder()
+            .context_id(ContextId::from_path(".").unwrap())
+            .build();
+        repo.context_repository()
+            .insert_context(&default_context)
+            .unwrap();
+
+        let feature_context = Context::builder()
+            .context_id(ContextId::from_path("worktrees/feature-a").unwrap())
+            .build();
+        repo.context_repository()
+            .insert_context(&feature_context)
+            .unwrap();
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+        let context_id = ContextId::from_path("worktrees/feature-a").unwrap();
+
+        // When removing the non-default context
+        let result = index.remove_context(&context_id);
+
+        // Then it should succeed and the context should be gone
+        assert!(result.is_ok());
+        let contexts = index.list_contexts().unwrap();
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(contexts[0].context_id.as_str(), ".");
+    }
+
+    #[test]
+    fn remove_context_fails_for_default_context() {
+        // Given a workspace with the default context
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+        let default_context_id = ContextId::from_path(".").unwrap();
+
+        // When attempting to remove the default context
+        let result = index.remove_context(&default_context_id);
+
+        // Then it should fail with CannotRemoveDefaultContext error
+        assert!(matches!(
+            result,
+            Err(IndexError::CannotRemoveDefaultContext)
+        ));
+    }
+
+    #[test]
+    fn remove_context_fails_for_nonexistent_context() {
+        // Given a workspace with only the default context
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+        let nonexistent_id = ContextId::from_path("does-not-exist").unwrap();
+
+        // When attempting to remove a nonexistent context
+        let result = index.remove_context(&nonexistent_id);
+
+        // Then it should fail with ContextDoesNotExist error
+        assert!(matches!(
+            result,
+            Err(IndexError::ContextDoesNotExist { .. })
+        ));
     }
 }

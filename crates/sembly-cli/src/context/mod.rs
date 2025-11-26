@@ -23,6 +23,8 @@ pub struct ContextCommand {
 enum ContextSubcommand {
     /// List all registered contexts.
     List(ListArgs),
+    /// Remove a registered context.
+    Remove(RemoveArgs),
 }
 
 /// Arguments for listing registered contexts.
@@ -33,10 +35,22 @@ pub struct ListArgs {
     forest_root: Option<PathBuf>,
 }
 
+/// Arguments for removing a registered context.
+#[derive(Parser)]
+pub struct RemoveArgs {
+    /// The context identifier to remove.
+    context_id: String,
+
+    /// Path to forest root (defaults to current directory).
+    #[arg(long)]
+    forest_root: Option<PathBuf>,
+}
+
 /// Executes the context command by dispatching to the appropriate subcommand handler.
 pub fn run(cmd: ContextCommand) -> Result<(), ContextError> {
     match cmd.subcommand {
         ContextSubcommand::List(args) => handle_list(args),
+        ContextSubcommand::Remove(args) => handle_remove(args),
     }
 }
 
@@ -53,6 +67,36 @@ fn handle_list(args: ListArgs) -> Result<(), ContextError> {
     let contexts = index.list_contexts().context(KnowledgeIndexSnafu)?;
 
     print!("{}", format_context_list(&contexts));
+
+    Ok(())
+}
+
+/// Removes a registered context from the workspace.
+fn handle_remove(args: RemoveArgs) -> Result<(), ContextError> {
+    use context_error::*;
+
+    let forest_root = args
+        .forest_root
+        .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
+
+    let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
+
+    let context_id = sembly_core::knowledge::domain::ContextId::from_path(&args.context_id)
+        .map_err(|_| ContextError::KnowledgeIndex {
+            source: sembly_core::knowledge::facade::IndexError::ContextDoesNotExist {
+                context_id: args.context_id.clone(),
+            },
+        })?;
+
+    index
+        .remove_context(&context_id)
+        .context(KnowledgeIndexSnafu)?;
+
+    println!(
+        "{} {}",
+        theme::label("Removed context:"),
+        theme::value(args.context_id)
+    );
 
     Ok(())
 }
