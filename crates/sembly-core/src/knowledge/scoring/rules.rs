@@ -262,7 +262,7 @@ mod test {
     fn test_boost_pattern_path_prefix_matches() {
         // Given A path prefix pattern
         let pattern = BoostPattern::new("docs/**").unwrap();
-        let chunk = create_test_chunk("docs/architecture.md");
+        let chunk = create_test_chunk("docs/ARCHITECTURE.md");
 
         // When Checking if it matches
         let matches = pattern.matches(&chunk.source.file_path);

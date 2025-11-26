@@ -25,7 +25,7 @@ This document contains the mandatory workflow for AI agents working in the Bottl
 ### Step 2: Read Core Documentation
 
 ```bash
-cat ./docs/architecture.md
+cat ./docs/ARCHITECTURE.md
 cat ./docs/build-system.md
 ```
 
@@ -65,7 +65,7 @@ cat skills/README.md
 
 Before answering, confirm you completed:
 - [ ] Ran `./seed-forest.sh` and verified output
-- [ ] Read `./docs/architecture.md`
+- [ ] Read `./docs/ARCHITECTURE.md`
 - [ ] Read `./docs/build-system.md`
 - [ ] Read `./skills/README.md` (contains protocol and skill index)
 
