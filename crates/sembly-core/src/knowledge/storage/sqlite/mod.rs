@@ -216,15 +216,13 @@ impl ChunkRepository for SqliteChunkRepository {
         file_path: &ForestRelativePath,
         file_hash: &FileHash,
         mtime: Timestamp,
+        context_id: &ContextId,
     ) -> Result<(), StorageError> {
-        // TODO: Accept context_id parameter instead of hardcoding "." to support
-        // indexing files in different contexts (e.g., worktrees). This requires
-        // updating the ChunkRepository trait signature and all callers.
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO indexed_files (context_id, file_path, file_hash, mtime_ns) VALUES (?, ?, ?, ?)",
                 rusqlite::params![
-                    ".",
+                    context_id.as_str(),
                     file_path.to_string(),
                     file_hash.as_bytes().as_slice(),
                     mtime.as_secs() * 1_000_000_000,

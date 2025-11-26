@@ -177,6 +177,7 @@ impl KnowledgeIndex {
         &self,
         progress: Option<Arc<dyn ProgressReporter>>,
         #[builder(default = 100)] batch_size: usize,
+        context_id: Option<ContextId>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -210,6 +211,19 @@ impl KnowledgeIndex {
             .insert_context(&default_context)
             .context(ContextRegistrationFailedSnafu)?;
 
+        // Use provided context_id or default to "."
+        let ctx_id =
+            context_id.unwrap_or_else(|| ContextId::from_path(".").expect("default context id"));
+
+        // Register non-default context if provided (MCI-3)
+        if ctx_id.as_str() != "." {
+            let context = Context::builder().context_id(ctx_id.clone()).build();
+            repository
+                .context_repository()
+                .insert_context(&context)
+                .context(ContextRegistrationFailedSnafu)?;
+        }
+
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
@@ -226,6 +240,7 @@ impl KnowledgeIndex {
             .filter(filter)
             .maybe_progress(progress)
             .batch_config(batch_config)
+            .context_id(ctx_id)
             .build()
             .context(IndexingFailedSnafu)?;
 
@@ -246,6 +261,7 @@ impl KnowledgeIndex {
         &self,
         progress: Option<Arc<dyn ProgressReporter>>,
         #[builder(default = 100)] batch_size: usize,
+        context_id: Option<ContextId>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -276,6 +292,19 @@ impl KnowledgeIndex {
             .insert_context(&default_context)
             .context(ContextRegistrationFailedSnafu)?;
 
+        // Use provided context_id or default to "."
+        let ctx_id =
+            context_id.unwrap_or_else(|| ContextId::from_path(".").expect("default context id"));
+
+        // Register non-default context if provided (MCI-3)
+        if ctx_id.as_str() != "." {
+            let context = Context::builder().context_id(ctx_id.clone()).build();
+            repository
+                .context_repository()
+                .insert_context(&context)
+                .context(ContextRegistrationFailedSnafu)?;
+        }
+
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
         let filter = self.load_indexing_filter()?;
@@ -292,6 +321,7 @@ impl KnowledgeIndex {
             .filter(filter)
             .maybe_progress(progress)
             .batch_config(batch_config)
+            .context_id(ctx_id)
             .build()
             .context(IndexingFailedSnafu)?;
 
@@ -313,6 +343,7 @@ impl KnowledgeIndex {
         &self,
         progress: Option<Arc<dyn ProgressReporter>>,
         #[builder(default = 100)] batch_size: usize,
+        context_id: Option<ContextId>,
     ) -> Result<IndexResult, IndexError> {
         use types::index_error::*;
 
@@ -330,6 +361,25 @@ impl KnowledgeIndex {
 
         let batch_config = BatchConfig { batch_size };
 
+        // Use provided context_id or default to "."
+        let ctx_id =
+            context_id.unwrap_or_else(|| ContextId::from_path(".").expect("default context id"));
+
+        // Register non-default context if it doesn't exist (MCI-3)
+        if ctx_id.as_str() != "." {
+            let context_repo = repository.context_repository();
+            if context_repo
+                .get_context(&ctx_id)
+                .context(ContextRegistrationFailedSnafu)?
+                .is_none()
+            {
+                let context = Context::builder().context_id(ctx_id.clone()).build();
+                context_repo
+                    .insert_context(&context)
+                    .context(ContextRegistrationFailedSnafu)?;
+            }
+        }
+
         let mut indexer = Indexer::builder()
             .forest_root(&self.forest_root)
             .repository(repository)
@@ -339,6 +389,7 @@ impl KnowledgeIndex {
             .filter(filter)
             .maybe_progress(progress)
             .batch_config(batch_config)
+            .context_id(ctx_id)
             .build()
             .context(IndexingFailedSnafu)?;
 

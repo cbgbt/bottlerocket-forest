@@ -73,14 +73,15 @@ pub trait ChunkRepository {
         chunk_hashes: &[ChunkHash],
     ) -> Result<HashSet<ChunkHash>, StorageError>;
 
-    /// Records a file as indexed in the default context
+    /// Records a file as indexed in the specified context
     ///
-    /// Creates or updates an indexed_files record linking the file to the default context.
+    /// Creates or updates an indexed_files record linking the file to the given context.
     fn track_indexed_file(
         &mut self,
         file_path: &ForestRelativePath,
         file_hash: &FileHash,
         mtime: Timestamp,
+        context_id: &ContextId,
     ) -> Result<(), StorageError>;
 }
 

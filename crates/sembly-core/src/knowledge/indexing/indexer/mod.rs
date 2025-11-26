@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::knowledge::chunking::ChunkingDispatcher;
-use crate::knowledge::domain::{EmbeddingModelConfig, ScanConfig, Timestamp};
+use crate::knowledge::domain::{ContextId, EmbeddingModelConfig, ScanConfig, Timestamp};
 use crate::knowledge::storage::ChunkRepository;
 
 use super::{FileScanner, IndexDataProvider, IndexingFilter, ProgressReporter};
@@ -50,6 +50,7 @@ pub struct Indexer<R: ChunkRepository> {
     provider: Box<dyn IndexDataProvider>,
     progress: Option<Arc<dyn ProgressReporter>>,
     batch_config: BatchConfig,
+    context_id: ContextId,
 }
 
 #[bon::bon]
@@ -65,6 +66,7 @@ impl<R: ChunkRepository> Indexer<R> {
         filter: IndexingFilter,
         progress: Option<Arc<dyn ProgressReporter>>,
         #[builder(default)] batch_config: BatchConfig,
+        context_id: ContextId,
     ) -> Result<Self, IndexingError> {
         use types::indexing_error::*;
 
@@ -81,6 +83,7 @@ impl<R: ChunkRepository> Indexer<R> {
             provider,
             progress,
             batch_config,
+            context_id,
         })
     }
 
@@ -164,6 +167,7 @@ impl<R: ChunkRepository> Indexer<R> {
                                 &file.relative_path,
                                 &first_chunk.chunk.file_hash,
                                 Timestamp::from_secs(file.last_modified.as_secs()),
+                                &self.context_id,
                             )
                             .context(StorageFailedSnafu)?;
 
@@ -382,7 +386,7 @@ impl<R: ChunkRepository> Indexer<R> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::knowledge::domain::{Embedding, ForestRelativePath, Timestamp};
+    use crate::knowledge::domain::{ContextId, Embedding, ForestRelativePath, Timestamp};
     use crate::knowledge::indexing::provider::MockIndexDataProvider;
     use crate::knowledge::storage::StorageError;
     use crate::knowledge::storage::repository::MockChunkRepository;
@@ -402,6 +406,7 @@ mod test {
         let mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
+        let context_id = ContextId::from_path(".").unwrap();
         let result = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -409,6 +414,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build();
 
         // Then It should succeed
@@ -424,6 +430,7 @@ mod test {
         let mock_provider = MockIndexDataProvider::new();
 
         // When Creating an Indexer
+        let context_id = ContextId::from_path(".").unwrap();
         let result = Indexer::builder()
             .forest_root(nonexistent)
             .repository(mock_repo)
@@ -431,6 +438,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build();
 
         // Then It should fail with ScanFailed error
@@ -449,7 +457,7 @@ mod test {
         mock_repo
             .expect_track_indexed_file()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|chunks| {
             assert!(!chunks.is_empty());
             Ok(())
@@ -461,6 +469,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -468,6 +477,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -498,7 +508,7 @@ mod test {
         mock_repo
             .expect_track_indexed_file()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|chunks| {
             assert!(!chunks.is_empty());
             Ok(())
@@ -510,6 +520,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -517,6 +528,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -542,7 +554,7 @@ mod test {
         mock_repo
             .expect_track_indexed_file()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
@@ -552,6 +564,7 @@ mod test {
             .times(1)
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -559,6 +572,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -590,6 +604,7 @@ mod test {
                 )
             });
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -597,6 +612,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -622,7 +638,7 @@ mod test {
         mock_repo
             .expect_track_indexed_file()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
         mock_repo.expect_save_batch().returning(|_| {
             Err(StorageError::InvalidData {
                 message: "test error".to_string(),
@@ -635,6 +651,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -642,6 +659,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -663,6 +681,7 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mock_provider = MockIndexDataProvider::new();
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -670,6 +689,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -695,7 +715,7 @@ mod test {
         mock_repo
             .expect_track_indexed_file()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
         mock_repo.expect_save_batch().times(1).returning(|_| Ok(()));
 
         let config = EmbeddingModelConfig::default();
@@ -704,6 +724,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -711,6 +732,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -741,6 +763,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -748,6 +771,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -791,6 +815,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -798,6 +823,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -836,6 +862,7 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mock_provider = MockIndexDataProvider::new();
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -843,6 +870,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -894,6 +922,7 @@ mod test {
             .expect_generate_batch_with_progress()
             .returning(|_, _| Ok(vec![Embedding::try_new(vec![0.1; 384]).unwrap()]));
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -901,6 +930,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -932,6 +962,7 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mock_provider = MockIndexDataProvider::new();
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -939,6 +970,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 
@@ -962,6 +994,7 @@ mod test {
         let config = EmbeddingModelConfig::default();
         let mock_provider = MockIndexDataProvider::new();
 
+        let context_id = ContextId::from_path(".").unwrap();
         let mut indexer = Indexer::builder()
             .forest_root(temp_dir.path())
             .repository(mock_repo)
@@ -969,6 +1002,7 @@ mod test {
             .provider(Box::new(mock_provider))
             .scan_config(ScanConfig::default())
             .filter(IndexingFilter::default())
+            .context_id(context_id)
             .build()
             .unwrap();
 

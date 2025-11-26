@@ -18,7 +18,8 @@ use super::theme;
 mod progress;
 use sembly_core::knowledge::KnowledgeIndex;
 use sembly_core::knowledge::domain::{
-    FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult, SearchResults,
+    ContextId, FileSearchResult, ForestRelativePath, RelevanceScore, RepoName, SearchResult,
+    SearchResults,
 };
 
 /// Arguments for building the knowledge index.
@@ -27,6 +28,10 @@ pub struct BuildArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
+
+    /// Context path to operate on (defaults to workspace root)
+    #[arg(long)]
+    context: Option<PathBuf>,
 }
 
 /// Arguments for rebuilding the knowledge index from scratch.
@@ -35,6 +40,10 @@ pub struct RebuildArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
+
+    /// Context path to operate on (defaults to workspace root)
+    #[arg(long)]
+    context: Option<PathBuf>,
 }
 
 /// Arguments for incrementally updating the knowledge index.
@@ -43,6 +52,10 @@ pub struct UpdateArgs {
     /// Path to forest root (defaults to current directory)
     #[arg(long)]
     forest_root: Option<PathBuf>,
+
+    /// Context path to operate on (defaults to workspace root)
+    #[arg(long)]
+    context: Option<PathBuf>,
 }
 
 /// Arguments for clearing all chunks from the index.
@@ -67,6 +80,10 @@ pub struct SearchArgs {
     #[arg(long)]
     forest_root: Option<PathBuf>,
 
+    /// Context path to search within (defaults to all contexts)
+    #[arg(long)]
+    context: Option<PathBuf>,
+
     /// Maximum number of results (1-100, defaults to 10)
     #[arg(short = 'n', long)]
     limit: Option<usize>,
@@ -88,6 +105,35 @@ pub struct StatusArgs {
     forest_root: Option<PathBuf>,
 }
 
+/// Parses and validates a context path argument.
+///
+/// Validates that the context path exists on the filesystem (relative to forest_root)
+/// and converts it to a ContextId.
+fn parse_context_arg(
+    forest_root: &std::path::Path,
+    context: Option<PathBuf>,
+) -> Result<Option<ContextId>, IndexError> {
+    use index_error::*;
+
+    let Some(path) = context else {
+        return Ok(None);
+    };
+
+    // Validate the context path exists on filesystem (MCI-6)
+    let full_path = forest_root.join(&path);
+    if !full_path.exists() {
+        return Err(IndexError::ContextPathNotFound {
+            path: path.display().to_string(),
+        });
+    }
+
+    let context_id = ContextId::from_path(&path).context(InvalidContextPathSnafu {
+        path: path.display().to_string(),
+    })?;
+
+    Ok(Some(context_id))
+}
+
 /// Builds the knowledge index, processing all files in the forest.
 pub fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
     use index_error::*;
@@ -98,10 +144,13 @@ pub fn handle_build(args: BuildArgs) -> Result<(), IndexError> {
 
     let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
+    let context_id = parse_context_arg(&forest_root, args.context)?;
+
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .build()
         .progress(progress)
+        .maybe_context_id(context_id)
         .call()
         .context(KnowledgeIndexSnafu)?;
 
@@ -120,10 +169,13 @@ pub fn handle_rebuild(args: RebuildArgs) -> Result<(), IndexError> {
 
     let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
+    let context_id = parse_context_arg(&forest_root, args.context)?;
+
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .rebuild()
         .progress(progress)
+        .maybe_context_id(context_id)
         .call()
         .context(KnowledgeIndexSnafu)?;
 
@@ -142,10 +194,13 @@ pub fn handle_update(args: UpdateArgs) -> Result<(), IndexError> {
 
     let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
+    let context_id = parse_context_arg(&forest_root, args.context)?;
+
     let progress = Arc::new(CliProgressReporter::default());
     let result = index
         .update()
         .progress(progress)
+        .maybe_context_id(context_id)
         .call()
         .context(KnowledgeIndexSnafu)?;
 
@@ -190,8 +245,10 @@ pub fn handle_search(args: SearchArgs) -> Result<(), IndexError> {
 
     let index = KnowledgeIndex::open(&forest_root).context(KnowledgeIndexSnafu)?;
 
+    let context_id = parse_context_arg(&forest_root, args.context)?;
+
     let results = index
-        .search(&args.query, limit)
+        .search_in_context(&args.query, limit, context_id)
         .context(KnowledgeIndexSnafu)?;
 
     let file_results = group_results_by_file(&results);
@@ -420,6 +477,23 @@ pub enum IndexError {
     KnowledgeIndex {
         source: sembly_core::knowledge::facade::IndexError,
     },
+
+    #[snafu(display("Invalid context path: {path}"))]
+    #[diagnostic(
+        code(sembly::cli::invalid_context_path),
+        help("Context path must be a valid relative path within the workspace")
+    )]
+    InvalidContextPath {
+        path: String,
+        source: sembly_core::knowledge::domain::ContextIdError,
+    },
+
+    #[snafu(display("Context path does not exist: {path}"))]
+    #[diagnostic(
+        code(sembly::cli::context_path_not_found),
+        help("The specified context path must exist on the filesystem")
+    )]
+    ContextPathNotFound { path: String },
 
     #[snafu(display("Invalid output format: {format}"))]
     #[diagnostic(

@@ -24,7 +24,7 @@ use crate::knowledge::constants;
 pub use chunk::{
     Chunk, ChunkContent, ChunkContext, ChunkSource, MarkdownContext, RustDocContext, Visibility,
 };
-pub use context::{Context, ContextId};
+pub use context::{Context, ContextId, ContextIdError};
 pub use file_type::FileType;
 pub use hash::{ChunkHash, FileHash};
 pub use indexed_file::IndexedFile;
