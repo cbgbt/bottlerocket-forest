@@ -106,6 +106,11 @@ impl SqliteChunkRepository {
 
         Ok(repo)
     }
+
+    /// Returns a context repository backed by this connection
+    pub fn context_repository(&self) -> SqliteContextRepository<'_> {
+        SqliteContextRepository::new(&self.conn)
+    }
 }
 
 impl ChunkRepository for SqliteChunkRepository {

@@ -39,8 +39,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::knowledge::domain::{
-    EmbeddingModelConfig, IndexMetadata, QueryText, ResultLimit, ScanConfig, SearchQuery,
-    SearchResults,
+    Context, ContextId, EmbeddingModelConfig, IndexMetadata, QueryText, ResultLimit, ScanConfig,
+    SearchQuery, SearchResults,
 };
 use crate::knowledge::indexing::provider::EmbeddingDataProvider;
 use crate::knowledge::indexing::{
@@ -52,6 +52,7 @@ use crate::knowledge::search::{
     EmbeddingModel, LoadedEmbeddingModel, SearchEngine, SemanticSearchEngine,
 };
 use crate::knowledge::storage::ChunkRepository;
+use crate::knowledge::storage::ContextRepository;
 use crate::knowledge::storage::sqlite::SqliteChunkRepository;
 
 /// High-level interface for the knowledge index
@@ -127,6 +128,47 @@ impl KnowledgeIndex {
         })
     }
 
+    /// Discover and open a knowledge index from the current working directory
+    ///
+    /// Walks up the directory tree from `cwd` to find a workspace containing
+    /// `.sembly/knowledge.db`. Returns an error if no workspace is found.
+    pub fn discover(cwd: impl AsRef<Path>) -> Result<Self, IndexError> {
+        Self::discover_with_config(cwd, EmbeddingModelConfig::default())
+    }
+
+    /// Discover and open a knowledge index with custom configuration
+    ///
+    /// Walks up the directory tree from `cwd` to find a workspace.
+    pub fn discover_with_config(
+        cwd: impl AsRef<Path>,
+        config: EmbeddingModelConfig,
+    ) -> Result<Self, IndexError> {
+        use crate::knowledge::context::discover_workspace;
+        use types::index_error::*;
+
+        let workspace = discover_workspace(cwd.as_ref()).context(WorkspaceNotFoundSnafu)?;
+        Self::open_with_config(workspace.root(), config)
+    }
+
+    /// Resolve the context for a given working directory
+    ///
+    /// Returns the most specific registered context that contains the given path.
+    /// The path must be within the workspace.
+    pub fn resolve_context(&self, cwd: impl AsRef<Path>) -> Result<Context, IndexError> {
+        use crate::knowledge::context::{Workspace, resolve_context};
+
+        let workspace = Workspace::new(self.forest_root.clone());
+        let repository = self.repository()?;
+        let context_repo = repository.context_repository();
+
+        resolve_context(&workspace, cwd.as_ref(), &context_repo).map_err(|e| match e {
+            crate::knowledge::context::ResolutionError::NoMatchingContext {
+                available_contexts,
+            } => IndexError::ContextNotFound { available_contexts },
+            other => IndexError::ContextResolutionFailed { source: other },
+        })
+    }
+
     /// Build the index for the first time
     ///
     /// Creates a new index by scanning all files in the forest. Fails if an index already exists.
@@ -158,6 +200,15 @@ impl KnowledgeIndex {
         repository
             .set_metadata(&metadata)
             .context(DatabaseAccessFailedSnafu)?;
+
+        // Register the default context
+        let default_context = Context::builder()
+            .context_id(ContextId::from_path(".").expect("default context id"))
+            .build();
+        repository
+            .context_repository()
+            .insert_context(&default_context)
+            .context(ContextRegistrationFailedSnafu)?;
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
@@ -215,6 +266,15 @@ impl KnowledgeIndex {
         repository
             .set_metadata(&metadata)
             .context(DatabaseAccessFailedSnafu)?;
+
+        // Register the default context
+        let default_context = Context::builder()
+            .context_id(ContextId::from_path(".").expect("default context id"))
+            .build();
+        repository
+            .context_repository()
+            .insert_context(&default_context)
+            .context(ContextRegistrationFailedSnafu)?;
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
         let scan_config = self.load_scan_config()?;
@@ -308,6 +368,7 @@ impl KnowledgeIndex {
     ///
     /// Executes a semantic search query using embeddings. The limit parameter
     /// controls the maximum number of results returned (1-100).
+    /// Searches within the default context.
     pub fn search(
         &self,
         query: impl AsRef<str>,
@@ -315,10 +376,42 @@ impl KnowledgeIndex {
     ) -> Result<SearchResults, IndexError> {
         use types::index_error::*;
 
+        // Use the default context for search
+        let context_id = ContextId::from_path(".").expect("default context id");
+
         let search_query = SearchQuery::builder()
             .text(QueryText::try_new(query.as_ref()).context(InvalidQuerySnafu)?)
             .limit(ResultLimit::try_new(limit).context(InvalidResultLimitSnafu)?)
+            .context_id(context_id)
             .build();
+
+        let engine = self.create_search_engine()?;
+        engine.search(&search_query).context(SearchFailedSnafu)
+    }
+
+    /// Search the index within a specific context
+    ///
+    /// Executes a semantic search query scoped to the specified context.
+    /// Use `None` for context_id to search all contexts.
+    pub fn search_in_context(
+        &self,
+        query: impl AsRef<str>,
+        limit: usize,
+        context_id: Option<ContextId>,
+    ) -> Result<SearchResults, IndexError> {
+        use types::index_error::*;
+
+        let text = QueryText::try_new(query.as_ref()).context(InvalidQuerySnafu)?;
+        let limit = ResultLimit::try_new(limit).context(InvalidResultLimitSnafu)?;
+
+        let search_query = match context_id {
+            Some(ctx_id) => SearchQuery::builder()
+                .text(text)
+                .limit(limit)
+                .context_id(ctx_id)
+                .build(),
+            None => SearchQuery::builder().text(text).limit(limit).build(),
+        };
 
         let engine = self.create_search_engine()?;
         engine.search(&search_query).context(SearchFailedSnafu)
@@ -345,6 +438,17 @@ impl KnowledgeIndex {
             .model_config(self.config.clone())
             .maybe_size_bytes(size_bytes)
             .build())
+    }
+
+    /// List all registered contexts in the workspace
+    pub fn list_contexts(&self) -> Result<Vec<Context>, IndexError> {
+        use types::index_error::*;
+
+        let repository = self.repository()?;
+        let context_repo = repository.context_repository();
+        context_repo
+            .list_contexts()
+            .context(ContextRegistrationFailedSnafu)
     }
 
     /// Get the forest root path
@@ -1103,5 +1207,159 @@ targets = ["docs"]
 
         // Then It should only detect changes in configured targets
         assert_eq!(result.files_added, 1);
+    }
+}
+
+#[cfg(test)]
+mod context_tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_workspace(root: &Path) {
+        let sembly_dir = root.join(".sembly");
+        fs::create_dir_all(&sembly_dir).unwrap();
+        // Create a minimal database with the contexts table
+        let db_path = sembly_dir.join("knowledge.db");
+        let config = EmbeddingModelConfig::default();
+        let repo = SqliteChunkRepository::open(&db_path, &config).unwrap();
+        // Register the default context
+        let default_context = Context::builder()
+            .context_id(ContextId::from_path(".").unwrap())
+            .build();
+        repo.context_repository()
+            .insert_context(&default_context)
+            .unwrap();
+    }
+
+    #[test]
+    fn discover_finds_workspace_from_root() {
+        // Given a workspace with .sembly/knowledge.db
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+
+        // When discovering from the workspace root
+        let result = KnowledgeIndex::discover(temp.path());
+
+        // Then it should find the workspace
+        assert!(result.is_ok());
+        let index = result.unwrap();
+        assert_eq!(index.forest_root(), temp.path());
+    }
+
+    #[test]
+    fn discover_finds_workspace_from_nested_directory() {
+        // Given a workspace with nested subdirectories
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+        let nested = temp.path().join("a").join("b").join("c");
+        fs::create_dir_all(&nested).unwrap();
+
+        // When discovering from a nested directory
+        let result = KnowledgeIndex::discover(&nested);
+
+        // Then it should find the workspace at the root
+        assert!(result.is_ok());
+        let index = result.unwrap();
+        assert_eq!(index.forest_root(), temp.path());
+    }
+
+    #[test]
+    fn discover_returns_error_when_no_workspace() {
+        // Given a directory without .sembly
+        let temp = TempDir::new().unwrap();
+
+        // When discovering from that directory
+        let result = KnowledgeIndex::discover(temp.path());
+
+        // Then it should return WorkspaceNotFound error
+        assert!(matches!(result, Err(IndexError::WorkspaceNotFound { .. })));
+    }
+
+    #[test]
+    fn resolve_context_finds_default_context() {
+        // Given a workspace with the default "." context
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+
+        // When resolving context from the workspace root
+        let result = index.resolve_context(temp.path());
+
+        // Then it should return the default context
+        assert!(result.is_ok());
+        let context = result.unwrap();
+        assert_eq!(context.context_id.as_str(), ".");
+    }
+
+    #[test]
+    fn resolve_context_returns_error_for_unregistered_subdirectory() {
+        // Given a workspace with only the default "." context
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+        let subdir = temp.path().join("subdir");
+        fs::create_dir_all(&subdir).unwrap();
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+
+        // When resolving context from a subdirectory that's not a registered context
+        let result = index.resolve_context(&subdir);
+
+        // Then it should return ContextNotFound error (per MCI-ERR-2)
+        // The "." context only matches the workspace root, not subdirectories
+        assert!(matches!(result, Err(IndexError::ContextNotFound { .. })));
+    }
+
+    #[test]
+    fn list_contexts_returns_registered_contexts() {
+        // Given a workspace with the default context
+        let temp = TempDir::new().unwrap();
+        create_workspace(temp.path());
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+
+        // When listing contexts
+        let result = index.list_contexts();
+
+        // Then it should return the default context
+        assert!(result.is_ok());
+        let contexts = result.unwrap();
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(contexts[0].context_id.as_str(), ".");
+    }
+
+    #[test]
+    fn resolve_context_finds_registered_context_from_subdirectory() {
+        // Given a workspace with a registered "worktrees/feature-a" context
+        let temp = TempDir::new().unwrap();
+        let sembly_dir = temp.path().join(".sembly");
+        fs::create_dir_all(&sembly_dir).unwrap();
+        let db_path = sembly_dir.join("knowledge.db");
+        let config = EmbeddingModelConfig::default();
+        let repo = SqliteChunkRepository::open(&db_path, &config).unwrap();
+
+        // Register the worktree context (not the default ".")
+        let worktree_context = Context::builder()
+            .context_id(ContextId::from_path("worktrees/feature-a").unwrap())
+            .build();
+        repo.context_repository()
+            .insert_context(&worktree_context)
+            .unwrap();
+
+        // Create the directory structure
+        let worktree_dir = temp.path().join("worktrees").join("feature-a");
+        let nested_dir = worktree_dir.join("src").join("lib");
+        fs::create_dir_all(&nested_dir).unwrap();
+
+        let index = KnowledgeIndex::open(temp.path()).unwrap();
+
+        // When resolving context from a nested subdirectory within the worktree
+        let result = index.resolve_context(&nested_dir);
+
+        // Then it should return the worktrees/feature-a context
+        assert!(result.is_ok());
+        let context = result.unwrap();
+        assert_eq!(context.context_id.as_str(), "worktrees/feature-a");
     }
 }

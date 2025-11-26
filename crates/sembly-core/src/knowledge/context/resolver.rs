@@ -43,8 +43,11 @@ pub fn resolve_context<R: ContextRepository>(
         .into_iter()
         .filter(|ctx| {
             let ctx_path = ctx.context_id.as_str();
+            // Exact match (includes "." matching "." when at workspace root)
             cwd_path == ctx_path
+                // Or cwd is inside the context (e.g., cwd="projects/foo", ctx="projects")
                 || (cwd_path.starts_with(ctx_path)
+                    && ctx_path != "."
                     && cwd_path.as_bytes().get(ctx_path.len()) == Some(&b'/'))
         })
         .collect();

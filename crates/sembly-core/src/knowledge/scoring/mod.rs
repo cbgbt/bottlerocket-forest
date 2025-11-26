@@ -14,6 +14,8 @@
 //! # use sembly_core::knowledge::domain::*;
 //! # let chunk = Chunk::builder()
 //! #     .id(ChunkId::new(uuid::Uuid::new_v4()))
+//! #     .chunk_hash(ChunkHash::new([0u8; 32]))
+//! #     .file_hash(FileHash::new([0u8; 32]))
 //! #     .source(ChunkSource::builder()
 //! #         .file_path(ForestRelativePath::try_new("README.md")?)
 //! #         .repo_name(RepoName::try_new("test")?)

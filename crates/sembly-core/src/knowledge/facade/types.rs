@@ -11,7 +11,7 @@ use bon::Builder;
 use snafu::Snafu;
 use std::time::SystemTime;
 
-use crate::knowledge::domain::{EmbeddingModelConfig, QueryTextError, ResultLimitError};
+use crate::knowledge::domain::{ContextId, EmbeddingModelConfig, QueryTextError, ResultLimitError};
 
 /// Status information about the knowledge index
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -149,4 +149,40 @@ pub enum IndexError {
         help("Check file permissions and ensure the database is not in use")
     )]
     IndexDeletionFailed { source: std::io::Error },
+
+    #[snafu(display("No sembly workspace found"))]
+    #[diagnostic(
+        code(sembly::index::workspace_not_found),
+        help(
+            "Run `sembly build` to create an index, or navigate to a directory within an existing workspace"
+        )
+    )]
+    WorkspaceNotFound {
+        source: crate::knowledge::context::DiscoveryError,
+    },
+
+    #[snafu(display("No matching context for current directory"))]
+    #[diagnostic(
+        code(sembly::index::context_not_found),
+        help("Available contexts: {}", available_contexts.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", "))
+    )]
+    ContextNotFound { available_contexts: Vec<ContextId> },
+
+    #[snafu(display("Failed to resolve context"))]
+    #[diagnostic(
+        code(sembly::index::context_resolution_failed),
+        help("Ensure you are within a registered context directory")
+    )]
+    ContextResolutionFailed {
+        source: crate::knowledge::context::ResolutionError,
+    },
+
+    #[snafu(display("Failed to register context"))]
+    #[diagnostic(
+        code(sembly::index::context_registration_failed),
+        help("The context may already exist or the database may be inaccessible")
+    )]
+    ContextRegistrationFailed {
+        source: crate::knowledge::storage::ContextRepositoryError,
+    },
 }
