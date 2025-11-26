@@ -52,6 +52,7 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 globset = "0.4"
 ignore = "0.4"
 path-clean = "1"
+pathdiff = "0.2"
 dirs = "5"
 
 # Concurrency

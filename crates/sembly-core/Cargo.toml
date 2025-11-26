@@ -19,6 +19,7 @@ ignore.workspace = true
 miette.workspace = true
 nutype.workspace = true
 path-clean.workspace = true
+pathdiff.workspace = true
 quote.workspace = true
 rayon.workspace = true
 rusqlite.workspace = true
