@@ -83,6 +83,13 @@ impl SqliteChunkRepository {
             .build()
         })?;
 
+        schema::check_schema_version(&conn).map_err(|e| {
+            InvalidDataSnafu {
+                message: e.to_string(),
+            }
+            .build()
+        })?;
+
         Ok(Self { conn })
     }
 

@@ -213,4 +213,13 @@ pub enum IndexError {
         help("Use 'sembly context list' to see available contexts")
     )]
     ContextDoesNotExist { context_id: String },
+
+    #[snafu(display(
+        "Schema version mismatch: stored version {stored}, expected version {expected}"
+    ))]
+    #[diagnostic(
+        code(sembly::index::schema_mismatch),
+        help("Run `sembly rebuild` to recreate the index with the current schema")
+    )]
+    SchemaMismatch { stored: u32, expected: u32 },
 }

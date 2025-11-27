@@ -2,16 +2,28 @@
 //!
 //! Manages SQLite table creation and schema evolution for chunk storage.
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use snafu::{ResultExt, Snafu};
 
+use crate::knowledge::constants::SCHEMA_VERSION;
 use crate::knowledge::domain::EmbeddingModelConfig;
 
-#[derive(Debug, Snafu)]
+/// Errors that can occur during schema operations
+#[derive(Debug, Snafu, miette::Diagnostic)]
 #[snafu(module)]
 pub enum SchemaError {
     #[snafu(display("Failed to execute SQL"))]
     SqlExecution { source: rusqlite::Error },
+
+    #[snafu(display(
+        "Schema version mismatch: stored version {stored}, expected version {expected}"
+    ))]
+    #[snafu(visibility(pub))]
+    #[diagnostic(
+        code(sembly::schema::version_mismatch),
+        help("Run `sembly rebuild` to recreate the index with the current schema")
+    )]
+    SchemaMismatch { stored: u32, expected: u32 },
 }
 
 type Result<T> = std::result::Result<T, SchemaError>;
@@ -58,6 +70,54 @@ const CREATE_INDEX_FILE_HASH: &str =
     "CREATE INDEX IF NOT EXISTS idx_chunks_file_hash ON chunks(file_hash)";
 const CREATE_INDEX_REPO: &str = "CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_name)";
 
+/// Reads the schema version from the index_metadata table
+///
+/// Returns `None` if no schema version has been set (legacy database).
+pub fn get_schema_version(conn: &Connection) -> Result<Option<u32>> {
+    use schema_error::*;
+
+    let result = conn
+        .query_row(
+            "SELECT value FROM index_metadata WHERE key = 'schema_version'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .context(SqlExecutionSnafu)?;
+
+    Ok(result.and_then(|s| s.parse().ok()))
+}
+
+/// Writes the schema version to the index_metadata table
+pub fn set_schema_version(conn: &Connection, version: u32) -> Result<()> {
+    use schema_error::*;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('schema_version', ?)",
+        [version.to_string()],
+    )
+    .context(SqlExecutionSnafu)?;
+    Ok(())
+}
+
+/// Validates that the stored schema version matches the expected version
+///
+/// Returns an error if the versions do not match, indicating the index
+/// needs to be rebuilt.
+pub fn check_schema_version(conn: &Connection) -> Result<()> {
+    use schema_error::*;
+
+    let stored = get_schema_version(conn)?.unwrap_or(0);
+    if stored != SCHEMA_VERSION {
+        return SchemaMismatchSnafu {
+            stored,
+            expected: SCHEMA_VERSION,
+        }
+        .fail();
+    }
+    Ok(())
+}
+
 /// Initializes database schema including tables and indexes
 pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result<()> {
     use schema_error::*;
@@ -83,6 +143,8 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     );
     conn.execute(&create_vec_chunks, [])
         .context(SqlExecutionSnafu)?;
+
+    set_schema_version(conn, SCHEMA_VERSION)?;
 
     Ok(())
 }
@@ -243,5 +305,98 @@ mod test {
             .unwrap();
 
         assert!(table_exists);
+    }
+
+    #[test]
+    fn test_set_and_get_schema_version() {
+        // Given a database with the index_metadata table
+        let conn = setup_connection();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+
+        // When setting a schema version
+        set_schema_version(&conn, 42).unwrap();
+
+        // Then get_schema_version should return that version
+        let version = get_schema_version(&conn).unwrap();
+        assert_eq!(version, Some(42));
+    }
+
+    #[test]
+    fn test_get_schema_version_returns_none_for_legacy_db() {
+        // Given a database with index_metadata table but no schema_version row
+        let conn = setup_connection();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+
+        // When getting the schema version
+        let version = get_schema_version(&conn).unwrap();
+
+        // Then it should return None (legacy database)
+        assert_eq!(version, None);
+    }
+
+    #[test]
+    fn test_check_schema_version_passes_when_matching() {
+        // Given a database with schema version set to SCHEMA_VERSION
+        let conn = setup_connection();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+        set_schema_version(&conn, SCHEMA_VERSION).unwrap();
+
+        // When checking the schema version
+        let result = check_schema_version(&conn);
+
+        // Then it should succeed
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_check_schema_version_fails_on_mismatch() {
+        // Given a database with an old schema version (version 1)
+        let conn = setup_connection();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+        set_schema_version(&conn, 1).unwrap();
+
+        // When checking the schema version
+        let result = check_schema_version(&conn);
+
+        // Then it should fail with SchemaMismatch error
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            SchemaError::SchemaMismatch {
+                stored: 1,
+                expected: SCHEMA_VERSION
+            }
+        ));
+    }
+
+    #[test]
+    fn test_create_tables_sets_schema_version() {
+        // Given a fresh database connection
+        let conn = setup_connection();
+        let config = EmbeddingModelConfig::default();
+
+        // When creating tables
+        create_tables(&conn, &config).unwrap();
+
+        // Then the schema version should be set to SCHEMA_VERSION
+        let version = get_schema_version(&conn).unwrap();
+        assert_eq!(version, Some(SCHEMA_VERSION));
     }
 }
