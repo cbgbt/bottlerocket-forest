@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::{IndexingFilter, ProgressReporter};
+use crate::knowledge::constants::{SEMBLY_DIR, SEMBLY_IGNORE};
 use crate::knowledge::domain::{
     AbsolutePath, FileType, ForestRelativePath, RepoName, ScanConfig, Timestamp,
 };
@@ -178,11 +179,11 @@ impl FileScanner {
             .git_ignore(self.config.respect_gitignore)
             .filter_entry(|entry| {
                 let file_name = entry.file_name().to_string_lossy();
-                file_name != ".sembly"
+                file_name != SEMBLY_DIR
             });
 
         if self.config.use_semblyignore {
-            builder.add_custom_ignore_filename(".semblyignore");
+            builder.add_custom_ignore_filename(SEMBLY_IGNORE);
         }
 
         for result in builder.build() {

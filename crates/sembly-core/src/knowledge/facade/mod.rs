@@ -38,6 +38,7 @@ use snafu::ResultExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::knowledge::constants::{KNOWLEDGE_DB, MODEL_CACHE_DIR, SEMBLY_DIR};
 use crate::knowledge::domain::{
     Context, ContextId, EmbeddingModelConfig, IndexMetadata, QueryText, ResultLimit, ScanConfig,
     SearchQuery, SearchResults,
@@ -95,7 +96,7 @@ impl KnowledgeIndex {
             });
         }
 
-        let sembly_dir = forest_root.join(".sembly");
+        let sembly_dir = forest_root.join(SEMBLY_DIR);
         if !sembly_dir.exists() {
             std::fs::create_dir_all(&sembly_dir).context(SemblyDirCreationFailedSnafu)?;
         }
@@ -570,7 +571,7 @@ impl KnowledgeIndex {
     ///
     /// Returns `<forest_root>/.sembly/knowledge.db`
     fn default_db_path(forest_root: impl AsRef<Path>) -> PathBuf {
-        forest_root.as_ref().join(".sembly/knowledge.db")
+        forest_root.as_ref().join(SEMBLY_DIR).join(KNOWLEDGE_DB)
     }
 
     /// Open a repository connection to the database
@@ -627,7 +628,7 @@ impl KnowledgeIndex {
         EmbeddingModel::builder()
             .model_name(self.config.model_name.clone())
             .dimension(self.config.embedding_dim)
-            .cache_dir(self.forest_root.join(".sembly/cache/model"))
+            .cache_dir(self.forest_root.join(SEMBLY_DIR).join(MODEL_CACHE_DIR))
             .build()
             .load()
             .context(EmbeddingProviderCreationFailedSnafu)

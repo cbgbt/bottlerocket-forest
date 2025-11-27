@@ -10,6 +10,7 @@ use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
 
 use super::filter::{IndexingFilter, RustFilter, RustItemType};
+use crate::knowledge::constants::SEMBLY_CONFIG;
 use crate::knowledge::domain::{FileType, Visibility};
 use crate::knowledge::scoring::BoostRule;
 
@@ -171,7 +172,7 @@ pub fn load_sembly_config(
     use sembly_config_error::*;
 
     let forest_root = forest_root.as_ref();
-    let config_path = forest_root.join(".sembly.toml");
+    let config_path = forest_root.join(SEMBLY_CONFIG);
 
     if !config_path.exists() {
         return Ok(None);

@@ -1,4 +1,26 @@
 //! Constants for the knowledge indexing system.
+//!
+//! This module defines path constants for sembly's directory structure
+//! and configuration constants for embedding and indexing behavior.
+
+// Path constants
+
+/// The sembly database directory name.
+pub const SEMBLY_DIR: &str = ".sembly";
+
+/// The sembly configuration file name.
+pub const SEMBLY_CONFIG: &str = ".sembly.toml";
+
+/// The sembly ignore file name.
+pub const SEMBLY_IGNORE: &str = ".semblyignore";
+
+/// The knowledge database filename.
+pub const KNOWLEDGE_DB: &str = "knowledge.db";
+
+/// The model cache subdirectory within SEMBLY_DIR.
+pub const MODEL_CACHE_DIR: &str = "cache/model";
+
+// Embedding and indexing configuration
 
 /// Embedding vector dimension for all-MiniLM-L6-v2 model
 pub const EMBEDDING_DIM: usize = 384;

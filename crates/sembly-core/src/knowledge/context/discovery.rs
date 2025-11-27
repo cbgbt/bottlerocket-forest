@@ -6,11 +6,7 @@
 use snafu::Snafu;
 use std::path::{Path, PathBuf};
 
-/// The sembly database directory name.
-const SEMBLY_DIR: &str = ".sembly";
-
-/// The knowledge database filename.
-const KNOWLEDGE_DB: &str = "knowledge.db";
+use crate::knowledge::constants::{KNOWLEDGE_DB, SEMBLY_DIR};
 
 /// A sembly workspace containing the knowledge database.
 ///
