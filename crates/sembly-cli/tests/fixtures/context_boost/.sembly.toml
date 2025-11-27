@@ -1,0 +1,7 @@
+# Boost rules apply relative to context root, not workspace root
+targets = ["."]
+
+[[boost-rules]]
+pattern = "docs/**"
+multiplier = 2.0
+description = "Prioritize documentation within each context"

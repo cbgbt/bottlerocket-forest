@@ -1,0 +1,6 @@
+targets = [".", "docs"]
+
+[[boost-rules]]
+pattern = "docs/**"
+multiplier = 2.0
+description = "Prioritize documentation"

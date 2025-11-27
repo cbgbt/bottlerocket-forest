@@ -1,0 +1,4 @@
+targets = ["."]
+
+[file-types.rust]
+items = ["functions", "structs"]
