@@ -37,26 +37,45 @@ pub fn save(conn: &mut Connection, indexed_chunk: &IndexedChunk) -> Result<(), S
     )
     .context(DatabaseSnafu)?;
 
-    conn.execute(
-        "INSERT OR REPLACE INTO vec_chunks (chunk_hash, embedding) VALUES (:chunk_hash, :embedding)",
-        rusqlite::named_params! {
-            ":chunk_hash": chunk.chunk_hash.to_string(),
-            ":embedding": embedding_blob,
-        },
-    )
-    .context(DatabaseSnafu)?;
+    // vec0 virtual tables don't support INSERT OR REPLACE/IGNORE
+    // Check if embedding already exists before inserting
+    let chunk_hash_str = chunk.chunk_hash.to_string();
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM vec_chunks WHERE chunk_hash = ?",
+            [&chunk_hash_str],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        conn.execute(
+            "INSERT INTO vec_chunks (chunk_hash, embedding) VALUES (:chunk_hash, :embedding)",
+            rusqlite::named_params! {
+                ":chunk_hash": chunk_hash_str,
+                ":embedding": embedding_blob,
+            },
+        )
+        .context(DatabaseSnafu)?;
+    }
 
     Ok(())
 }
 
 /// Persists multiple indexed chunks in a single transaction
 pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), StorageError> {
+    use std::collections::HashSet;
+
     let tx = conn.transaction().context(DatabaseSnafu)?;
+
+    // Track chunk_hashes we've already inserted in this batch to avoid duplicates
+    let mut inserted_hashes: HashSet<String> = HashSet::new();
 
     for indexed_chunk in chunks {
         let chunk = &indexed_chunk.chunk;
         let (context_type, context_data) = serialize_context(&chunk.context)?;
         let embedding_blob = serialize_embedding(&indexed_chunk.embedding);
+        let chunk_hash_str = chunk.chunk_hash.to_string();
 
         tx.execute(
             "INSERT OR REPLACE INTO chunks 
@@ -77,14 +96,30 @@ pub fn save_batch(conn: &mut Connection, chunks: &[IndexedChunk]) -> Result<(), 
         )
         .context(DatabaseSnafu)?;
 
-        tx.execute(
-            "INSERT OR REPLACE INTO vec_chunks (chunk_hash, embedding) VALUES (:chunk_hash, :embedding)",
-            rusqlite::named_params! {
-                ":chunk_hash": chunk.chunk_hash.to_string(),
-                ":embedding": embedding_blob,
-            },
-        )
-        .context(DatabaseSnafu)?;
+        // vec0 virtual tables don't support INSERT OR REPLACE/IGNORE
+        // Skip if we've already inserted this hash in this batch
+        if !inserted_hashes.contains(&chunk_hash_str) {
+            // Check if embedding already exists in database
+            let exists: bool = tx
+                .query_row(
+                    "SELECT 1 FROM vec_chunks WHERE chunk_hash = ?",
+                    [&chunk_hash_str],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+
+            if !exists {
+                tx.execute(
+                    "INSERT INTO vec_chunks (chunk_hash, embedding) VALUES (:chunk_hash, :embedding)",
+                    rusqlite::named_params! {
+                        ":chunk_hash": chunk_hash_str.clone(),
+                        ":embedding": embedding_blob,
+                    },
+                )
+                .context(DatabaseSnafu)?;
+            }
+            inserted_hashes.insert(chunk_hash_str);
+        }
     }
 
     tx.commit().context(DatabaseSnafu)?;
