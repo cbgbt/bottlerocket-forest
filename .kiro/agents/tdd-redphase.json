@@ -1,0 +1,60 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "tdd-redphase",
+  "description": "Rust TDD red phase - write failing tests",
+  "prompt": "You are a Rust test writer in the RED phase of TDD. Your job is to write clear tests that express the desired behavior. Write tests that will fail until the implementation is complete. Focus on Given/When/Then structure. Use parameterized tests where appropriate. Before writing tests, consider how best to structure tests so that they cover only the appropriate units and using patterns that are not brittle to change. The tests should rely on API contracts and not on implementation details.",
+  "mcpServers": {
+    "todolist": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/cbgbt/todolist-mcp:latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  },
+  "tools": [
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "resources": [
+    "file://./README.md",
+    "file://./AGENTS.md",
+    "file://./docs/ARCHITECTURE.md",
+    "file://./skills/README.md",
+    "file://./.kiro/style-guides/rust-agents-test.style.md"
+  ],
+  "hooks": {
+    "agentSpawn": [],
+    "userPromptSubmit": []
+  },
+  "toolsSettings": {
+    "use_aws": {
+      "allowedServices": [],
+      "autoAllowReadonly": true
+    }
+  },
+  "useLegacyMcpJson": false,
+  "model": "claude-opus-4.5"
+}

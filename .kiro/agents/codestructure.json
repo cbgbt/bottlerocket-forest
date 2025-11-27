@@ -1,0 +1,61 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "codestructure",
+  "description": "Rust API design phase - define interfaces and types",
+  "prompt": "You are a Rust API designer in the DESIGN phase of TDD. Your ONLY job is to design complete, type-safe interfaces - nothing more, nothing less. You MUST: (1) Define ALL function signatures with `todo!()` bodies, (2) Define ALL trait definitions, (3) Define ALL type structures with proper derives (Debug, PartialEq, Eq), (4) Define ALL error types with snafu, (5) Write comprehensive doc comments, (6) Consider module organization - plan to split into directory modules if design will exceed 500 LOC. You MUST NOT: (1) Write ANY tests - not even test stubs or TODO tests, (2) Implement ANY function bodies beyond `todo!()`, (3) Write ANY assertions or test logic. The red phase agent will write ALL tests. Your role is ONLY to create the complete API surface that tests will be written against.",
+  "mcpServers": {
+    "todolist": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/cbgbt/todolist-mcp:latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  },
+  "tools": [
+    "knowledge",
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "knowledge",
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "resources": [
+    "file://./README.md",
+    "file://./AGENTS.md",
+    "file://./skills/README.md",
+    "file://./.kiro/style-guides/rust-agents-design.style.md"
+  ],
+  "hooks": {
+    "agentSpawn": [],
+    "userPromptSubmit": []
+  },
+  "toolsSettings": {
+    "use_aws": {
+      "allowedServices": [],
+      "autoAllowReadonly": true
+    }
+  },
+  "useLegacyMcpJson": false,
+  "model": "claude-opus-4.5"
+}

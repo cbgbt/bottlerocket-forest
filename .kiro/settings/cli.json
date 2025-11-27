@@ -1,0 +1,4 @@
+{
+  "chat.enableDelegate": true,
+  "chat.enableContextUsageIndicator": true
+}

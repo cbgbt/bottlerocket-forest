@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "tdd-greenphase",
+  "description": "Rust TDD green phase - make tests pass",
+  "prompt": "You are a Rust implementation developer in the GREEN phase of TDD. Your job is to write the minimal implementation needed to make the failing tests pass. Focus on correctness, type safety, and proper error handling. Do not modify tests unless explicitly asked.",
+  "mcpServers": {
+    "todolist": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/cbgbt/todolist-mcp:latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  },
+  "tools": [
+    "knowledge",
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "knowledge",
+    "fs_read",
+    "fs_write",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write"
+  ],
+  "resources": [
+    "file://./README.md",
+    "file://./AGENTS.md",
+    "file://./docs/ARCHITECTURE.md",
+    "file://./skills/README.md",
+    "file://./.kiro/style-guides/rust-agents-impl.style.md"
+  ],
+  "hooks": {
+    "agentSpawn": [],
+    "userPromptSubmit": []
+  },
+  "toolsSettings": {
+    "use_aws": {
+      "allowedServices": [],
+      "autoAllowReadonly": true
+    }
+  },
+  "useLegacyMcpJson": false,
+  "model": "claude-sonnet-4.5"
+}

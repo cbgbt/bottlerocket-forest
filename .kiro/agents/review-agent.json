@@ -1,0 +1,73 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aws/amazon-q-developer-cli/refs/heads/main/schemas/agent-v1.json",
+  "name": "review-agent",
+  "description": "Rust code reviewer - checks style adherence and potential bugs",
+  "prompt": "You are a Rust code reviewer. Your job is to check code for style guide adherence and potential bugs. You do NOT write or modify code - only review and report issues. For each file reviewed, check against the style guide and report: (1) Style violations with specific line numbers, (2) Potential bugs or anti-patterns, (3) Missing documentation or incorrect patterns. Be concise and actionable. Group issues by severity: errors (must fix), warnings (should fix), suggestions (consider fixing).",
+  "mcpServers": {
+    "todolist": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/cbgbt/todolist-mcp:latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  },
+  "tools": [
+    "knowledge",
+    "fs_read",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write",
+    "@github/get_file_contents",
+    "@github/get_pull_request",
+    "@github/get_pull_request_comments",
+    "@github/get_pull_request_diff",
+    "@github/get_pull_request_files",
+    "@github/get_pull_request_reviews",
+    "@github/search_code"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "knowledge",
+    "fs_read",
+    "execute_bash",
+    "@context7/resolve-library-id",
+    "@context7/get-library-docs",
+    "@todolist/todo_write",
+    "@github/get_file_contents",
+    "@github/get_pull_request",
+    "@github/get_pull_request_comments",
+    "@github/get_pull_request_diff",
+    "@github/get_pull_request_files",
+    "@github/get_pull_request_reviews",
+    "@github/search_code"
+  ],
+  "resources": [
+    "file://./README.md",
+    "file://./AGENTS.md",
+    "file://./skills/README.md",
+    "file://./.kiro/style-guides/rust-agents-review.style.md"
+  ],
+  "hooks": {
+    "agentSpawn": [],
+    "userPromptSubmit": []
+  },
+  "toolsSettings": {
+    "use_aws": {
+      "allowedServices": [],
+      "autoAllowReadonly": true
+    }
+  },
+  "useLegacyMcpJson": false,
+  "model": "claude-haiku-4.5"
+}

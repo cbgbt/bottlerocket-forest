@@ -226,7 +226,7 @@ impl KnowledgeIndex {
         }
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
-        let scan_config = self.load_scan_config()?;
+        let scan_config = self.load_scan_config_for_context(&ctx_id)?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
@@ -307,7 +307,7 @@ impl KnowledgeIndex {
         }
 
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
-        let scan_config = self.load_scan_config()?;
+        let scan_config = self.load_scan_config_for_context(&ctx_id)?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
@@ -355,16 +355,16 @@ impl KnowledgeIndex {
             }
         );
 
+        // Use provided context_id or default to "."
+        let ctx_id =
+            context_id.unwrap_or_else(|| ContextId::from_path(".").expect("default context id"));
+
         let provider = Box::new(self.create_provider()?) as Box<dyn IndexDataProvider>;
-        let scan_config = self.load_scan_config()?;
+        let scan_config = self.load_scan_config_for_context(&ctx_id)?;
         let filter = self.load_indexing_filter()?;
         let repository = self.repository()?;
 
         let batch_config = BatchConfig { batch_size };
-
-        // Use provided context_id or default to "."
-        let ctx_id =
-            context_id.unwrap_or_else(|| ContextId::from_path(".").expect("default context id"));
 
         // Register non-default context if it doesn't exist (MCI-3)
         if ctx_id.as_str() != "." {
@@ -651,17 +651,42 @@ impl KnowledgeIndex {
         })
     }
 
-    /// Load scan configuration from `.sembly.toml` if it exists
-    fn load_scan_config(&self) -> Result<ScanConfig, IndexError> {
+    /// Load scan configuration for a specific context
+    ///
+    /// When context_id is not ".", targets are prefixed with the context path.
+    /// This implements MCI-21: target paths resolve relative to context root.
+    fn load_scan_config_for_context(
+        &self,
+        context_id: &ContextId,
+    ) -> Result<ScanConfig, IndexError> {
         use types::index_error::*;
 
         let sembly_config =
             indexing::load_sembly_config(&self.forest_root).context(ConfigLoadFailedSnafu)?;
 
-        let targets = sembly_config
+        let base_targets = sembly_config
             .as_ref()
             .map(|c| c.targets.clone())
             .unwrap_or_default();
+
+        // Prefix targets with context path if context is not default (MCI-21)
+        let targets = if context_id.as_str() != "." {
+            let ctx_path = PathBuf::from(context_id.as_str());
+            base_targets
+                .into_iter()
+                .map(|t| {
+                    if t.as_os_str() == "." {
+                        // "." target becomes the context path itself
+                        ctx_path.clone()
+                    } else {
+                        // Other targets are prefixed with context path
+                        ctx_path.join(t)
+                    }
+                })
+                .collect()
+        } else {
+            base_targets
+        };
 
         Ok(ScanConfig::builder().targets(targets).build())
     }
@@ -1160,11 +1185,14 @@ targets = ["docs", "bottlerocket"]
         fs::write(temp_dir.path().join(".sembly.toml"), config_content).unwrap();
 
         let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let default_context = ContextId::from_path(".").unwrap();
 
-        // When Loading scan config
-        let scan_config = index.load_scan_config().unwrap();
+        // When Loading scan config for default context
+        let scan_config = index
+            .load_scan_config_for_context(&default_context)
+            .unwrap();
 
-        // Then It should return ScanConfig with those targets
+        // Then It should return ScanConfig with those targets (not prefixed)
         assert_eq!(scan_config.targets.len(), 2);
         assert_eq!(scan_config.targets[0], PathBuf::from("docs"));
         assert_eq!(scan_config.targets[1], PathBuf::from("bottlerocket"));
@@ -1175,12 +1203,39 @@ targets = ["docs", "bottlerocket"]
         // Given A forest root without .sembly.toml
         let temp_dir = TempDir::new().unwrap();
         let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let default_context = ContextId::from_path(".").unwrap();
 
-        // When Loading scan config
-        let scan_config = index.load_scan_config().unwrap();
+        // When Loading scan config for default context
+        let scan_config = index
+            .load_scan_config_for_context(&default_context)
+            .unwrap();
 
         // Then It should return ScanConfig with empty targets
         assert!(scan_config.targets.is_empty());
+    }
+
+    #[test]
+    fn test_load_scan_config_prefixes_targets_for_non_default_context() {
+        // Given A forest root with .sembly.toml containing targets
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+targets = [".", "docs"]
+"#;
+        fs::write(temp_dir.path().join(".sembly.toml"), config_content).unwrap();
+
+        let index = KnowledgeIndex::open(temp_dir.path()).unwrap();
+        let context_id = ContextId::from_path("worktree/feature-a").unwrap();
+
+        // When Loading scan config for a non-default context
+        let scan_config = index.load_scan_config_for_context(&context_id).unwrap();
+
+        // Then targets should be prefixed with context path (MCI-21)
+        assert_eq!(scan_config.targets.len(), 2);
+        assert_eq!(scan_config.targets[0], PathBuf::from("worktree/feature-a"));
+        assert_eq!(
+            scan_config.targets[1],
+            PathBuf::from("worktree/feature-a/docs")
+        );
     }
 
     #[test]
@@ -1601,32 +1656,38 @@ mod gc_tests {
     fn gc_deletes_orphaned_chunks_after_context_removal() {
         // Given a workspace with two contexts having different content
         let temp = TempDir::new().unwrap();
-        let docs_dir = temp.path().join("docs");
+        let main_dir = temp.path().join("main");
         let worktree_dir = temp.path().join("worktree");
-        fs::create_dir_all(&docs_dir).unwrap();
+        fs::create_dir_all(&main_dir).unwrap();
         fs::create_dir_all(&worktree_dir).unwrap();
 
         // Different content in each directory
-        fs::write(docs_dir.join("main.md"), "# Main\n\nMain content").unwrap();
+        fs::write(main_dir.join("main.md"), "# Main\n\nMain content").unwrap();
         fs::write(
             worktree_dir.join("feature.md"),
             "# Feature\n\nFeature content",
         )
         .unwrap();
 
-        // Configure targets for default context
-        fs::write(temp.path().join(".sembly.toml"), "targets = [\"docs\"]").unwrap();
+        // Configure targets - "." means scan from context root
+        fs::write(temp.path().join(".sembly.toml"), "targets = [\".\"]").unwrap();
 
         let index = KnowledgeIndex::open(temp.path()).unwrap();
-        index.build().call().unwrap();
 
-        // Build second context with different target
-        fs::write(temp.path().join(".sembly.toml"), "targets = [\"worktree\"]").unwrap();
-        let ctx_b = ContextId::from_path("worktree").unwrap();
-        index.update().context_id(ctx_b.clone()).call().unwrap();
+        // Build main context - scans "main/." which is the main directory
+        let ctx_main = ContextId::from_path("main").unwrap();
+        index.build().context_id(ctx_main).call().unwrap();
 
-        // When removing the second context
-        index.remove_context(&ctx_b).unwrap();
+        // Build worktree context - scans "worktree/." which is the worktree directory
+        let ctx_worktree = ContextId::from_path("worktree").unwrap();
+        index
+            .update()
+            .context_id(ctx_worktree.clone())
+            .call()
+            .unwrap();
+
+        // When removing the worktree context
+        index.remove_context(&ctx_worktree).unwrap();
 
         // And running garbage collection
         let gc_result = index.gc().unwrap();
