@@ -86,7 +86,7 @@ install_if_needed "forester" "forester"
 chunk_count=$(sembly status 2>/dev/null | grep "Chunks:" | awk '{print $2}')
 if [ "$chunk_count" = "0" ] || [ -z "$chunk_count" ]; then
     log "Building knowledge index..."
-    sembly build &>/dev/null
+    sembly rebuild &>/dev/null
     log "✓ Knowledge index built"
 else
     log "✓ Knowledge index already exists"
