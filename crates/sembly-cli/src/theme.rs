@@ -20,61 +20,67 @@
 //! consistency with `clap-cargo`'s `anstyle`-based help styling. The color
 //! palette is chosen to match the bright, bold aesthetic of cargo-style CLIs.
 
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Stream, Style};
+
+/// Helper to apply a style only when colors are supported
+fn styled(s: impl std::fmt::Display, style: Style) -> String {
+    s.if_supports_color(Stream::Stdout, |s| s.style(style))
+        .to_string()
+}
 
 /// Success indicators (checkmarks, "Running", etc.)
 pub fn success(s: impl std::fmt::Display) -> String {
-    s.to_string().bright_green().bold().to_string()
+    styled(s, Style::new().bright_green().bold())
 }
 
 /// Error states and removals
 pub fn error(s: impl std::fmt::Display) -> String {
-    s.to_string().bright_red().bold().to_string()
+    styled(s, Style::new().bright_red().bold())
 }
 
 /// Warnings and intermediate states
 pub fn warning(s: impl std::fmt::Display) -> String {
-    s.to_string().yellow().to_string()
+    styled(s, Style::new().yellow())
 }
 
 /// Values, counts, and data (cyan for consistency with clap's LITERAL style)
 pub fn value(s: impl std::fmt::Display) -> String {
-    s.to_string().cyan().to_string()
+    styled(s, Style::new().cyan())
 }
 
 /// URLs and links
 pub fn url(s: impl std::fmt::Display) -> String {
-    s.to_string().cyan().underline().to_string()
+    styled(s, Style::new().cyan().underline())
 }
 
 /// Labels and repository names
 pub fn label(s: impl std::fmt::Display) -> String {
-    s.to_string().bright_white().to_string()
+    styled(s, Style::new().bright_white())
 }
 
 /// Secondary information and metadata
 pub fn muted(s: impl std::fmt::Display) -> String {
-    s.to_string().dimmed().to_string()
+    styled(s, Style::new().dimmed())
 }
 
 /// Emphasized muted text (italic + dimmed)
 pub fn muted_italic(s: impl std::fmt::Display) -> String {
-    s.to_string().dimmed().italic().to_string()
+    styled(s, Style::new().dimmed().italic())
 }
 
 /// Tags and identifiers
 pub fn tag(s: impl std::fmt::Display) -> String {
-    s.to_string().blue().to_string()
+    styled(s, Style::new().blue())
 }
 
 /// Sizes and measurements
 pub fn size(s: impl std::fmt::Display) -> String {
-    s.to_string().yellow().to_string()
+    styled(s, Style::new().yellow())
 }
 
 /// Timestamps and time-related info
 pub fn time(s: impl std::fmt::Display) -> String {
-    s.to_string().green().to_string()
+    styled(s, Style::new().green())
 }
 
 /// Score colorization based on relevance thresholds
@@ -82,15 +88,16 @@ pub fn time(s: impl std::fmt::Display) -> String {
 /// Colors automatically disable when output is not a TTY.
 pub fn score(value: f32) -> String {
     let formatted = format!("{:.3}", value);
-    if value >= 0.8 {
-        formatted.green().to_string()
+    let style = if value >= 0.8 {
+        Style::new().green()
     } else if value >= 0.6 {
-        formatted.yellow().to_string()
+        Style::new().yellow()
     } else if value >= 0.4 {
-        formatted.truecolor(255, 165, 0).to_string() // orange
+        Style::new().truecolor(255, 165, 0)
     } else {
-        formatted.red().to_string()
-    }
+        Style::new().red()
+    };
+    styled(formatted, style)
 }
 
 /// Progress bar template strings matching the theme

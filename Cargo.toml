@@ -70,7 +70,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 # UI and progress
 indicatif = { version = "0.17", features = ["rayon"] }
-owo-colors = "4"
+owo-colors = { version = "4", features = ["supports-colors"] }
 
 # Configuration
 dotenvy = "0.15"
