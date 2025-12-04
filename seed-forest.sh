@@ -83,7 +83,8 @@ install_if_needed "sembly" "sembly-cli"
 install_if_needed "forester" "forester"
 
 # Build knowledge index
-if ! sembly status &>/dev/null; then
+chunk_count=$(sembly status 2>/dev/null | grep "Chunks:" | awk '{print $2}')
+if [ "$chunk_count" = "0" ] || [ -z "$chunk_count" ]; then
     log "Building knowledge index..."
     sembly build &>/dev/null
     log "✓ Knowledge index built"
