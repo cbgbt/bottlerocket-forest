@@ -61,6 +61,10 @@ else
     forester seed
 fi
 
+# Build sembly index
+log "Building sembly index..."
+sembly build 2>/dev/null
+
 # Verify
 if ! sembly search "test" 2>/dev/null | head -1 | grep -q "Found"; then
     echo "❌ Setup verification failed" >&2
