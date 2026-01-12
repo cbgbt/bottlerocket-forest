@@ -3,6 +3,7 @@
 mod grove;
 mod init;
 mod seed;
+mod update;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use std::io::IsTerminal;
@@ -33,6 +34,8 @@ enum Command {
     Init(init::InitArgs),
     /// Clone all member repositories and set up the forest
     Seed(seed::SeedArgs),
+    /// Fetch latest changes for all member repos
+    Update(update::UpdateArgs),
     /// Manage forest groves
     #[command(subcommand)]
     Grove(grove::GroveCommand),
@@ -54,6 +57,7 @@ pub fn run() -> miette::Result<()> {
     match cli.command {
         Command::Init(args) => init::run(args),
         Command::Seed(args) => seed::run(args),
+        Command::Update(args) => update::run(args),
         Command::Grove(cmd) => grove::run(cmd),
     }
 }

@@ -50,6 +50,60 @@ impl ForestManager {
         Ok(())
     }
 
+    /// Update all bare repos by fetching from remotes.
+    #[instrument(skip(self), err)]
+    pub fn update(&self, verbose: bool) -> Result<(), Error> {
+        let bare_dir = self.bare_dir();
+        if !bare_dir.exists() {
+            return Err(Error::Git {
+                message: "Forest not seeded. Run 'forester seed' first.".to_string(),
+            });
+        }
+
+        for member in &self.config.forest.member {
+            let bare_path = bare_dir.join(format!("{}.git", member.name));
+            if !bare_path.exists() {
+                if verbose {
+                    println!(
+                        "{} {} bare repo missing, skipping",
+                        "!".yellow(),
+                        member.name
+                    );
+                }
+                continue;
+            }
+
+            if verbose {
+                println!("Fetching {}...", member.name);
+            }
+
+            let status = Command::new("git")
+                .args([
+                    "fetch",
+                    &member.remote,
+                    "+refs/heads/*:refs/remotes/origin/*",
+                    "--prune",
+                ])
+                .current_dir(&bare_path)
+                .status()
+                .map_err(|_| Error::Git {
+                    message: format!("Failed to fetch {}", member.name),
+                })?;
+
+            if !status.success() {
+                return Err(Error::Git {
+                    message: format!("git fetch failed for {}", member.name),
+                });
+            }
+
+            if verbose {
+                println!("{} {} updated", "✓".green(), member.name);
+            }
+        }
+
+        Ok(())
+    }
+
     #[instrument(skip(self), err)]
     fn clone_bare(&self, member: &Member, verbose: bool) -> Result<(), Error> {
         let bare_path = self.bare_dir().join(format!("{}.git", member.name));

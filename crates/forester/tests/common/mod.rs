@@ -47,6 +47,15 @@ pub fn forester_grove(cwd: &Path, subcmd: &str, args: &[&str]) -> (i32, String, 
     forester_cmd(cwd, &full_args)
 }
 
+/// Run forester update in the given directory
+pub fn forester_update(cwd: &Path, verbose: bool) -> (i32, String, String) {
+    let mut args = vec!["update"];
+    if verbose {
+        args.push("--verbose");
+    }
+    forester_cmd(cwd, &args)
+}
+
 /// Create a temp directory for testing
 pub fn temp_forest() -> TempDir {
     TempDir::new().expect("Failed to create temp directory")
