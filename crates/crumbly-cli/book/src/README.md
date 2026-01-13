@@ -3,6 +3,21 @@
 Crumbly is a semantic search tool for documentation.
 It indexes markdown files and doc comments from your codebase, then lets you search by meaning rather than exact keywords.
 
+## The Problem
+
+Code repositories grow.
+As they do, humans and AI agents have a harder time figuring out which parts of the code are relevant to a particular feature or task.
+
+Grep helps, but only when you know the right search terms.
+If the codebase uses different terminology than you expect, grep comes up empty.
+
+For AI agents, this is especially painful.
+Agents exploring unfamiliar repositories often fail to find the right code simply because they don't know what to search for.
+They waste context window on irrelevant files or miss critical pieces entirely.
+
+Crumbly addresses this by providing semantic search over your documentation.
+It sidesteps the problems of indexing source code directly while still making your codebase navigable.
+
 ## Why Documentation, Not Code?
 
 Crumbly deliberately indexes documentation rather than source code.
