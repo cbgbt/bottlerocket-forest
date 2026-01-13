@@ -45,3 +45,11 @@ release-build:
 .PHONY: lint-style
 lint-style:
 	cargo run --quiet --release --package syn-lint
+
+# Documentation
+.PHONY: book book-serve
+book:
+	mdbook build crates/crumbly-cli/book
+
+book-serve:
+	mdbook serve crates/crumbly-cli/book
