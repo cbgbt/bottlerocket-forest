@@ -156,6 +156,7 @@ pub fn serialize_context(context: &ChunkContext) -> Result<(String, String), Sto
                 .build()
             })?,
         ),
+        ChunkContext::Unknown(ctx) => (ctx.type_name.as_str(), ctx.raw_data.clone()),
     };
 
     Ok((context_type.to_string(), context_data))

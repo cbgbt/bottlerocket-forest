@@ -68,6 +68,20 @@ pub enum ChunkContext {
     RustDoc(RustDocContext),
     /// Go documentation context.
     GoDoc(GoDocContext),
+    /// Unknown context type for forward compatibility.
+    Unknown(UnknownContext),
+}
+
+/// Preserves unrecognized chunk context types for forward compatibility.
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
+#[builder(on(_, into))]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[non_exhaustive]
+pub struct UnknownContext {
+    /// Original context type string from storage.
+    pub type_name: String,
+    /// Raw JSON data preserved for round-tripping.
+    pub raw_data: String,
 }
 
 /// Heading hierarchy for markdown document structure.
