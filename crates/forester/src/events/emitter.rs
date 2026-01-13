@@ -49,7 +49,12 @@ impl EventEmitter for ConsoleEmitter {
             }
             ForesterEvent::GroveWorktreeCreated { member, path } => {
                 if self.verbose {
-                    eprintln!("  {} {} at {}", "worktree".blue(), member, path.display().to_string().dimmed());
+                    eprintln!(
+                        "  {} {} at {}",
+                        "worktree".blue(),
+                        member,
+                        path.display().to_string().dimmed()
+                    );
                 }
             }
             ForesterEvent::GroveCreated { name } => {

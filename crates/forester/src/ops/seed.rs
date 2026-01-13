@@ -27,7 +27,13 @@ impl<'a> SeedOperation<'a> {
         emitter: &'a dyn EventEmitter,
         verbose: bool,
     ) -> Self {
-        Self { forest_root, config, hooks, emitter, verbose }
+        Self {
+            forest_root,
+            config,
+            hooks,
+            emitter,
+            verbose,
+        }
     }
 
     /// Executes the seed operation.
@@ -40,13 +46,17 @@ impl<'a> SeedOperation<'a> {
         std::fs::create_dir_all(&bare_dir).context(CreateDirSnafu { path: &bare_dir })?;
 
         let ctx = self.hook_context();
-        self.hooks.run_hooks(HookPhase::PreSeed, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PreSeed, &ctx)
+            .context(HookSnafu)?;
 
         for member in &self.config.forest.member {
             self.clone_member(member)?;
         }
 
-        self.hooks.run_hooks(HookPhase::PostSeed, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PostSeed, &ctx)
+            .context(HookSnafu)?;
 
         self.emitter.emit(&ForesterEvent::SeedCompleted);
         Ok(())
@@ -55,7 +65,10 @@ impl<'a> SeedOperation<'a> {
     fn clone_member(&self, member: &crate::domain::Member) -> Result<(), SeedError> {
         use seed_error::*;
 
-        let bare_path = self.forest_root.bare_dir().join(format!("{}.git", member.name));
+        let bare_path = self
+            .forest_root
+            .bare_dir()
+            .join(format!("{}.git", member.name));
 
         if BareRepository::new(&bare_path, &member.name).exists() {
             return Ok(());
@@ -69,7 +82,9 @@ impl<'a> SeedOperation<'a> {
         BareRepository::clone_from(&member.remote, &bare_path, !self.verbose)
             .context(CloneSnafu { name: &member.name })?;
 
-        self.emitter.emit(&ForesterEvent::MemberCloned { name: member.name.clone() });
+        self.emitter.emit(&ForesterEvent::MemberCloned {
+            name: member.name.clone(),
+        });
         Ok(())
     }
 

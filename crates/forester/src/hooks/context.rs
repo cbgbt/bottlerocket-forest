@@ -1,8 +1,8 @@
 //! Hook execution context.
 
+use super::HookPhase;
 use bon::Builder;
 use std::path::PathBuf;
-use super::HookPhase;
 
 /// Context passed to hooks during execution.
 #[derive(Debug, Clone, Builder)]

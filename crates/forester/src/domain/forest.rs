@@ -5,8 +5,10 @@ use std::path::PathBuf;
 use bon::Builder;
 use nutype::nutype;
 
-
-#[nutype(validate(not_empty), derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize))]
+#[nutype(
+    validate(not_empty),
+    derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)
+)]
 pub struct ForestName(String);
 
 /// Root directory of a forest.

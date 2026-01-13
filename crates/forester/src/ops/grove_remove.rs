@@ -27,7 +27,13 @@ impl<'a> GroveRemoveOperation<'a> {
         emitter: &'a dyn EventEmitter,
         verbose: bool,
     ) -> Self {
-        Self { forest_root, config, hooks, emitter, verbose }
+        Self {
+            forest_root,
+            config,
+            hooks,
+            emitter,
+            verbose,
+        }
     }
 
     /// Executes the grove removal.
@@ -37,16 +43,25 @@ impl<'a> GroveRemoveOperation<'a> {
         let grove_path = self.forest_root.groves_dir().join(name.to_string());
 
         if !grove_path.exists() {
-            return Err(GroveRemoveError::NotFound { name: name.to_string() });
+            return Err(GroveRemoveError::NotFound {
+                name: name.to_string(),
+            });
         }
 
-        self.emitter.emit(&ForesterEvent::GroveRemoving { name: name.to_string() });
+        self.emitter.emit(&ForesterEvent::GroveRemoving {
+            name: name.to_string(),
+        });
 
         let ctx = self.hook_context(name, &grove_path);
-        self.hooks.run_hooks(HookPhase::PreGroveRemove, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PreGroveRemove, &ctx)
+            .context(HookSnafu)?;
 
         for member in &self.config.forest.member {
-            let bare_path = self.forest_root.bare_dir().join(format!("{}.git", member.name));
+            let bare_path = self
+                .forest_root
+                .bare_dir()
+                .join(format!("{}.git", member.name));
             let member_path = grove_path.join(&member.path);
             let bare = BareRepository::new(&bare_path, &member.name);
             let _ = bare.remove_worktree(&member_path, force);
@@ -54,9 +69,13 @@ impl<'a> GroveRemoveOperation<'a> {
 
         std::fs::remove_dir_all(&grove_path).context(RemoveDirSnafu { path: &grove_path })?;
 
-        self.hooks.run_hooks(HookPhase::PostGroveRemove, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PostGroveRemove, &ctx)
+            .context(HookSnafu)?;
 
-        self.emitter.emit(&ForesterEvent::GroveRemoved { name: name.to_string() });
+        self.emitter.emit(&ForesterEvent::GroveRemoved {
+            name: name.to_string(),
+        });
         Ok(())
     }
 

@@ -39,9 +39,14 @@ impl Hook for CrumblyHook {
         }
 
         let crumbly_dir = ctx.forest_root.join(".crumbly");
-        let subcommand = if crumbly_dir.exists() { "update" } else { "build" };
+        let subcommand = if crumbly_dir.exists() {
+            "update"
+        } else {
+            "build"
+        };
 
-        let context_arg = ctx.grove_path
+        let context_arg = ctx
+            .grove_path
             .as_ref()
             .and_then(|p| p.strip_prefix(&ctx.forest_root).ok())
             .map(|p| p.display().to_string())

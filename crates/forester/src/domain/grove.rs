@@ -17,7 +17,8 @@ fn validate_grove_name(raw: &str) -> Result<(), GroveNameError> {
     use grove_name_error::*;
     snafu::ensure!(!raw.is_empty(), EmptySnafu);
     snafu::ensure!(
-        raw.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_'),
+        raw.chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_'),
         InvalidCharSnafu
     );
     Ok(())
@@ -28,7 +29,9 @@ fn validate_grove_name(raw: &str) -> Result<(), GroveNameError> {
 pub enum GroveNameError {
     #[snafu(display("Grove name cannot be empty"))]
     Empty,
-    #[snafu(display("Grove name contains invalid characters (only alphanumeric, hyphens, underscores allowed)"))]
+    #[snafu(display(
+        "Grove name contains invalid characters (only alphanumeric, hyphens, underscores allowed)"
+    ))]
     InvalidChar,
 }
 

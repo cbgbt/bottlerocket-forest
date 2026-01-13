@@ -1,8 +1,8 @@
 //! Error types for forester operations.
 
-use std::path::PathBuf;
 use miette::Diagnostic;
 use snafu::Snafu;
+use std::path::PathBuf;
 
 /// Top-level error type for forester operations.
 #[derive(Debug, Snafu, Diagnostic)]

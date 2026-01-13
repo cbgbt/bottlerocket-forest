@@ -18,12 +18,17 @@ pub enum InitError {
 
 pub fn run(args: InitArgs) -> miette::Result<()> {
     use init_error::*;
-    
+
     if let Ok(Some(ctx)) = GroveContext::detect() {
-        return Err(InsideGroveSnafu { name: ctx.name().to_string() }.build().into());
+        return Err(InsideGroveSnafu {
+            name: ctx.name().to_string(),
+        }
+        .build()
+        .into());
     }
 
-    let cwd = std::env::current_dir().map_err(|e| miette::miette!("Failed to get current directory: {}", e))?;
+    let cwd = std::env::current_dir()
+        .map_err(|e| miette::miette!("Failed to get current directory: {}", e))?;
     let emitter = ConsoleEmitter::new(false);
     let op = InitOperation::new(cwd, &emitter);
     op.execute().map_err(|e| miette::miette!("{}", e))?;
@@ -33,7 +38,10 @@ pub fn run(args: InitArgs) -> miette::Result<()> {
     } else {
         println!("\nForest initialized. Next steps:");
     }
-    println!("  1. Edit {} to add member repositories", "forester.toml".cyan());
+    println!(
+        "  1. Edit {} to add member repositories",
+        "forester.toml".cyan()
+    );
     println!("  2. Run {} to clone and set up", "forester seed".cyan());
 
     Ok(())

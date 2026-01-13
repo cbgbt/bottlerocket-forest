@@ -3,14 +3,14 @@
 //! Each operation takes references to EventEmitter and HookRegistry,
 //! uses domain types, and emits events for user feedback.
 
-mod seed;
 mod grove_create;
-mod grove_remove;
 mod grove_list;
+mod grove_remove;
 mod init;
+mod seed;
 
-pub use seed::{SeedOperation, SeedError};
-pub use grove_create::{GroveCreateOperation, GroveCreateError};
-pub use grove_remove::{GroveRemoveOperation, GroveRemoveError};
-pub use grove_list::{GroveListOperation, GroveListError};
-pub use init::{InitOperation, InitError};
+pub use grove_create::{GroveCreateError, GroveCreateOperation};
+pub use grove_list::{GroveListError, GroveListOperation};
+pub use grove_remove::{GroveRemoveError, GroveRemoveOperation};
+pub use init::{InitError, InitOperation};
+pub use seed::{SeedError, SeedOperation};

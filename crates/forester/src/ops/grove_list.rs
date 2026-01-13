@@ -32,7 +32,11 @@ impl<'a> GroveListOperation<'a> {
         emitter: &'a dyn EventEmitter,
         current_dir: Option<PathBuf>,
     ) -> Self {
-        Self { forest_root, emitter, current_dir }
+        Self {
+            forest_root,
+            emitter,
+            current_dir,
+        }
     }
 
     /// Executes the grove listing.
@@ -56,15 +60,24 @@ impl<'a> GroveListOperation<'a> {
             }
 
             let file_name = entry.file_name();
-            let Some(name_str) = file_name.to_str() else { continue };
-            let Ok(name) = GroveName::try_new(name_str.to_string()) else { continue };
+            let Some(name_str) = file_name.to_str() else {
+                continue;
+            };
+            let Ok(name) = GroveName::try_new(name_str.to_string()) else {
+                continue;
+            };
 
-            let is_current = self.current_dir
+            let is_current = self
+                .current_dir
                 .as_ref()
                 .map(|cwd| cwd.starts_with(&path))
                 .unwrap_or(false);
 
-            groves.push(GroveInfo { name, path, is_current });
+            groves.push(GroveInfo {
+                name,
+                path,
+                is_current,
+            });
         }
 
         groves.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));

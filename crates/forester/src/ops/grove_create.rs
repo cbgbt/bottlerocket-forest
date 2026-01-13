@@ -27,28 +27,45 @@ impl<'a> GroveCreateOperation<'a> {
         emitter: &'a dyn EventEmitter,
         verbose: bool,
     ) -> Self {
-        Self { forest_root, config, hooks, emitter, verbose }
+        Self {
+            forest_root,
+            config,
+            hooks,
+            emitter,
+            verbose,
+        }
     }
 
     /// Executes the grove creation.
-    pub fn execute(&self, name: &GroveName, branch: Option<&str>) -> Result<GroveRoot, GroveCreateError> {
+    pub fn execute(
+        &self,
+        name: &GroveName,
+        branch: Option<&str>,
+    ) -> Result<GroveRoot, GroveCreateError> {
         use grove_create_error::*;
 
         let grove_path = self.forest_root.groves_dir().join(name.to_string());
         let grove_root = GroveRoot::builder().path(&grove_path).build();
 
-        self.emitter.emit(&ForesterEvent::GroveCreating { name: name.to_string() });
+        self.emitter.emit(&ForesterEvent::GroveCreating {
+            name: name.to_string(),
+        });
 
         if grove_path.exists() {
-            return Err(GroveCreateError::AlreadyExists { name: name.to_string() });
+            return Err(GroveCreateError::AlreadyExists {
+                name: name.to_string(),
+            });
         }
 
         std::fs::create_dir_all(&grove_path).context(CreateDirSnafu { path: &grove_path })?;
-        std::fs::create_dir_all(grove_root.marker_dir())
-            .context(CreateDirSnafu { path: grove_root.marker_dir() })?;
+        std::fs::create_dir_all(grove_root.marker_dir()).context(CreateDirSnafu {
+            path: grove_root.marker_dir(),
+        })?;
 
         let ctx = self.hook_context(name, &grove_path);
-        self.hooks.run_hooks(HookPhase::PreGroveCreate, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PreGroveCreate, &ctx)
+            .context(HookSnafu)?;
 
         for member in &self.config.forest.member {
             self.create_member_worktree(member, &grove_path, name, branch)?;
@@ -56,9 +73,13 @@ impl<'a> GroveCreateOperation<'a> {
 
         self.create_symlinks(&grove_path, self.forest_root.path())?;
 
-        self.hooks.run_hooks(HookPhase::PostGroveCreate, &ctx).context(HookSnafu)?;
+        self.hooks
+            .run_hooks(HookPhase::PostGroveCreate, &ctx)
+            .context(HookSnafu)?;
 
-        self.emitter.emit(&ForesterEvent::GroveCreated { name: name.to_string() });
+        self.emitter.emit(&ForesterEvent::GroveCreated {
+            name: name.to_string(),
+        });
         Ok(grove_root)
     }
 
@@ -71,11 +92,16 @@ impl<'a> GroveCreateOperation<'a> {
     ) -> Result<(), GroveCreateError> {
         use grove_create_error::*;
 
-        let bare_path = self.forest_root.bare_dir().join(format!("{}.git", member.name));
+        let bare_path = self
+            .forest_root
+            .bare_dir()
+            .join(format!("{}.git", member.name));
         let member_path = grove_path.join(&member.path);
 
         if let Some(parent) = member_path.parent() {
-            std::fs::create_dir_all(parent).context(CreateDirSnafu { path: parent.to_path_buf() })?;
+            std::fs::create_dir_all(parent).context(CreateDirSnafu {
+                path: parent.to_path_buf(),
+            })?;
         }
 
         let bare = BareRepository::new(&bare_path, &member.name);
@@ -84,11 +110,20 @@ impl<'a> GroveCreateOperation<'a> {
 
         if use_new_branch {
             let new_branch = format!("{}/{}", grove_name, member.name);
-            bare.create_worktree_new_branch(&member_path, &new_branch, member.branch(), !self.verbose)
-                .context(WorktreeSnafu { member: &member.name })?;
+            bare.create_worktree_new_branch(
+                &member_path,
+                &new_branch,
+                member.branch(),
+                !self.verbose,
+            )
+            .context(WorktreeSnafu {
+                member: &member.name,
+            })?;
         } else {
             bare.create_worktree(&member_path, target_branch, !self.verbose)
-                .context(WorktreeSnafu { member: &member.name })?;
+                .context(WorktreeSnafu {
+                    member: &member.name,
+                })?;
         }
 
         self.emitter.emit(&ForesterEvent::GroveWorktreeCreated {
@@ -99,17 +134,25 @@ impl<'a> GroveCreateOperation<'a> {
         Ok(())
     }
 
-    fn create_symlinks(&self, grove_path: &Path, forest_path: &Path) -> Result<(), GroveCreateError> {
+    fn create_symlinks(
+        &self,
+        grove_path: &Path,
+        forest_path: &Path,
+    ) -> Result<(), GroveCreateError> {
         use grove_create_error::*;
 
-        let Some(grove_config) = &self.config.grove else { return Ok(()) };
+        let Some(grove_config) = &self.config.grove else {
+            return Ok(());
+        };
 
         for entry in &grove_config.symlink {
             let src = forest_path.join(&entry.source);
             let tgt = grove_path.join(&entry.target);
 
             if let Some(parent) = tgt.parent() {
-                std::fs::create_dir_all(parent).context(CreateDirSnafu { path: parent.to_path_buf() })?;
+                std::fs::create_dir_all(parent).context(CreateDirSnafu {
+                    path: parent.to_path_buf(),
+                })?;
             }
 
             std::os::unix::fs::symlink(&src, &tgt).context(SymlinkSnafu {

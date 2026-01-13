@@ -4,8 +4,8 @@ use crate::cli::args::{GroveCommand, GroveCreateArgs, GroveRemoveArgs};
 use crate::domain::{ForestConfig, ForestRoot, GroveName};
 use crate::events::ConsoleEmitter;
 use crate::grove::GroveContext;
-use crate::hooks::builtin::CrumblyHook;
 use crate::hooks::HookRegistry;
+use crate::hooks::builtin::CrumblyHook;
 use crate::ops::{GroveCreateOperation, GroveListOperation, GroveRemoveOperation};
 use miette::Diagnostic;
 use owo_colors::OwoColorize;
@@ -40,7 +40,8 @@ fn create(args: GroveCreateArgs) -> miette::Result<()> {
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
     let op = GroveCreateOperation::new(&forest_root, &config, &hooks, &emitter, args.verbose);
-    op.execute(&grove_name, args.branch.as_deref()).map_err(|e| miette::miette!("{}", e))?;
+    op.execute(&grove_name, args.branch.as_deref())
+        .map_err(|e| miette::miette!("{}", e))?;
 
     Ok(())
 }
@@ -88,7 +89,8 @@ fn remove(args: GroveRemoveArgs) -> miette::Result<()> {
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
     let op = GroveRemoveOperation::new(&forest_root, &config, &hooks, &emitter, false);
-    op.execute(&grove_name, args.force).map_err(|e| miette::miette!("{}", e))?;
+    op.execute(&grove_name, args.force)
+        .map_err(|e| miette::miette!("{}", e))?;
 
     Ok(())
 }
