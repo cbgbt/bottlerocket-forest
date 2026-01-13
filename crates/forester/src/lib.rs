@@ -11,6 +11,7 @@ pub mod cli;
 pub mod domain;
 pub mod events;
 pub mod forest;
+pub mod git;
 pub mod grove;
 pub mod hooks;
 
