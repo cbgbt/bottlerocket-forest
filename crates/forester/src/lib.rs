@@ -12,5 +12,6 @@ pub mod domain;
 pub mod events;
 pub mod forest;
 pub mod grove;
+pub mod hooks;
 
 pub use domain::config::ForestConfig;
