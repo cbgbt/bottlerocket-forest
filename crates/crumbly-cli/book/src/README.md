@@ -25,13 +25,17 @@ Code indices become stale quickly—functions get renamed, files move around, an
 Documentation changes less frequently and captures intent, not just implementation.
 
 That said, crumbly still helps even if you haven't written much standalone documentation.
-It extracts doc comments from Rust and Go source files, so your inline documentation becomes searchable too.
+It extracts doc comments from source files, so your inline documentation becomes searchable too.
 
 ## What Gets Indexed
 
 - Markdown files (`.md`)
-- Rust doc comments (`///` and `//!`)
-- Go doc comments
+- Doc comments from supported languages
+
+Supported languages for doc comment extraction:
+
+- Rust (`///` and `//!` comments)
+- Go (comment blocks preceding declarations)
 
 Each document is split into chunks based on its structure—headings for markdown, individual documented items for code.
 These chunks are converted to vector embeddings that capture semantic meaning.
@@ -57,10 +61,11 @@ The search finds relevant chunks even if they don't contain your exact words.
 
 The following chapters walk through crumbly's pipeline:
 
-1. **Pipeline Overview** — How documents flow from source to searchable index
-2. **Content Sources** — Where crumbly finds files to index
-3. **Chunking** — How documents are split into searchable pieces
-4. **Embedding** — How text becomes vectors
-5. **Storage** — Where the index lives
-6. **Search** — How to query and tune results
-7. **Configuration** — All the knobs you can turn
+1. **Contexts** — What a context is and how to work with multiple projects
+2. **Pipeline Overview** — How documents flow from source to searchable index
+3. **Content Sources** — Where crumbly finds files to index
+4. **Chunking** — How documents are split into searchable pieces
+5. **Embedding** — How text becomes vectors
+6. **Storage** — Where the index lives
+7. **Search** — How to query and tune results
+8. **Configuration** — All the knobs you can turn
