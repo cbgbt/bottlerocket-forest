@@ -1,52 +1,51 @@
 # Introduction
 
-You have documentation everywhere.
-READMEs in each repository, design docs in a wiki, API references generated from code comments.
-When you need to find something specific, you grep through directories, open dozens of tabs, and hope you remember where you saw it.
-
-There has to be a better way.
-
-## What is Crumbly?
-
 Crumbly is a semantic search tool for documentation.
-Instead of matching exact keywords, it understands *meaning*.
-Search for "how do I configure logging" and find relevant docs even if they use words like "log levels" or "debug output" instead.
+It indexes markdown files and doc comments from your codebase, then lets you search by meaning rather than exact keywords.
 
-It's designed for developers and AI agents who need to quickly find information across scattered documentation.
+## Why Documentation, Not Code?
 
-## Quick Start
+Crumbly deliberately indexes documentation rather than source code.
+Code indices become stale quickly—functions get renamed, files move around, and the index drifts from reality.
+Documentation changes less frequently and captures intent, not just implementation.
 
-Build an index of your documentation:
+That said, crumbly still helps even if you haven't written much standalone documentation.
+It extracts doc comments from Rust and Go source files, so your inline documentation becomes searchable too.
+
+## What Gets Indexed
+
+- Markdown files (`.md`)
+- Rust doc comments (`///` and `//!`)
+- Go doc comments
+
+Each document is split into chunks based on its structure—headings for markdown, individual documented items for code.
+These chunks are converted to vector embeddings that capture semantic meaning.
+
+## Basic Usage
+
+Build an index:
 
 ```bash
 crumbly build --context ./my-project
 ```
 
-Search for what you need:
+Search:
 
 ```bash
-crumbly search "authentication flow"
+crumbly search "how does authentication work"
 ```
 
-Crumbly returns the most relevant chunks of documentation, ranked by semantic similarity to your query.
+The search finds relevant chunks even if they don't contain your exact words.
+"Authentication" might match documentation about "login flow" or "credential validation."
 
-## How It Works
+## What's in This Book
 
-```
-┌─────────────┐    ┌──────────┐    ┌───────────┐    ┌────────┐
-│ Your Docs   │───▶│ Chunking │───▶│ Embedding │───▶│ Search │
-│ .md .rs .go │    │          │    │           │    │        │
-└─────────────┘    └──────────┘    └───────────┘    └────────┘
-```
+The following chapters walk through crumbly's pipeline:
 
-Crumbly scans your files, splits them into meaningful chunks, converts those chunks into vectors that capture their meaning, and stores everything for fast retrieval.
-
-## What This Book Covers
-
-- **Getting Started** — Installation and your first search
-- **Configuration** — Customizing what gets indexed and how
-- **File Types** — Support for Markdown, Rust, and Go documentation
-- **Boost Rules** — Prioritizing important documentation in results
-- **Architecture** — How the pieces fit together
-
-Let's get started.
+1. **Pipeline Overview** — How documents flow from source to searchable index
+2. **Content Sources** — Where crumbly finds files to index
+3. **Chunking** — How documents are split into searchable pieces
+4. **Embedding** — How text becomes vectors
+5. **Storage** — Where the index lives
+6. **Search** — How to query and tune results
+7. **Configuration** — All the knobs you can turn
