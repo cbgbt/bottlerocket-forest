@@ -8,6 +8,7 @@
 //! - Integration with crumbly for semantic search
 
 pub mod cli;
+pub mod domain;
 pub mod error;
 pub mod forest;
 pub mod grove;
