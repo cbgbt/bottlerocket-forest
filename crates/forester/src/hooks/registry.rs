@@ -23,16 +23,14 @@ impl HookRegistry {
     /// Runs all hooks registered for the given phase.
     pub fn run_hooks(&self, phase: HookPhase, ctx: &HookContext) -> Result<(), RunHooksError> {
         use run_hooks_error::*;
-        for hook in &self.hooks {
-            if hook.phases().contains(&phase) {
-                hook.execute(ctx).map_err(|e| {
-                    HookFailedSnafu {
-                        name: hook.name().to_string(),
-                        message: e.to_string(),
-                    }
-                    .build()
-                })?;
-            }
+        for hook in self.hooks.iter().filter(|h| h.phases().contains(&phase)) {
+            hook.execute(ctx).map_err(|e| {
+                HookFailedSnafu {
+                    name: hook.name().to_string(),
+                    message: e.to_string(),
+                }
+                .build()
+            })?;
         }
         Ok(())
     }
