@@ -77,17 +77,20 @@ impl Member {
 }
 
 /// Hook configuration entry.
-#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[non_exhaustive]
 pub struct HookConfig {
-    /// Hook name (must match a builtin hook).
-    #[builder(into)]
+    /// Plugin name: "crumbly", "exec".
     pub name: String,
-    /// Whether the hook is enabled (None = use default).
+    /// When to run: "post-seed", "post-grove-create", etc.
+    pub triggers: Vec<String>,
+    /// For crumbly: "cache-bare", "update-context".
     #[serde(default)]
-    pub enabled: Option<bool>,
-    /// Override default phases.
+    pub command: Option<String>,
+    /// For exec: script path.
     #[serde(default)]
-    pub phases: Option<Vec<String>>,
+    pub path: Option<PathBuf>,
+    /// For exec: script args.
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
 }

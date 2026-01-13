@@ -72,3 +72,10 @@ target = "README.md"
 
 [[hook]]
 name = "crumbly"
+command = "cache-bare"
+triggers = ["post-seed"]
+
+[[hook]]
+name = "crumbly"
+command = "update-context"
+triggers = ["post-grove-create"]

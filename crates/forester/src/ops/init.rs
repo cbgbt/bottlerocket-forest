@@ -5,12 +5,11 @@ use std::path::PathBuf;
 use snafu::{ResultExt, Snafu};
 
 use crate::events::{EventEmitter, ForesterEvent};
-use crate::hooks::builtin::all_builtin_metas;
 
 const GITIGNORE_ENTRIES: &[&str] = &[".forest/", "groves/"];
 
 fn generate_template(name: &str) -> String {
-    let mut s = format!(
+    format!(
         r#"[forest]
 name = "{name}"
 
@@ -24,19 +23,24 @@ name = "{name}"
 # symlink = [
 #   {{ source = "docs", target = "docs" }},
 # ]
+
+[[hook]]
+name = "crumbly"
+command = "cache-bare"
+triggers = ["post-seed"]
+
+[[hook]]
+name = "crumbly"
+command = "update-context"
+triggers = ["post-grove-create"]
+
+# [[hook]]
+# name = "exec"
+# path = "./scripts/notify.sh"
+# args = ["--verbose"]
+# triggers = ["post-grove-create"]
 "#
-    );
-
-    for meta in all_builtin_metas() {
-        s.push('\n');
-        if meta.default_enabled {
-            s.push_str(&format!("[[hook]]\nname = \"{}\"\n", meta.name));
-        } else {
-            s.push_str(&format!("# [[hook]]\n# name = \"{}\"\n", meta.name));
-        }
-    }
-
-    s
+    )
 }
 
 fn update_gitignore(path: &PathBuf) -> Result<(), std::io::Error> {

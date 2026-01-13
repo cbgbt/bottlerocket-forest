@@ -7,7 +7,7 @@ use snafu::{ResultExt, Snafu};
 use crate::domain::{ForestConfig, ForestRoot, GroveName};
 use crate::events::{EventEmitter, ForesterEvent};
 use crate::git::BareRepository;
-use crate::hooks::{HookContext, HookPhase, HookRegistry};
+use crate::hooks::{HookContext, HookRegistry, Trigger};
 
 /// Removes a grove and its worktrees.
 pub struct GroveRemoveOperation<'a> {
@@ -52,11 +52,6 @@ impl<'a> GroveRemoveOperation<'a> {
             name: name.to_string(),
         });
 
-        let ctx = self.hook_context(name, &grove_path);
-        self.hooks
-            .run_hooks(HookPhase::PreGroveRemove, &ctx)
-            .context(HookSnafu)?;
-
         for member in &self.config.forest.member {
             let bare_path = self
                 .forest_root
@@ -69,8 +64,9 @@ impl<'a> GroveRemoveOperation<'a> {
 
         std::fs::remove_dir_all(&grove_path).context(RemoveDirSnafu { path: &grove_path })?;
 
+        let ctx = self.hook_context(name, &grove_path);
         self.hooks
-            .run_hooks(HookPhase::PostGroveRemove, &ctx)
+            .run_hooks(Trigger::PostGroveRemove, &ctx)
             .context(HookSnafu)?;
 
         self.emitter.emit(&ForesterEvent::GroveRemoved {
@@ -82,7 +78,7 @@ impl<'a> GroveRemoveOperation<'a> {
     fn hook_context(&self, name: &GroveName, path: &Path) -> HookContext {
         HookContext::builder()
             .forest_root(self.forest_root.path())
-            .phase(HookPhase::PreGroveRemove)
+            .trigger(Trigger::PostGroveRemove)
             .grove_name(name.to_string())
             .grove_path(path.to_path_buf())
             .verbose(self.verbose)

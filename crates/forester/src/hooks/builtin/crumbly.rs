@@ -1,18 +1,36 @@
-//! Crumbly indexing hook.
+//! Crumbly indexing plugin.
 
-use crate::hooks::{Hook, HookContext, HookError, HookPhase};
+use crate::domain::HookConfig;
+use crate::hooks::{Hook, HookContext, HookError, Plugin, PluginError, Trigger};
 use std::process::{Command, Stdio};
 
-/// Hook that runs crumbly indexing after seed and grove creation.
-#[derive(Debug, Default)]
-pub struct CrumblyHook;
+/// Plugin for crumbly indexing operations.
+pub struct CrumblyPlugin;
 
-impl CrumblyHook {
-    /// Creates a new crumbly hook.
-    pub fn new() -> Self {
-        Self
+impl Plugin for CrumblyPlugin {
+    fn name(&self) -> &str {
+        "crumbly"
     }
 
+    fn create_hook(&self, config: &HookConfig) -> Result<Box<dyn Hook>, PluginError> {
+        let command = config.command.clone().ok_or_else(|| PluginError::InvalidConfig {
+            message: "crumbly hook requires 'command' field".to_string(),
+        })?;
+        let triggers: Vec<Trigger> = config
+            .triggers
+            .iter()
+            .filter_map(|s| Trigger::parse(s))
+            .collect();
+        Ok(Box::new(CrumblyHook { command, triggers }))
+    }
+}
+
+struct CrumblyHook {
+    command: String,
+    triggers: Vec<Trigger>,
+}
+
+impl CrumblyHook {
     fn is_installed() -> bool {
         Command::new("which")
             .arg("crumbly")
@@ -25,12 +43,8 @@ impl CrumblyHook {
 }
 
 impl Hook for CrumblyHook {
-    fn name(&self) -> &str {
-        "crumbly"
-    }
-
-    fn phases(&self) -> &[HookPhase] {
-        &[HookPhase::PostSeed, HookPhase::PostGroveCreate]
+    fn triggers(&self) -> &[Trigger] {
+        &self.triggers
     }
 
     fn execute(&self, ctx: &HookContext) -> Result<(), HookError> {
@@ -38,23 +52,35 @@ impl Hook for CrumblyHook {
             return Ok(());
         }
 
-        let crumbly_dir = ctx.forest_root.join(".crumbly");
-        let subcommand = if crumbly_dir.exists() {
-            "update"
-        } else {
-            "build"
-        };
-
-        let context_arg = ctx
-            .grove_path
-            .as_ref()
-            .and_then(|p| p.strip_prefix(&ctx.forest_root).ok())
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| ".".to_string());
-
         let mut cmd = Command::new("crumbly");
-        cmd.args([subcommand, "--context", &context_arg])
-            .current_dir(&ctx.forest_root);
+        for (k, v) in ctx.env_vars() {
+            cmd.env(k, v);
+        }
+
+        match self.command.as_str() {
+            "cache-bare" => {
+                let bare_dir = ctx.forest_root.join(".forest/bare");
+                cmd.args(["cache", "bare-git"])
+                    .arg(&bare_dir)
+                    .current_dir(&ctx.forest_root);
+            }
+            "update-context" => {
+                let context_arg = ctx
+                    .grove_path
+                    .as_ref()
+                    .and_then(|p| p.strip_prefix(&ctx.forest_root).ok())
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| ".".to_string());
+                cmd.args(["update", "--context", &context_arg])
+                    .current_dir(&ctx.forest_root);
+            }
+            other => {
+                return Err(HookError::Execution {
+                    message: format!("Unknown crumbly command: {}", other),
+                });
+            }
+        }
+
         if !ctx.verbose {
             cmd.stdout(Stdio::null()).stderr(Stdio::null());
         }
@@ -65,7 +91,7 @@ impl Hook for CrumblyHook {
 
         if !status.success() {
             return Err(HookError::Execution {
-                message: format!("crumbly {} failed", subcommand),
+                message: format!("crumbly {} failed", self.command),
             });
         }
 

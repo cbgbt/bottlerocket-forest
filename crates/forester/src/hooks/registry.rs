@@ -1,9 +1,10 @@
 //! Hook registry for managing and executing hooks.
 
-use super::builtin::{all_builtin_metas, create_hook};
-use super::{Hook, HookContext, HookPhase};
-use crate::domain::HookConfig;
 use snafu::Snafu;
+
+use super::builtin::create_hook;
+use super::{Hook, HookContext, PluginError, Trigger};
+use crate::domain::HookConfig;
 
 /// Registry for managing hooks.
 #[derive(Default)]
@@ -17,53 +18,49 @@ impl HookRegistry {
         Self::default()
     }
 
-    /// Creates a registry from config, instantiating enabled builtin hooks.
-    pub fn from_config(hook_configs: &[HookConfig]) -> Self {
+    /// Creates a registry from configuration.
+    pub fn from_config(configs: &[HookConfig]) -> Result<Self, RegistryError> {
         let mut registry = Self::new();
-        let metas = all_builtin_metas();
-
-        for meta in &metas {
-            let cfg = hook_configs.iter().find(|c| c.name == meta.name);
-            let enabled = cfg.and_then(|c| c.enabled).unwrap_or(meta.default_enabled);
-
-            if enabled && let Some(hook) = create_hook(meta.name) {
-                registry.hooks.push(hook);
-            }
+        for config in configs {
+            let hook = create_hook(config).map_err(|e| RegistryError::CreateHook {
+                name: config.name.clone(),
+                source: e,
+            })?;
+            registry.hooks.push(hook);
         }
-
-        registry
+        Ok(registry)
     }
 
-    /// Registers a hook.
-    pub fn register(&mut self, hook: impl Hook + 'static) {
-        self.hooks.push(Box::new(hook));
-    }
-
-    /// Runs all hooks registered for the given phase.
-    pub fn run_hooks(&self, phase: HookPhase, ctx: &HookContext) -> Result<(), RunHooksError> {
-        use run_hooks_error::*;
-        for hook in self.hooks.iter().filter(|h| h.phases().contains(&phase)) {
-            hook.execute(ctx).map_err(|e| {
-                HookFailedSnafu {
-                    name: hook.name().to_string(),
-                    message: e.to_string(),
-                }
-                .build()
+    /// Runs all hooks for the given trigger.
+    pub fn run_hooks(&self, trigger: Trigger, ctx: &HookContext) -> Result<(), RunHooksError> {
+        for hook in self.hooks.iter().filter(|h| h.triggers().contains(&trigger)) {
+            hook.execute(ctx).map_err(|e| RunHooksError::HookFailed {
+                message: e.to_string(),
             })?;
         }
         Ok(())
     }
 }
 
+/// Error from creating a registry.
+#[derive(Debug, Snafu)]
+pub enum RegistryError {
+    /// Failed to create a hook.
+    #[snafu(display("Failed to create hook '{name}': {source}"))]
+    CreateHook {
+        /// Hook name.
+        name: String,
+        /// Underlying error.
+        source: PluginError,
+    },
+}
+
 /// Error from running hooks.
 #[derive(Debug, Snafu)]
-#[snafu(module)]
 pub enum RunHooksError {
-    /// A hook failed during execution.
-    #[snafu(display("Hook '{name}' failed: {message}"))]
+    /// A hook failed.
+    #[snafu(display("Hook failed: {message}"))]
     HookFailed {
-        /// Name of the failed hook.
-        name: String,
         /// Error message.
         message: String,
     },

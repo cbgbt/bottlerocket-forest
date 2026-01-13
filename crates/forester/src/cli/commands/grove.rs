@@ -33,7 +33,8 @@ fn create(args: GroveCreateArgs) -> miette::Result<()> {
     let (forest_path, config) = find_config()?;
     let forest_root = ForestRoot::builder().path(&forest_path).build();
     let emitter = ConsoleEmitter::new(args.verbose);
-    let hooks = HookRegistry::from_config(&config.hook);
+    let hooks =
+        HookRegistry::from_config(&config.hook).map_err(|e| miette::miette!("{}", e))?;
 
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
@@ -81,7 +82,8 @@ fn remove(args: GroveRemoveArgs) -> miette::Result<()> {
     let (forest_path, config) = find_config()?;
     let forest_root = ForestRoot::builder().path(&forest_path).build();
     let emitter = ConsoleEmitter::new(false);
-    let hooks = HookRegistry::from_config(&config.hook);
+    let hooks =
+        HookRegistry::from_config(&config.hook).map_err(|e| miette::miette!("{}", e))?;
 
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 

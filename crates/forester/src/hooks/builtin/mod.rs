@@ -1,36 +1,23 @@
-//! Built-in hooks.
+//! Built-in plugins.
 
 mod crumbly;
+mod exec;
 
-use crate::hooks::{Hook, HookPhase};
-pub use crumbly::CrumblyHook;
+use crate::domain::HookConfig;
+use crate::hooks::{Hook, Plugin, PluginError};
+pub use crumbly::CrumblyPlugin;
+pub use exec::ExecPlugin;
 
-/// Metadata for a builtin hook.
-pub struct BuiltinHookMeta {
-    /// Hook name.
-    pub name: &'static str,
-    /// Human-readable description.
-    pub description: &'static str,
-    /// Whether enabled by default.
-    pub default_enabled: bool,
-    /// Default phases this hook runs in.
-    pub default_phases: &'static [HookPhase],
-}
+static PLUGINS: &[&dyn Plugin] = &[&CrumblyPlugin, &ExecPlugin];
 
-/// Returns metadata for all builtin hooks.
-pub fn all_builtin_metas() -> Vec<BuiltinHookMeta> {
-    vec![BuiltinHookMeta {
-        name: "crumbly",
-        description: "Runs crumbly indexing after seed and grove creation",
-        default_enabled: true,
-        default_phases: &[HookPhase::PostSeed, HookPhase::PostGroveCreate],
-    }]
-}
-
-/// Creates a hook instance by name.
-pub fn create_hook(name: &str) -> Option<Box<dyn Hook>> {
-    match name {
-        "crumbly" => Some(Box::new(CrumblyHook::new())),
-        _ => None,
+/// Creates a hook from configuration using the appropriate plugin.
+pub fn create_hook(config: &HookConfig) -> Result<Box<dyn Hook>, PluginError> {
+    for plugin in PLUGINS {
+        if plugin.name() == config.name {
+            return plugin.create_hook(config);
+        }
     }
+    Err(PluginError::InvalidConfig {
+        message: format!("Unknown plugin: {}", config.name),
+    })
 }

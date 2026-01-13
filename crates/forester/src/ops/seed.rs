@@ -7,7 +7,7 @@ use snafu::{ResultExt, Snafu};
 use crate::domain::{ForestConfig, ForestRoot};
 use crate::events::{EventEmitter, ForesterEvent};
 use crate::git::BareRepository;
-use crate::hooks::{HookContext, HookPhase, HookRegistry};
+use crate::hooks::{HookContext, HookRegistry, Trigger};
 
 /// Seeds a forest by cloning bare repositories.
 pub struct SeedOperation<'a> {
@@ -45,17 +45,13 @@ impl<'a> SeedOperation<'a> {
         let bare_dir = self.forest_root.bare_dir();
         std::fs::create_dir_all(&bare_dir).context(CreateDirSnafu { path: &bare_dir })?;
 
-        let ctx = self.hook_context();
-        self.hooks
-            .run_hooks(HookPhase::PreSeed, &ctx)
-            .context(HookSnafu)?;
-
         for member in &self.config.forest.member {
             self.clone_member(member)?;
         }
 
+        let ctx = self.hook_context();
         self.hooks
-            .run_hooks(HookPhase::PostSeed, &ctx)
+            .run_hooks(Trigger::PostSeed, &ctx)
             .context(HookSnafu)?;
 
         self.emitter.emit(&ForesterEvent::SeedCompleted);
@@ -91,7 +87,7 @@ impl<'a> SeedOperation<'a> {
     fn hook_context(&self) -> HookContext {
         HookContext::builder()
             .forest_root(self.forest_root.path())
-            .phase(HookPhase::PreSeed)
+            .trigger(Trigger::PostSeed)
             .verbose(self.verbose)
             .build()
     }

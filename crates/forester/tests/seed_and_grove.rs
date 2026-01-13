@@ -91,8 +91,13 @@ fn seed_is_idempotent() {
     // Then: Command succeeds
     assert_eq!(code, 0, "Second seed failed: {} {}", stdout, stderr);
 
-    // And: Shows repos already exist
-    assert!(stdout.contains("already exists") || stdout.contains("✓"));
+    // And: Shows repos already exist (output goes to stderr)
+    assert!(
+        stdout.contains("already exists")
+            || stdout.contains("✓")
+            || stderr.contains("already exists")
+            || stderr.contains("✓")
+    );
 }
 
 #[test]

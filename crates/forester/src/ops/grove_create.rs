@@ -7,7 +7,7 @@ use snafu::{ResultExt, Snafu};
 use crate::domain::{ForestConfig, ForestRoot, GroveName, GroveRoot};
 use crate::events::{EventEmitter, ForesterEvent};
 use crate::git::BareRepository;
-use crate::hooks::{HookContext, HookPhase, HookRegistry};
+use crate::hooks::{HookContext, HookRegistry, Trigger};
 
 /// Creates a grove with worktrees for all members.
 pub struct GroveCreateOperation<'a> {
@@ -62,19 +62,15 @@ impl<'a> GroveCreateOperation<'a> {
             path: grove_root.marker_dir(),
         })?;
 
-        let ctx = self.hook_context(name, &grove_path);
-        self.hooks
-            .run_hooks(HookPhase::PreGroveCreate, &ctx)
-            .context(HookSnafu)?;
-
         for member in &self.config.forest.member {
             self.create_member_worktree(member, &grove_path, name, branch)?;
         }
 
         self.create_symlinks(&grove_path, self.forest_root.path())?;
 
+        let ctx = self.hook_context(name, &grove_path);
         self.hooks
-            .run_hooks(HookPhase::PostGroveCreate, &ctx)
+            .run_hooks(Trigger::PostGroveCreate, &ctx)
             .context(HookSnafu)?;
 
         self.emitter.emit(&ForesterEvent::GroveCreated {
@@ -167,7 +163,7 @@ impl<'a> GroveCreateOperation<'a> {
     fn hook_context(&self, name: &GroveName, path: &Path) -> HookContext {
         HookContext::builder()
             .forest_root(self.forest_root.path())
-            .phase(HookPhase::PreGroveCreate)
+            .trigger(Trigger::PostGroveCreate)
             .grove_name(name.to_string())
             .grove_path(path.to_path_buf())
             .verbose(self.verbose)

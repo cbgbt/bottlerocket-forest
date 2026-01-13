@@ -31,7 +31,8 @@ pub fn run(args: SeedArgs) -> miette::Result<()> {
 
     let forest_root = ForestRoot::builder().path(&forest_path).build();
     let emitter = ConsoleEmitter::new(args.verbose);
-    let hooks = HookRegistry::from_config(&config.hook);
+    let hooks =
+        HookRegistry::from_config(&config.hook).map_err(|e| miette::miette!("{}", e))?;
 
     let op = SeedOperation::new(&forest_root, &config, &hooks, &emitter, args.verbose);
     op.execute().map_err(|e| miette::miette!("{}", e))?;
