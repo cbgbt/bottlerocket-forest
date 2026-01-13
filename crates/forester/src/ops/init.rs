@@ -5,8 +5,11 @@ use std::path::PathBuf;
 use snafu::{ResultExt, Snafu};
 
 use crate::events::{EventEmitter, ForesterEvent};
+use crate::hooks::builtin::all_builtin_metas;
 
-const TEMPLATE: &str = r#"[forest]
+/// Generates the template config with hook entries.
+fn generate_template() -> String {
+    let mut s = String::from(r#"[forest]
 name = "my-forest"
 
 # [[forest.member]]
@@ -19,7 +22,19 @@ name = "my-forest"
 # symlink = [
 #   { source = "docs", target = "docs" },
 # ]
-"#;
+"#);
+
+    for meta in all_builtin_metas() {
+        s.push_str("\n");
+        if meta.default_enabled {
+            s.push_str(&format!("[[hook]]\nname = \"{}\"\n", meta.name));
+        } else {
+            s.push_str(&format!("# [[hook]]\n# name = \"{}\"\n", meta.name));
+        }
+    }
+
+    s
+}
 
 /// Initializes a new forest with a template config.
 pub struct InitOperation<'a> {
@@ -44,7 +59,7 @@ impl<'a> InitOperation<'a> {
         }
 
         std::fs::create_dir_all(&self.path).context(CreateDirSnafu { path: &self.path })?;
-        std::fs::write(&config_path, TEMPLATE).context(WriteSnafu { path: &config_path })?;
+        std::fs::write(&config_path, generate_template()).context(WriteSnafu { path: &config_path })?;
 
         self.emitter.emit(&ForesterEvent::Info(format!(
             "Created {}",
