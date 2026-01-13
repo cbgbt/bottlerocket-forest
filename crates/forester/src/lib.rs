@@ -9,9 +9,8 @@
 
 pub mod cli;
 pub mod domain;
-pub mod error;
+pub mod events;
 pub mod forest;
 pub mod grove;
 
-pub use error::Error;
-pub use forest::ForestConfig;
+pub use domain::config::ForestConfig;
