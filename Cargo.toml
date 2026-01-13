@@ -26,6 +26,7 @@ toml = "0.8"
 # Error handling
 miette = { version = "7", features = ["fancy"] }
 snafu = "0.8"
+tracing = "0.1"
 
 # Builders and types
 bon = "3"

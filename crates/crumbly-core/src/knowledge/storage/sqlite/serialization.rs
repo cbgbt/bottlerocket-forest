@@ -12,7 +12,7 @@ use crate::knowledge::domain::chunk::GoDocContext;
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, Embedding, FileHash,
     IndexRelativePath, IndexedChunk, MarkdownContext, RepoName, RustDocContext, Timestamp,
-    TokenCount,
+    TokenCount, UnknownContext,
 };
 use crate::knowledge::storage::repository::{StorageError, storage_error::*};
 
@@ -168,6 +168,10 @@ pub fn deserialize_context(
     context_data: &str,
 ) -> Result<ChunkContext, StorageError> {
     match context_type {
+        "" => Err(InvalidDataSnafu {
+            message: "empty context type".to_string(),
+        }
+        .build()),
         "markdown" => {
             let ctx: MarkdownContext =
                 serde_json::from_str(context_data).context(SerializationSnafu)?;
@@ -183,10 +187,18 @@ pub fn deserialize_context(
                 serde_json::from_str(context_data).context(SerializationSnafu)?;
             Ok(ChunkContext::GoDoc(ctx))
         }
-        _ => Err(InvalidDataSnafu {
-            message: format!("unknown context type: {}", context_type),
+        unknown => {
+            tracing::warn!(
+                "Unknown context type '{}', preserving as Unknown variant",
+                unknown
+            );
+            Ok(ChunkContext::Unknown(
+                UnknownContext::builder()
+                    .type_name(unknown)
+                    .raw_data(context_data)
+                    .build(),
+            ))
         }
-        .build()),
     }
 }
 
