@@ -18,6 +18,11 @@ pub struct ForestRoot {
 }
 
 impl ForestRoot {
+    /// Returns the forest root path.
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
     /// Directory containing bare repositories.
     pub fn bare_dir(&self) -> PathBuf {
         self.path.join(".forest").join("bare")

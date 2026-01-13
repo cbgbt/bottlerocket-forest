@@ -1,6 +1,6 @@
 //! Grove removal operation.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use snafu::{ResultExt, Snafu};
 
@@ -60,13 +60,12 @@ impl<'a> GroveRemoveOperation<'a> {
         Ok(())
     }
 
-    fn hook_context(&self, name: &GroveName, path: &PathBuf) -> HookContext {
-        let bare_dir = self.forest_root.bare_dir();
+    fn hook_context(&self, name: &GroveName, path: &Path) -> HookContext {
         HookContext::builder()
-            .forest_root(bare_dir.parent().unwrap())
+            .forest_root(self.forest_root.path())
             .phase(HookPhase::PreGroveRemove)
             .grove_name(name.to_string())
-            .grove_path(path.clone())
+            .grove_path(path.to_path_buf())
             .verbose(self.verbose)
             .build()
     }

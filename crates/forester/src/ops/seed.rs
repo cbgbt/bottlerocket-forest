@@ -74,9 +74,8 @@ impl<'a> SeedOperation<'a> {
     }
 
     fn hook_context(&self) -> HookContext {
-        let bare_dir = self.forest_root.bare_dir();
         HookContext::builder()
-            .forest_root(bare_dir.parent().unwrap())
+            .forest_root(self.forest_root.path())
             .phase(HookPhase::PreSeed)
             .verbose(self.verbose)
             .build()

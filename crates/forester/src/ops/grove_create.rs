@@ -1,6 +1,6 @@
 //! Grove creation operation.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use snafu::{ResultExt, Snafu};
 
@@ -54,9 +54,7 @@ impl<'a> GroveCreateOperation<'a> {
             self.create_member_worktree(member, &grove_path, name, branch)?;
         }
 
-        let bare_dir = self.forest_root.bare_dir();
-        let forest_path = bare_dir.parent().unwrap();
-        self.create_symlinks(&grove_path, forest_path)?;
+        self.create_symlinks(&grove_path, self.forest_root.path())?;
 
         self.hooks.run_hooks(HookPhase::PostGroveCreate, &ctx).context(HookSnafu)?;
 
@@ -67,7 +65,7 @@ impl<'a> GroveCreateOperation<'a> {
     fn create_member_worktree(
         &self,
         member: &crate::domain::Member,
-        grove_path: &PathBuf,
+        grove_path: &Path,
         grove_name: &GroveName,
         branch: Option<&str>,
     ) -> Result<(), GroveCreateError> {
@@ -101,7 +99,7 @@ impl<'a> GroveCreateOperation<'a> {
         Ok(())
     }
 
-    fn create_symlinks(&self, grove_path: &PathBuf, forest_path: &std::path::Path) -> Result<(), GroveCreateError> {
+    fn create_symlinks(&self, grove_path: &Path, forest_path: &Path) -> Result<(), GroveCreateError> {
         use grove_create_error::*;
 
         let Some(grove_config) = &self.config.grove else { return Ok(()) };
@@ -123,13 +121,12 @@ impl<'a> GroveCreateOperation<'a> {
         Ok(())
     }
 
-    fn hook_context(&self, name: &GroveName, path: &PathBuf) -> HookContext {
-        let bare_dir = self.forest_root.bare_dir();
+    fn hook_context(&self, name: &GroveName, path: &Path) -> HookContext {
         HookContext::builder()
-            .forest_root(bare_dir.parent().unwrap())
+            .forest_root(self.forest_root.path())
             .phase(HookPhase::PreGroveCreate)
             .grove_name(name.to_string())
-            .grove_path(path.clone())
+            .grove_path(path.to_path_buf())
             .verbose(self.verbose)
             .build()
     }
