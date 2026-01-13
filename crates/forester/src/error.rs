@@ -1,23 +1,23 @@
-//! Error types for forester.
+//! Error types for forester operations.
 
+use std::path::PathBuf;
 use miette::Diagnostic;
 use snafu::Snafu;
-use std::path::PathBuf;
 
-/// Errors that can occur during forest operations.
+/// Top-level error type for forester operations.
 #[derive(Debug, Snafu, Diagnostic)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    /// Failed to read configuration file.
+    /// Failed to read a config file.
     #[snafu(display("Failed to read config from {}", path.display()))]
     ConfigRead {
         /// Path to the config file.
         path: PathBuf,
-        /// Underlying I/O error.
+        /// Underlying IO error.
         source: std::io::Error,
     },
 
-    /// Failed to parse configuration file.
+    /// Failed to parse a config file.
     #[snafu(display("Failed to parse config from {}", path.display()))]
     ConfigParse {
         /// Path to the config file.
@@ -26,56 +26,48 @@ pub enum Error {
         source: toml::de::Error,
     },
 
-    /// Failed to determine current working directory.
-    #[snafu(display("Could not determine current directory"))]
+    /// Failed to get the current directory.
+    #[snafu(display("Failed to get current directory"))]
     CurrentDir {
-        /// Underlying I/O error.
+        /// Underlying IO error.
         source: std::io::Error,
     },
 
-    /// No forest configuration found in directory hierarchy.
-    #[snafu(display("No forester.toml found in current directory or any parent"))]
-    #[diagnostic(help("Create a forester.toml or run from within a forest"))]
+    /// No forester.toml found.
+    #[snafu(display("No forester.toml found in current directory or parents"))]
     NoForestFound,
 
-    /// Git command execution failed.
-    #[snafu(display("Git command failed: {}", message))]
-    Git {
-        /// Error message from git.
-        message: String,
-    },
-
-    /// Failed to create directory.
+    /// Failed to create a directory.
     #[snafu(display("Failed to create directory {}", path.display()))]
     CreateDir {
         /// Path that could not be created.
         path: PathBuf,
-        /// Underlying I/O error.
+        /// Underlying IO error.
         source: std::io::Error,
     },
 
-    /// Grove with the specified name already exists.
-    #[snafu(display("Grove '{}' already exists", name))]
-    GroveExists {
-        /// Name of the existing grove.
-        name: String,
+    /// A git operation failed.
+    #[snafu(display("Git operation failed: {message}"))]
+    Git {
+        /// Error message.
+        message: String,
     },
 
-    /// Grove with the specified name does not exist.
-    #[snafu(display("Grove '{}' not found", name))]
+    /// Grove not found.
+    #[snafu(display("Grove '{name}' not found"))]
     GroveNotFound {
-        /// Name of the missing grove.
+        /// Grove name.
         name: String,
     },
 
-    /// Failed to create symbolic link.
+    /// Failed to create a symlink.
     #[snafu(display("Failed to create symlink from {} to {}", src.display(), tgt.display()))]
     Symlink {
-        /// Source path for the symlink.
+        /// Source path.
         src: PathBuf,
-        /// Target path for the symlink.
+        /// Target path.
         tgt: PathBuf,
-        /// Underlying I/O error.
+        /// Underlying IO error.
         source: std::io::Error,
     },
 }
