@@ -1,6 +1,6 @@
 //! Grove context detection and access.
 
-use crate::forest::ForestConfig;
+use crate::domain::ForestConfig;
 use bon::Builder;
 use snafu::{ResultExt, Snafu};
 use std::path::PathBuf;
@@ -20,7 +20,7 @@ impl GroveContext {
     pub fn detect() -> Result<Option<Self>, GroveContextError> {
         use grove_context_error::*;
 
-        let (forest_root, _config) = ForestConfig::find().context(FindForestSnafu)?;
+        let (forest_root, _config) = find_forest_config().context(FindForestSnafu)?;
         let cwd = std::env::current_dir().context(CurrentDirSnafu)?;
         let groves_dir = forest_root.join("groves");
 
@@ -71,8 +71,8 @@ pub enum GroveContextError {
     /// Failed to locate the forest root directory.
     #[snafu(display("Failed to find forest root"))]
     FindForest {
-        /// Underlying forest error.
-        source: crate::Error,
+        /// Underlying error.
+        source: FindForestError,
     },
 
     /// Failed to determine current working directory.
@@ -85,4 +85,30 @@ pub enum GroveContextError {
     /// Grove directory name is not valid UTF-8.
     #[snafu(display("Grove directory has invalid name"))]
     InvalidName,
+}
+
+/// Error finding forest configuration.
+#[derive(Debug, Snafu)]
+pub enum FindForestError {
+    #[snafu(display("Failed to get current directory"))]
+    CurrentDir { source: std::io::Error },
+    #[snafu(display("No forester.toml found in current directory or parents"))]
+    NotFound,
+}
+
+fn find_forest_config() -> Result<(PathBuf, ForestConfig), FindForestError> {
+    let cwd = std::env::current_dir().context(CurrentDirSnafu)?;
+    let mut dir = cwd;
+    loop {
+        let config_path = dir.join("forester.toml");
+        if config_path.exists()
+            && let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(config) = toml::from_str(&content)
+        {
+            return Ok((dir, config));
+        }
+        if !dir.pop() {
+            return Err(FindForestError::NotFound);
+        }
+    }
 }
