@@ -14,6 +14,9 @@ pub struct ForestConfig {
     /// Optional grove-specific configuration.
     #[serde(default)]
     pub grove: Option<GroveConfig>,
+    /// Hook configurations.
+    #[serde(default)]
+    pub hook: Vec<HookConfig>,
 }
 
 /// Forest metadata.
@@ -71,4 +74,20 @@ impl Member {
     pub fn branch(&self) -> &str {
         self.default_branch.as_deref().unwrap_or("main")
     }
+}
+
+/// Hook configuration entry.
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub struct HookConfig {
+    /// Hook name (must match a builtin hook).
+    #[builder(into)]
+    pub name: String,
+    /// Whether the hook is enabled (None = use default).
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    /// Override default phases.
+    #[serde(default)]
+    pub phases: Option<Vec<String>>,
 }
