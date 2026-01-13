@@ -8,7 +8,7 @@ mod forest;
 mod grove;
 mod member;
 
-pub use config::{ForestConfig, ForestMeta, GroveConfig, Member, SymlinkEntry};
+pub use config::{ForestConfig, ForestMeta, GroveConfig, HookConfig, Member, SymlinkEntry};
 pub use forest::{ForestName, ForestRoot};
 pub use grove::{GroveName, GroveRoot};
 pub use member::{BranchName, MemberName, Remote};

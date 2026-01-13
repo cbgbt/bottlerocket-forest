@@ -1,6 +1,8 @@
 //! Hook registry for managing and executing hooks.
 
+use super::builtin::{all_builtin_metas, create_hook};
 use super::{Hook, HookContext, HookPhase};
+use crate::domain::HookConfig;
 use snafu::Snafu;
 
 /// Registry for managing hooks.
@@ -13,6 +15,27 @@ impl HookRegistry {
     /// Creates a new empty registry.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates a registry from config, instantiating enabled builtin hooks.
+    pub fn from_config(hook_configs: &[HookConfig]) -> Self {
+        let mut registry = Self::new();
+        let metas = all_builtin_metas();
+
+        for meta in &metas {
+            let cfg = hook_configs.iter().find(|c| c.name == meta.name);
+            let enabled = cfg
+                .and_then(|c| c.enabled)
+                .unwrap_or(meta.default_enabled);
+
+            if enabled {
+                if let Some(hook) = create_hook(meta.name) {
+                    registry.hooks.push(hook);
+                }
+            }
+        }
+
+        registry
     }
 
     /// Registers a hook.
