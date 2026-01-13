@@ -1,47 +1,11 @@
 //! CLI for forester.
 
-mod grove;
-mod init;
-mod seed;
+mod args;
+mod commands;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use args::{Cli, ColorChoice, Command};
+use clap::Parser;
 use std::io::IsTerminal;
-
-/// Controls terminal color output behavior.
-#[derive(Clone, Copy, Debug, Default, ValueEnum)]
-pub enum ColorChoice {
-    /// Detect terminal capability automatically.
-    #[default]
-    Auto,
-    /// Always emit color codes.
-    Always,
-    /// Never emit color codes.
-    Never,
-}
-
-/// Command-line interface for forester.
-#[derive(Parser)]
-#[command(name = "forester")]
-#[command(about = "Generic forest management for multi-repo projects")]
-#[command(version)]
-pub struct Cli {
-    #[arg(long, global = true, default_value = "auto")]
-    color: ColorChoice,
-
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Initialize a new forest in the current directory
-    Init(init::InitArgs),
-    /// Clone all member repositories and set up the forest
-    Seed(seed::SeedArgs),
-    /// Manage forest groves
-    #[command(subcommand)]
-    Grove(grove::GroveCommand),
-}
 
 /// Parses CLI arguments and executes the requested command.
 pub fn run() -> miette::Result<()> {
@@ -58,8 +22,8 @@ pub fn run() -> miette::Result<()> {
     }
 
     match cli.command {
-        Command::Init(args) => init::run(args),
-        Command::Seed(args) => seed::run(args),
-        Command::Grove(cmd) => grove::run(cmd),
+        Command::Init(args) => commands::init(args),
+        Command::Seed(args) => commands::seed(args),
+        Command::Grove(cmd) => commands::grove(cmd),
     }
 }
