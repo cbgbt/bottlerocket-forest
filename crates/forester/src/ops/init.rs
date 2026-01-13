@@ -7,11 +7,12 @@ use snafu::{ResultExt, Snafu};
 use crate::events::{EventEmitter, ForesterEvent};
 use crate::hooks::builtin::all_builtin_metas;
 
-/// Generates the template config with hook entries.
-fn generate_template() -> String {
-    let mut s = String::from(
+const GITIGNORE_ENTRIES: &[&str] = &[".forest/", "groves/"];
+
+fn generate_template(name: &str) -> String {
+    let mut s = format!(
         r#"[forest]
-name = "my-forest"
+name = "{name}"
 
 # [[forest.member]]
 # name = "repo-name"
@@ -21,9 +22,9 @@ name = "my-forest"
 
 # [grove]
 # symlink = [
-#   { source = "docs", target = "docs" },
+#   {{ source = "docs", target = "docs" }},
 # ]
-"#,
+"#
     );
 
     for meta in all_builtin_metas() {
@@ -38,16 +39,42 @@ name = "my-forest"
     s
 }
 
+fn update_gitignore(path: &PathBuf) -> Result<(), std::io::Error> {
+    let existing = if path.exists() {
+        std::fs::read_to_string(path)?
+    } else {
+        String::new()
+    };
+
+    let mut content = existing.clone();
+    for entry in GITIGNORE_ENTRIES {
+        if !existing.contains(entry) {
+            if !content.is_empty() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str(entry);
+            content.push('\n');
+        }
+    }
+
+    std::fs::write(path, content)
+}
+
 /// Initializes a new forest with a template config.
 pub struct InitOperation<'a> {
     path: PathBuf,
+    name: Option<String>,
     emitter: &'a dyn EventEmitter,
 }
 
 impl<'a> InitOperation<'a> {
     /// Creates a new init operation.
-    pub fn new(path: PathBuf, emitter: &'a dyn EventEmitter) -> Self {
-        Self { path, emitter }
+    pub fn new(path: PathBuf, name: Option<String>, emitter: &'a dyn EventEmitter) -> Self {
+        Self {
+            path,
+            name,
+            emitter,
+        }
     }
 
     /// Executes the initialization.
@@ -60,9 +87,22 @@ impl<'a> InitOperation<'a> {
             return Err(InitError::AlreadyExists { path: config_path });
         }
 
+        let name = self.name.clone().unwrap_or_else(|| {
+            self.path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("my-forest")
+                .to_string()
+        });
+
         std::fs::create_dir_all(&self.path).context(CreateDirSnafu { path: &self.path })?;
-        std::fs::write(&config_path, generate_template())
+        std::fs::write(&config_path, generate_template(&name))
             .context(WriteSnafu { path: &config_path })?;
+
+        let gitignore_path = self.path.join(".gitignore");
+        update_gitignore(&gitignore_path).context(WriteSnafu {
+            path: &gitignore_path,
+        })?;
 
         self.emitter.emit(&ForesterEvent::Info(format!(
             "Created {}",
