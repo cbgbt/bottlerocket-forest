@@ -24,14 +24,10 @@ impl HookRegistry {
 
         for meta in &metas {
             let cfg = hook_configs.iter().find(|c| c.name == meta.name);
-            let enabled = cfg
-                .and_then(|c| c.enabled)
-                .unwrap_or(meta.default_enabled);
+            let enabled = cfg.and_then(|c| c.enabled).unwrap_or(meta.default_enabled);
 
-            if enabled {
-                if let Some(hook) = create_hook(meta.name) {
-                    registry.hooks.push(hook);
-                }
+            if enabled && let Some(hook) = create_hook(meta.name) {
+                registry.hooks.push(hook);
             }
         }
 

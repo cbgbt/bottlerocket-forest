@@ -9,7 +9,8 @@ use crate::hooks::builtin::all_builtin_metas;
 
 /// Generates the template config with hook entries.
 fn generate_template() -> String {
-    let mut s = String::from(r#"[forest]
+    let mut s = String::from(
+        r#"[forest]
 name = "my-forest"
 
 # [[forest.member]]
@@ -22,10 +23,11 @@ name = "my-forest"
 # symlink = [
 #   { source = "docs", target = "docs" },
 # ]
-"#);
+"#,
+    );
 
     for meta in all_builtin_metas() {
-        s.push_str("\n");
+        s.push('\n');
         if meta.default_enabled {
             s.push_str(&format!("[[hook]]\nname = \"{}\"\n", meta.name));
         } else {
@@ -59,7 +61,8 @@ impl<'a> InitOperation<'a> {
         }
 
         std::fs::create_dir_all(&self.path).context(CreateDirSnafu { path: &self.path })?;
-        std::fs::write(&config_path, generate_template()).context(WriteSnafu { path: &config_path })?;
+        std::fs::write(&config_path, generate_template())
+            .context(WriteSnafu { path: &config_path })?;
 
         self.emitter.emit(&ForesterEvent::Info(format!(
             "Created {}",

@@ -69,3 +69,6 @@ target = "AGENTS.md"
 [[grove.symlink]]
 source = "inner-docs/README.md"
 target = "README.md"
+
+[[hook]]
+name = "crumbly"
