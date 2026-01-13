@@ -5,7 +5,6 @@ use crate::domain::{ForestConfig, ForestRoot, GroveName};
 use crate::events::ConsoleEmitter;
 use crate::grove::GroveContext;
 use crate::hooks::HookRegistry;
-use crate::hooks::builtin::CrumblyHook;
 use crate::ops::{GroveCreateOperation, GroveListOperation, GroveRemoveOperation};
 use miette::Diagnostic;
 use owo_colors::OwoColorize;
@@ -34,8 +33,7 @@ fn create(args: GroveCreateArgs) -> miette::Result<()> {
     let (forest_path, config) = find_config()?;
     let forest_root = ForestRoot::builder().path(&forest_path).build();
     let emitter = ConsoleEmitter::new(args.verbose);
-    let mut hooks = HookRegistry::new();
-    hooks.register(CrumblyHook::new());
+    let hooks = HookRegistry::from_config(&config.hook);
 
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
@@ -83,8 +81,7 @@ fn remove(args: GroveRemoveArgs) -> miette::Result<()> {
     let (forest_path, config) = find_config()?;
     let forest_root = ForestRoot::builder().path(&forest_path).build();
     let emitter = ConsoleEmitter::new(false);
-    let mut hooks = HookRegistry::new();
-    hooks.register(CrumblyHook::new());
+    let hooks = HookRegistry::from_config(&config.hook);
 
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
