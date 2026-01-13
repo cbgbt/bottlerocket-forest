@@ -1,0 +1,9 @@
+[book]
+title = "Crumbly"
+description = "Semantic search for your documentation"
+authors = ["Bottlerocket Contributors"]
+language = "en"
+
+[build]
+build-dir = "book"
+create-missing = false
