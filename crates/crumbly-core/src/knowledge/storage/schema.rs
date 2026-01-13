@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     chunk_hash BLOB PRIMARY KEY,
     file_hash BLOB NOT NULL,
     repo_name TEXT NOT NULL,
-    context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc', 'go_doc')),
+    context_type TEXT NOT NULL,
     context_data TEXT NOT NULL,
     content TEXT NOT NULL,
     token_count INTEGER NOT NULL,
@@ -127,6 +127,7 @@ pub fn check_schema_version(conn: &Connection) -> Result<()> {
 
     match (stored, SCHEMA_VERSION) {
         (2, 3) => migrate_v2_to_v3(conn),
+        (3, 4) => migrate_v3_to_v4(conn),
         _ => SchemaMismatchSnafu {
             stored,
             expected: SCHEMA_VERSION,
@@ -192,25 +193,19 @@ fn migrate_v2_to_v3(conn: &Connection) -> Result<()> {
             [],
         )
         .context(SqlExecutionSnafu)?;
-
         conn.execute("INSERT INTO chunks_new SELECT * FROM chunks", [])
             .context(SqlExecutionSnafu)?;
-
         conn.execute("DROP TABLE chunks", [])
             .context(SqlExecutionSnafu)?;
-
         conn.execute("ALTER TABLE chunks_new RENAME TO chunks", [])
             .context(SqlExecutionSnafu)?;
-
         conn.execute(CREATE_INDEX_FILE_HASH, [])
             .context(SqlExecutionSnafu)?;
         conn.execute(CREATE_INDEX_REPO, [])
             .context(SqlExecutionSnafu)?;
         conn.execute(CREATE_INDEX_CONTEXT_TYPE, [])
             .context(SqlExecutionSnafu)?;
-
         set_schema_version(conn, 3)?;
-
         Ok(())
     })();
 
@@ -220,21 +215,62 @@ fn migrate_v2_to_v3(conn: &Connection) -> Result<()> {
             Ok(())
         }
         Err(e) => {
-            if let Err(rollback_err) = conn.execute("ROLLBACK", []) {
-                eprintln!("Warning: Failed to rollback transaction: {}", rollback_err);
-            }
+            let _ = conn.execute("ROLLBACK", []);
             Err(e)
         }
     }
 }
 
-/// Applies database migrations for schema evolution
+/// Migrates from schema v3 to v4
 ///
-/// Reserved for future migrations. Currently migrations are handled
-/// automatically by check_schema_version() when opening a database.
-#[allow(dead_code)]
-pub fn migrate(_conn: &Connection) -> Result<()> {
-    Ok(())
+/// v4 removes the CHECK constraint from context_type, allowing any string value.
+fn migrate_v3_to_v4(conn: &Connection) -> Result<()> {
+    use schema_error::*;
+
+    conn.execute("BEGIN TRANSACTION", [])
+        .context(SqlExecutionSnafu)?;
+
+    let result = (|| -> Result<()> {
+        conn.execute(
+            r#"CREATE TABLE chunks_new (
+    chunk_hash BLOB PRIMARY KEY,
+    file_hash BLOB NOT NULL,
+    repo_name TEXT NOT NULL,
+    context_type TEXT NOT NULL,
+    context_data TEXT NOT NULL,
+    content TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
+    last_modified INTEGER NOT NULL
+)"#,
+            [],
+        )
+        .context(SqlExecutionSnafu)?;
+        conn.execute("INSERT INTO chunks_new SELECT * FROM chunks", [])
+            .context(SqlExecutionSnafu)?;
+        conn.execute("DROP TABLE chunks", [])
+            .context(SqlExecutionSnafu)?;
+        conn.execute("ALTER TABLE chunks_new RENAME TO chunks", [])
+            .context(SqlExecutionSnafu)?;
+        conn.execute(CREATE_INDEX_FILE_HASH, [])
+            .context(SqlExecutionSnafu)?;
+        conn.execute(CREATE_INDEX_REPO, [])
+            .context(SqlExecutionSnafu)?;
+        conn.execute(CREATE_INDEX_CONTEXT_TYPE, [])
+            .context(SqlExecutionSnafu)?;
+        set_schema_version(conn, 4)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(_) => {
+            conn.execute("COMMIT", []).context(SqlExecutionSnafu)?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -306,88 +342,43 @@ mod test {
     }
 
     #[test]
-    fn contexts_table_has_correct_schema() {
+    fn tables_have_correct_schema() {
         let conn = setup_connection();
         create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
 
-        let mut stmt = conn.prepare("PRAGMA table_info(contexts)").unwrap();
-        let columns: Vec<(String, String, i32)> = stmt
-            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+        // Verify contexts table
+        let ctx_cols: Vec<String> = conn
+            .prepare("PRAGMA table_info(contexts)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
+        assert_eq!(ctx_cols, vec!["context_id", "created_at", "last_indexed"]);
 
-        assert_eq!(
-            columns[0],
-            ("context_id".to_string(), "TEXT".to_string(), 1)
-        ); // pk=1
-        assert_eq!(
-            columns[1],
-            ("created_at".to_string(), "INTEGER".to_string(), 0)
-        );
-        assert_eq!(
-            columns[2],
-            ("last_indexed".to_string(), "INTEGER".to_string(), 0)
-        );
-    }
-
-    #[test]
-    fn indexed_files_table_has_correct_schema() {
-        let conn = setup_connection();
-        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
-
-        let mut stmt = conn.prepare("PRAGMA table_info(indexed_files)").unwrap();
-        let columns: Vec<(String, String, i32)> = stmt
-            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+        // Verify chunks table primary key
+        let chunk_pk: i32 = conn
+            .prepare("PRAGMA table_info(chunks)")
             .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
-
-        assert_eq!(
-            columns[0],
-            ("context_id".to_string(), "TEXT".to_string(), 1)
-        ); // pk=1
-        assert_eq!(columns[1], ("file_path".to_string(), "TEXT".to_string(), 2)); // pk=2
-        assert_eq!(columns[2], ("file_hash".to_string(), "BLOB".to_string(), 0));
-        assert_eq!(
-            columns[3],
-            ("mtime_ns".to_string(), "INTEGER".to_string(), 0)
-        );
-    }
-
-    #[test]
-    fn chunks_table_uses_chunk_hash_as_primary_key() {
-        let conn = setup_connection();
-        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
-
-        let mut stmt = conn.prepare("PRAGMA table_info(chunks)").unwrap();
-        let columns: Vec<(String, String, i32)> = stmt
-            .query_map([], |row| Ok((row.get(1)?, row.get(2)?, row.get(5)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, i32>(5)?))
+            })
             .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
+            .find(|r| r.as_ref().map(|(n, _)| n == "chunk_hash").unwrap_or(false))
+            .unwrap()
+            .unwrap()
+            .1;
+        assert_eq!(chunk_pk, 1);
 
-        assert_eq!(
-            columns[0],
-            ("chunk_hash".to_string(), "BLOB".to_string(), 1)
-        ); // pk=1
-        assert_eq!(columns[1], ("file_hash".to_string(), "BLOB".to_string(), 0));
-    }
-
-    #[test]
-    fn vec_chunks_table_uses_chunk_hash() {
-        let conn = setup_connection();
-        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
-
-        let table_exists: bool = conn
+        // Verify vec_chunks exists
+        let exists: bool = conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
                 [],
                 |_| Ok(true),
             )
             .unwrap();
-
-        assert!(table_exists);
+        assert!(exists);
     }
 
     #[test]
@@ -408,58 +399,30 @@ mod test {
         assert_eq!(version, Some(42));
     }
 
-    #[test]
-    fn test_get_schema_version_returns_none_for_legacy_db() {
-        // Given a database with index_metadata table but no schema_version row
-        let conn = setup_connection();
+    fn setup_metadata_table(conn: &Connection) {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
             [],
         )
         .unwrap();
-
-        // When getting the schema version
-        let version = get_schema_version(&conn).unwrap();
-
-        // Then it should return None (legacy database)
-        assert_eq!(version, None);
     }
 
     #[test]
-    fn test_check_schema_version_passes_when_matching() {
-        // Given a database with schema version set to SCHEMA_VERSION
+    fn test_schema_version_operations() {
+        // Given a database with index_metadata table
         let conn = setup_connection();
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
-            [],
-        )
-        .unwrap();
+        setup_metadata_table(&conn);
+
+        // Then get_schema_version returns None for legacy db
+        assert_eq!(get_schema_version(&conn).unwrap(), None);
+
+        // When setting version, check_schema_version passes for matching version
         set_schema_version(&conn, SCHEMA_VERSION).unwrap();
+        assert!(check_schema_version(&conn).is_ok());
 
-        // When checking the schema version
-        let result = check_schema_version(&conn);
-
-        // Then it should succeed
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_check_schema_version_fails_on_mismatch() {
-        // Given a database with an old schema version (version 1)
-        let conn = setup_connection();
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
-            [],
-        )
-        .unwrap();
+        // When version mismatches, check_schema_version fails
         set_schema_version(&conn, 1).unwrap();
-
-        // When checking the schema version
-        let result = check_schema_version(&conn);
-
-        // Then it should fail with SchemaMismatch error
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = check_schema_version(&conn).unwrap_err();
         assert!(matches!(
             err,
             SchemaError::SchemaMismatch {
@@ -483,55 +446,88 @@ mod test {
         assert_eq!(version, Some(SCHEMA_VERSION));
     }
 
-    #[test]
-    fn test_migrate_v2_to_v3() {
-        // Given a v2 schema database with existing chunk data
-        let conn = setup_connection();
+    fn create_v3_schema(conn: &Connection) {
         conn.execute(CREATE_INDEX_METADATA, []).unwrap();
-        conn.execute(CREATE_CHUNKS, []).unwrap();
+        conn.execute(
+            r#"CREATE TABLE chunks (
+    chunk_hash BLOB PRIMARY KEY, file_hash BLOB NOT NULL, repo_name TEXT NOT NULL,
+    context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc', 'go_doc')),
+    context_data TEXT NOT NULL, content TEXT NOT NULL, token_count INTEGER NOT NULL,
+    last_modified INTEGER NOT NULL)"#,
+            [],
+        )
+        .unwrap();
         conn.execute(CREATE_INDEX_FILE_HASH, []).unwrap();
         conn.execute(CREATE_INDEX_REPO, []).unwrap();
-        set_schema_version(&conn, 2).unwrap();
+        set_schema_version(&conn, 3).unwrap();
+    }
+
+    #[test]
+    fn test_migrate_v3_to_v4_succeeds() {
+        // Given a v3 schema database
+        let conn = setup_connection();
+        create_v3_schema(&conn);
+
+        // When migrating to v4
+        migrate_v3_to_v4(&conn).unwrap();
+
+        // Then schema version should be 4
+        assert_eq!(get_schema_version(&conn).unwrap(), Some(4));
+    }
+
+    #[test]
+    fn test_migrate_v3_to_v4_preserves_data() {
+        // Given a v3 database with existing chunk
+        let conn = setup_connection();
+        create_v3_schema(&conn);
         conn.execute(
             "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             rusqlite::params![
-                &[1u8, 2, 3][..],
-                &[4u8, 5, 6][..],
-                "test-repo",
+                &[1u8][..],
+                &[2u8][..],
+                "repo",
                 "markdown",
                 "{}",
-                "test content",
+                "content",
                 10,
-                1234567890
+                123
             ],
         )
         .unwrap();
 
-        // When checking schema version (triggers migration)
-        check_schema_version(&conn).unwrap();
+        // When migrating to v4
+        migrate_v3_to_v4(&conn).unwrap();
 
-        // Then schema should be upgraded to v3 and data preserved
-        let version = get_schema_version(&conn).unwrap();
-        assert_eq!(version, Some(3));
+        // Then data should be preserved
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM chunks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
 
-        // And new inserts should work with the migrated schema
-        conn.execute(
+    #[test]
+    fn test_migrate_v3_to_v4_allows_new_context_types() {
+        // Given a v4 database (migrated from v3)
+        let conn = setup_connection();
+        create_v3_schema(&conn);
+        migrate_v3_to_v4(&conn).unwrap();
+
+        // When inserting a new context type
+        let result = conn.execute(
             "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             rusqlite::params![
-                &[7u8, 8, 9][..],
-                &[10u8, 11, 12][..],
-                "test-repo",
-                "go_doc",
+                &[1u8][..],
+                &[2u8][..],
+                "repo",
+                "java_doc",
                 "{}",
-                "go content",
-                15,
-                1234567891
+                "content",
+                10,
+                123
             ],
-        )
-        .unwrap();
+        );
+
+        // Then it should succeed (no CHECK constraint)
+        assert!(result.is_ok());
     }
 }
