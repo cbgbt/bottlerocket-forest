@@ -21,3 +21,6 @@ Cargo.lock
 /host-containers
 /bottlerocket-settings-sdk
 /forester-semantic-types
+
+# mdbook compiled output
+/crates/crumbly-cli/book/book/
