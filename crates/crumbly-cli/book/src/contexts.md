@@ -34,14 +34,21 @@ Only the files that differ between worktrees need new embeddings computed.
 
 ## Creating a Context
 
-Contexts are created implicitly when you build:
+Create a new context with `build`:
 
 ```bash
 crumbly build --context ./main
 ```
 
 The context name is derived from the path.
-Running this command again updates the existing context, re-indexing only files that changed.
+
+To update an existing context after files change, use `update`:
+
+```bash
+crumbly update --context ./main
+```
+
+This re-indexes only files that have changed since the last build.
 
 ## Worktree Workflow
 
