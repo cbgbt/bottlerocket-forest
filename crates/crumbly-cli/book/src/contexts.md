@@ -4,10 +4,27 @@ A context is a named scope for indexing and searching.
 When you build an index, you specify which directory to index as a context.
 When you search, results come from that context.
 
+## Index Location
+
+Crumbly stores its index in a `.crumbly` directory.
+For contexts to work properly, this index must be in a parent directory of all the contexts you want to index.
+
+A typical setup:
+
+```
+my-workspace/
+├── .crumbly/          # Index lives here
+├── main/              # Main worktree (a context)
+├── feature-a/         # Feature worktree (a context)
+└── feature-b/         # Another worktree (a context)
+```
+
+All three worktrees share the same index because `.crumbly` is in their common parent.
+
 ## Content-Addressable Storage
 
 Crumbly uses content-addressable storage internally.
-This means identical content is stored only once, regardless of how many contexts contain it.
+Identical content is stored only once, regardless of how many contexts contain it.
 
 This design shines when you work with git worktrees.
 Many developers have found that AI agents work well with worktrees—each task gets its own working directory without branch switching overhead.
@@ -20,7 +37,7 @@ Only the files that differ between worktrees need new embeddings computed.
 Contexts are created implicitly when you build:
 
 ```bash
-crumbly build --context ./my-project
+crumbly build --context ./main
 ```
 
 The context name is derived from the path.
@@ -31,34 +48,36 @@ Running this command again updates the existing context, re-indexing only files 
 A typical workflow with worktrees:
 
 ```bash
-# Main branch already indexed
+# From the workspace root (where .crumbly lives)
 crumbly build --context ./main
 
 # Create a worktree for a feature
+cd main
 git worktree add ../feature-x -b feature-x
+cd ..
 
 # Index it — fast, since most content is shared
-crumbly build --context ../feature-x
-
-# Search within your feature branch
-crumbly search --context ../feature-x "authentication"
+crumbly build --context ./feature-x
 ```
 
 The second build completes quickly because crumbly recognizes that most chunks already exist.
 
-## Searching a Context
+## Searching
 
-By default, search uses the context from your current directory:
+Crumbly automatically discovers which context you're in.
+When you run a search, it looks for a `.crumbly` index in parent directories, then determines if your current working directory falls within any indexed context.
 
 ```bash
-cd my-project
+cd feature-x
 crumbly search "authentication"
 ```
 
-Or specify explicitly:
+This finds the index in `../`, recognizes you're in the `feature-x` context, and searches within it.
+
+You can also specify a context explicitly:
 
 ```bash
-crumbly search --context ./my-project "authentication"
+crumbly search --context ./main "authentication"
 ```
 
 ## Listing Contexts
