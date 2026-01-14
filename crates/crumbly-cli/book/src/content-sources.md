@@ -1,34 +1,11 @@
 # Content Sources
 
 Before crumbly can search your documentation, it needs to know where to find it.
-This chapter explains how crumbly discovers files and the options you have for configuring that discovery.
+This chapter explains how crumbly discovers files.
 
-## How Content Discovery Works
+## Filesystem Source
 
-When you run `crumbly build`, crumbly walks through your configured directories looking for files to index.
-It respects your gitignore rules by default, so generated files and dependencies stay out of your search results.
-
-```
-┌─────────────────────────────────────────────────┐
-│                 Content Sources                 │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│   Filesystem Source        Bare Git Source      │
-│   (default)                (for servers)        │
-│                                                 │
-│   ./docs/                  repo.git/            │
-│   ./src/                     └─ objects/        │
-│   ./README.md                └─ refs/           │
-│                                                 │
-└─────────────────────────────────────────────────┘
-                      │
-                      ▼
-              Files to Index
-```
-
-## Filesystem Source (Default)
-
-The filesystem source is what you'll use most of the time.
+The filesystem source is what you'll use for day-to-day work.
 It scans directories on disk, following the familiar patterns of a normal project checkout.
 
 ```bash
@@ -39,44 +16,8 @@ crumbly build --context .
 crumbly build --context ./my-project
 ```
 
-This works exactly how you'd expect—crumbly walks the directory tree, finds documentation files, and indexes them.
-
-### When to Use Filesystem Source
-
-- Local development checkouts
-- Monorepos with multiple projects
-- Any normal directory structure
-
-This is the default, so you don't need any special configuration.
-
-## Bare Git Repository Source
-
-Sometimes you need to index repositories that aren't checked out—like on a server hosting bare git repos.
-A bare repository has no working directory, just the git database itself.
-
-```
-# Normal checkout          # Bare repository
-my-project/                my-project.git/
-├── .git/                  ├── objects/
-├── src/                   ├── refs/
-├── docs/                  ├── HEAD
-└── README.md              └── config
-```
-
-Crumbly can read files directly from bare repositories without checking them out:
-
-```bash
-# Index a bare repository
-crumbly build --context /srv/git/my-project.git
-```
-
-### When to Use Bare Git Source
-
-- Git servers (Gitea, GitLab, self-hosted)
-- CI/CD pipelines with shallow clones
-- Indexing many repos without disk overhead of full checkouts
-
-Crumbly automatically detects bare repositories, so you don't need to configure anything special.
+Crumbly walks the directory tree, finds documentation files, and indexes them.
+This creates a searchable context.
 
 ## Configuring Targets
 
@@ -93,7 +34,6 @@ This tells crumbly to only look in `docs/` and `src/`, ignoring everything else.
 ### Example: Monorepo with Multiple Projects
 
 ```toml
-# Only index documentation, not generated code
 targets = [
     "docs",
     "packages/core/src",
@@ -104,15 +44,7 @@ targets = [
 ### Example: Focus on Documentation Only
 
 ```toml
-# Just the docs folder
 targets = ["docs"]
-```
-
-### Example: Index Everything (Default)
-
-```toml
-# Scan from the root - this is the default if omitted
-targets = ["."]
 ```
 
 ## Ignoring Files
@@ -154,46 +86,53 @@ docs/api/generated/
 Enable it in your config:
 
 ```toml
-# crumbly.toml
-use-crumblyignore = true
+use-crumblyignore = true  # This is the default
 ```
 
-### When to Use Crumblyignore
+## Pre-warming with Bare Repositories
 
-- Excluding verbose changelogs that clutter search results
-- Hiding auto-generated documentation
-- Keeping certain files in git but out of search
+This is an advanced feature you can skip on first read.
 
-## Putting It Together
+Crumbly can read files directly from bare git repositories (repos without a working directory).
+However, bare repositories can only be used to *cache* embeddings—they don't create searchable contexts.
 
-Here's a complete example for a typical project:
+### Why Cache-Only?
 
-```toml
-# crumbly.toml
-
-# Focus on these directories
-targets = ["docs", "src"]
-
-# Respect .gitignore (default)
-respect-gitignore = true
-
-# Also use .crumblyignore for search-specific exclusions
-use-crumblyignore = true
-```
-
-With a `.crumblyignore`:
+A bare repository has no working directory:
 
 ```
-# Keep changelogs out of search
-CHANGELOG.md
-
-# Exclude generated API reference
-docs/api/generated/
+my-project.git/
+├── objects/
+├── refs/
+├── HEAD
+└── config
 ```
 
-Now when you run `crumbly build`, it will:
+There's no file tree to search against.
+But crumbly can still extract content and compute embeddings, storing them in the content-addressable storage.
 
-1. Scan only `docs/` and `src/`
-2. Skip anything in `.gitignore`
-3. Also skip anything in `.crumblyignore`
-4. Index everything else
+### The Use Case: Pre-warming
+
+When you later check out that repository as a normal worktree and build a context, crumbly finds that most embeddings already exist.
+The build completes almost instantly.
+
+This is useful for:
+
+- Git servers that want to pre-compute embeddings
+- CI pipelines that prepare indexes before developers clone
+- Reducing first-build time for large repositories
+
+### How to Pre-warm
+
+```bash
+# Cache embeddings from a bare repo (not searchable)
+crumbly cache /srv/git/my-project.git
+
+# Later, when someone checks it out:
+git clone /srv/git/my-project.git
+cd my-project
+crumbly build --context .  # Fast—embeddings already cached
+```
+
+For most users, you can ignore bare repository support entirely.
+Just use filesystem sources with normal checkouts.
