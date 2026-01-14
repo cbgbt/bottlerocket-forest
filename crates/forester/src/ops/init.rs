@@ -13,17 +13,6 @@ fn generate_template(name: &str) -> String {
         r#"[forest]
 name = "{name}"
 
-# [[forest.member]]
-# name = "repo-name"
-# remote = "https://github.com/org/repo.git"
-# path = "repo-name"
-# default-branch = "main"
-
-# [grove]
-# symlink = [
-#   {{ source = "docs", target = "docs" }},
-# ]
-
 [[hook]]
 name = "crumbly"
 command = "cache-bare"
@@ -39,6 +28,16 @@ triggers = ["post-grove-create"]
 # path = "./scripts/notify.sh"
 # args = ["--verbose"]
 # triggers = ["post-grove-create"]
+
+# [[forest.member]]
+# name = "repo-name"
+# remote = "https://github.com/org/repo.git"
+# path = "repo-name"
+# default-branch = "main"
+
+# [[grove.symlink]]
+# source = "docs"
+# target = "docs"
 "#
     )
 }
