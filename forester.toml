@@ -1,6 +1,18 @@
 [forest]
 name = "bottlerocket"
 
+[[hook]]
+# Create crumbly index on initial seed
+name = "crumbly"
+command = "cache-bare"
+triggers = ["post-seed"]
+
+[[hook]]
+# Update crumbly contexts for new groves
+name = "crumbly"
+command = "update-context"
+triggers = ["post-grove-create"]
+
 [[forest.member]]
 name = "bottlerocket"
 remote = "git@github.com:bottlerocket-os/bottlerocket.git"
@@ -70,12 +82,3 @@ target = "AGENTS.md"
 source = "inner-docs/README.md"
 target = "README.md"
 
-[[hook]]
-name = "crumbly"
-command = "cache-bare"
-triggers = ["post-seed"]
-
-[[hook]]
-name = "crumbly"
-command = "update-context"
-triggers = ["post-grove-create"]
