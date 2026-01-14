@@ -15,6 +15,8 @@ pub enum FileType {
     Rust,
     /// Go source files.
     Go,
+    /// Java source files.
+    Java,
     /// Files that cannot be indexed.
     #[serde(skip)]
     Unsupported,
@@ -27,13 +29,14 @@ impl FileType {
             Some("md") => Self::Markdown,
             Some("rs") => Self::Rust,
             Some("go") => Self::Go,
+            Some("java") => Self::Java,
             _ => Self::Unsupported,
         }
     }
 
     /// Returns true if this file type can be indexed.
     pub fn is_indexable(&self) -> bool {
-        matches!(self, Self::Markdown | Self::Rust | Self::Go)
+        matches!(self, Self::Markdown | Self::Rust | Self::Go | Self::Java)
     }
 }
 

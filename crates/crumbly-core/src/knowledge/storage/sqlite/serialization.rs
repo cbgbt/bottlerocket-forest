@@ -8,7 +8,7 @@ use snafu::ResultExt;
 use crate::knowledge::constants::EMBEDDING_DIM;
 
 const UUID_BYTE_LENGTH: usize = 16;
-use crate::knowledge::domain::chunk::GoDocContext;
+use crate::knowledge::domain::chunk::{GoDocContext, JavaDocContext};
 use crate::knowledge::domain::{
     Chunk, ChunkContent, ChunkContext, ChunkHash, ChunkId, ChunkSource, Embedding, FileHash,
     IndexRelativePath, IndexedChunk, MarkdownContext, RepoName, RustDocContext, Timestamp,
@@ -156,6 +156,15 @@ pub fn serialize_context(context: &ChunkContext) -> Result<(String, String), Sto
                 .build()
             })?,
         ),
+        ChunkContext::JavaDoc(ctx) => (
+            "java_doc",
+            serde_json::to_string(ctx).map_err(|e| {
+                InvalidDataSnafu {
+                    message: e.to_string(),
+                }
+                .build()
+            })?,
+        ),
         ChunkContext::Unknown(ctx) => (ctx.type_name.as_str(), ctx.raw_data.clone()),
     };
 
@@ -186,6 +195,11 @@ pub fn deserialize_context(
             let ctx: GoDocContext =
                 serde_json::from_str(context_data).context(SerializationSnafu)?;
             Ok(ChunkContext::GoDoc(ctx))
+        }
+        "java_doc" => {
+            let ctx: JavaDocContext =
+                serde_json::from_str(context_data).context(SerializationSnafu)?;
+            Ok(ChunkContext::JavaDoc(ctx))
         }
         unknown => {
             tracing::warn!(

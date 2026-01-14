@@ -23,7 +23,8 @@ use crate::knowledge::constants;
 
 pub use chunk::{
     Chunk, ChunkContent, ChunkContext, ChunkSource, GoDocContext, GoItemType, GoVisibility,
-    MarkdownContext, RustDocContext, UnknownContext, Visibility,
+    JavaDocContext, JavaItemType, JavaVisibility, MarkdownContext, RustDocContext,
+    UnknownContext, Visibility,
 };
 pub use context::{Context, ContextId, ContextIdError};
 pub use file_type::FileType;
