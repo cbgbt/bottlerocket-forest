@@ -32,7 +32,29 @@ def main():
         for path, lines, limit in violations:
             print(f"  {path}: {lines} lines (limit: {limit})")
         print("""
-=== Refactoring Guidance ===
+=== Before You Start ===
+
+This lint exists to combat minimal change bias.
+
+When a file grows too large, the tempting fix is the smallest change:
+move a few methods elsewhere, extract one helper, add another parameter.
+
+Resist this impulse!
+
+Minimal changes accumulate into the tangled code that triggered this lint.
+Instead, step back and ask:
+
+  "What would a loosely coupled design look like here?"
+
+Think in terms of:
+- Separate components with clear boundaries
+- Types that own their responsibilities
+- Interfaces that hide implementation details
+
+The goal is not "make this file shorter."
+The goal is "make this system easier to understand in pieces."
+
+=== Refactoring Patterns ===
 
 1. INTERNAL DECOMPOSITION (preferred for large structs)
    If a struct has too many methods, decompose into internal components:
@@ -69,7 +91,7 @@ def main():
    #[test_case("   " ; "whitespace only")]
    fn rejects_blank_input(input: &str) { ... }
 
-* Preserve Given/When/Then comments int tests (required by style guide)
+* Preserve Given/When/Then comments in tests (required by style guide)
 * Keep tests co-located with implementation
 * DO NOT delete docstrings or comments to reduce line count
 * If LOC limit signals a problem, the abstraction may be too large
