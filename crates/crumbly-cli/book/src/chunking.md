@@ -7,15 +7,14 @@ If you search for "installation", you don't want the entire file; you want the r
 Chunking solves this by splitting documents into smaller, focused pieces.
 Each chunk becomes independently searchable, so queries match the most relevant portions of your content.
 
+Chunk sizes are constrained by what the embedding model supports.
+The model has a maximum input length, so chunks must stay within that limit to be embedded properly.
+
 ## How Chunking Works
 
 Crumbly uses different chunking strategies depending on file type:
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Source Files   │ ──▶ │     Chunker      │ ──▶ │  Searchable     │
-│                 │     │  (by file type)  │     │    Chunks       │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
      .md files     ──▶   MarkdownChunker    ──▶   Heading sections
      .rs files     ──▶   RustDocChunker     ──▶   Doc comments
      .go files     ──▶   GoDocChunker       ──▶   Doc comments
@@ -79,6 +78,23 @@ pub fn validate(input: &str, schema: &Schema) -> Result<()> {
 The doc comment becomes a searchable chunk, tagged with the item name (`validate`) and type (`function`).
 The function body is not indexed—only the documentation.
 
+### Filtering Rust Chunks
+
+You often want to index only public APIs or skip trivial items:
+
+```toml
+[file-types.rust]
+visibility = ["public"]
+items = ["function", "struct", "trait", "enum", "module"]
+min-doc-lines = 2
+```
+
+**visibility** — Which items to index based on visibility: `public`, `private`, `crate`, `restricted`. Default: all.
+
+**items** — Which item types to index: `function`, `struct`, `trait`, `enum`, `module`, `const`, `static`, `type`. Default: all.
+
+**min-doc-lines** — Skip items with fewer than N lines of documentation. Filters out trivial one-liner comments. Default: `1`.
+
 ## Go Doc Comments
 
 Go files work similarly.
@@ -97,6 +113,21 @@ func ParseConfig(path string) (*Config, error) {
 
 This doc comment becomes a chunk associated with the `ParseConfig` function.
 
+### Filtering Go Chunks
+
+```toml
+[file-types.go]
+visibility = ["exported"]
+items = ["function", "type", "package"]
+min-doc-lines = 2
+```
+
+**visibility** — `exported` (capitalized names) or `unexported`. Default: all.
+
+**items** — `function`, `type`, `package`, `const`, `var`. Default: all.
+
+**min-doc-lines** — Same as Rust. Default: `1`.
+
 ## Enabling File Types
 
 By default, crumbly only indexes markdown files.
@@ -106,120 +137,17 @@ Enable additional file types in your `crumbly.toml`:
 enabled-file-types = ["markdown", "rust", "go"]
 ```
 
-Available types:
-- `markdown` — `.md` files (enabled by default)
-- `rust` — `.rs` files
-- `go` — `.go` files
-
 ## Chunk Size Controls
 
 Two settings control how large chunks can be:
 
 ```toml
 max-tokens = 512
-overlap-tokens = 50
 ```
 
-**max-tokens** sets the maximum size of a chunk.
+**max-tokens** sets the maximum size of a chunk in tokens.
+This limit exists because the embedding model has a maximum input length—chunks exceeding it cannot be embedded.
 If a markdown section exceeds this limit, it's split into multiple chunks.
 
-**overlap-tokens** controls how much content is repeated between consecutive chunks.
-This overlap helps preserve context when a topic spans chunk boundaries.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Long Section                         │
-└─────────────────────────────────────────────────────────┘
-                          ▼
-┌───────────────────────┐
-│       Chunk 1         │
-│                  ─────┼───┐  ◀── overlap
-└───────────────────────┘   │
-                   ┌────────┼──────────────┐
-                   │        │   Chunk 2    │
-                   └────────┴──────────────┘
-```
-
-The defaults work well for most projects.
-Increase `max-tokens` if your documentation has long, indivisible sections.
-
-## Filtering Rust and Go Chunks
-
-For code documentation, you often want to index only public APIs or skip trivial items.
-Crumbly provides filters for this:
-
-```toml
-[file-types.rust]
-visibility = ["public"]
-items = ["function", "struct", "trait", "enum", "module"]
-min-doc-lines = 2
-
-[file-types.go]
-visibility = ["exported"]
-items = ["function", "type", "package"]
-min-doc-lines = 2
-```
-
-### visibility
-
-Controls which items are indexed based on their visibility:
-
-- **Rust**: `public`, `private`, `crate`, `restricted`
-- **Go**: `exported` (capitalized names), `unexported`
-
-Default: all visibilities are included.
-
-### items
-
-Limits indexing to specific item types:
-
-- **Rust**: `function`, `struct`, `trait`, `enum`, `module`, `const`, `static`, `type`
-- **Go**: `function`, `type`, `package`, `const`, `var`
-
-Default: all item types are included.
-
-### min-doc-lines
-
-Skips items with fewer than N lines of documentation.
-This filters out trivial one-liner comments:
-
-```rust
-/// Returns the ID.        // 1 line - skipped if min-doc-lines = 2
-pub fn id(&self) -> u32
-
-/// Processes the request and returns a response.
-/// Handles authentication, validation, and routing.
-pub fn process(&self)      // 2 lines - included
-```
-
-Default: `1` (include everything with at least one doc line).
-
-## Example Configuration
-
-Here's a complete chunking configuration for a mixed Rust/Go project:
-
-```toml
-# crumbly.toml
-
-enabled-file-types = ["markdown", "rust", "go"]
-max-tokens = 512
-overlap-tokens = 50
-
-[file-types.rust]
-visibility = ["public", "crate"]
-items = ["function", "struct", "trait", "enum"]
-min-doc-lines = 2
-
-[file-types.go]
-visibility = ["exported"]
-min-doc-lines = 2
-```
-
-This indexes:
-- All markdown files, split by headings
-- Public and crate-visible Rust items with 2+ lines of docs
-- Exported Go items with 2+ lines of docs
-
-## Next Steps
-
-Once content is chunked, it moves to the [embedding](./embedding.md) stage where chunks are converted to vectors for semantic search.
+The default is tuned for the built-in embedding model.
+You typically don't need to change it unless you're using a different model with a different context window.
