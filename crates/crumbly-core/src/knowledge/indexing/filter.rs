@@ -39,6 +39,38 @@ pub enum RustItemType {
     Constant,
 }
 
+/// Categories of Java language items that can be filtered during indexing
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum JavaItemType {
+    /// All item types.
+    All,
+    /// Class definitions.
+    #[serde(rename = "classes")]
+    Class,
+    /// Interface definitions.
+    #[serde(rename = "interfaces")]
+    Interface,
+    /// Enum definitions.
+    #[serde(rename = "enums")]
+    Enum,
+    /// Record definitions.
+    #[serde(rename = "records")]
+    Record,
+    /// Method definitions.
+    #[serde(rename = "methods")]
+    Method,
+    /// Field definitions.
+    #[serde(rename = "fields")]
+    Field,
+    /// Constructor definitions.
+    #[serde(rename = "constructors")]
+    Constructor,
+    /// Annotation definitions.
+    #[serde(rename = "annotations")]
+    Annotation,
+}
+
 /// Categories of Go language items that can be filtered during indexing
 ///
 /// Unlike RustItemType, includes an `All` variant for convenience in configuration.
@@ -106,6 +138,41 @@ impl RustFilter {
     }
 }
 
+/// Filtering rules for Java source code indexing
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JavaFilter {
+    visibility: Vec<Visibility>,
+    items: Vec<JavaItemType>,
+    min_doc_lines: DocLineCount,
+}
+
+impl JavaFilter {
+    /// Create a filter with visibility, item types, and minimum documentation length
+    pub fn new(
+        visibility: Vec<Visibility>,
+        items: Vec<JavaItemType>,
+        min_doc_lines: DocLineCount,
+    ) -> Self {
+        Self {
+            visibility,
+            items,
+            min_doc_lines,
+        }
+    }
+
+    /// Determine whether a Java item should be indexed based on filter criteria
+    pub fn should_index(
+        &self,
+        visibility: &Visibility,
+        item_type: &JavaItemType,
+        doc_lines: DocLineCount,
+    ) -> bool {
+        doc_lines >= self.min_doc_lines
+            && self.visibility.contains(visibility)
+            && (self.items.contains(&JavaItemType::All) || self.items.contains(item_type))
+    }
+}
+
 /// Filtering rules for Go source code indexing
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoFilter {
@@ -141,12 +208,13 @@ impl GoFilter {
     }
 }
 
-/// Combined filtering rules for file types and Rust-specific criteria
+/// Combined filtering rules for file types and language-specific criteria
 #[derive(Debug, Clone)]
 pub struct IndexingFilter {
     enabled_file_types: Vec<crate::knowledge::domain::FileType>,
     rust_filter: Option<RustFilter>,
     go_filter: Option<GoFilter>,
+    java_filter: Option<JavaFilter>,
 }
 
 impl IndexingFilter {
@@ -155,11 +223,13 @@ impl IndexingFilter {
         enabled_file_types: Vec<crate::knowledge::domain::FileType>,
         rust_filter: Option<RustFilter>,
         go_filter: Option<GoFilter>,
+        java_filter: Option<JavaFilter>,
     ) -> Self {
         Self {
             enabled_file_types,
             rust_filter,
             go_filter,
+            java_filter,
         }
     }
 
@@ -176,6 +246,11 @@ impl IndexingFilter {
     /// Access the Go-specific filter if configured
     pub fn go_filter(&self) -> Option<&GoFilter> {
         self.go_filter.as_ref()
+    }
+
+    /// Access the Java-specific filter if configured
+    pub fn java_filter(&self) -> Option<&JavaFilter> {
+        self.java_filter.as_ref()
     }
 }
 
@@ -209,6 +284,20 @@ impl Default for IndexingFilter {
                     GoItemType::Type,
                     GoItemType::Const,
                     GoItemType::Var,
+                ],
+                DocLineCount::new(0),
+            )),
+            java_filter: Some(JavaFilter::new(
+                vec![Visibility::Public, Visibility::Private],
+                vec![
+                    JavaItemType::Class,
+                    JavaItemType::Interface,
+                    JavaItemType::Enum,
+                    JavaItemType::Record,
+                    JavaItemType::Method,
+                    JavaItemType::Field,
+                    JavaItemType::Constructor,
+                    JavaItemType::Annotation,
                 ],
                 DocLineCount::new(0),
             )),
@@ -302,7 +391,7 @@ mod test {
     fn test_indexing_filter_should_index_file_type() {
         // Given A filter with only markdown enabled
         use crate::knowledge::domain::FileType;
-        let filter = IndexingFilter::new(vec![FileType::Markdown], None, None);
+        let filter = IndexingFilter::new(vec![FileType::Markdown], None, None, None);
 
         // When Checking different file types
         let markdown = filter.should_index_file_type(FileType::Markdown);
@@ -317,7 +406,7 @@ mod test {
     fn test_indexing_filter_rust_filter_returns_reference() {
         // Given A filter with Rust filter configured
         let rust_filter = RustFilter::new(vec![Visibility::Public], vec![], DocLineCount::new(0));
-        let filter = IndexingFilter::new(vec![], Some(rust_filter), None);
+        let filter = IndexingFilter::new(vec![], Some(rust_filter), None, None);
 
         // When Getting the Rust filter
         let result = filter.rust_filter();

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use std::path::{Path, PathBuf};
 
-use super::filter::{GoFilter, GoItemType, IndexingFilter, RustFilter, RustItemType};
+use super::filter::{GoFilter, GoItemType, IndexingFilter, JavaFilter, JavaItemType, RustFilter, RustItemType};
 use crate::knowledge::constants::SEMBLY_CONFIG;
 use crate::knowledge::domain::{DocLineCount, FileType, Visibility};
 use crate::knowledge::scoring::BoostRule;
@@ -53,10 +53,17 @@ impl CrumblyConfig {
             None
         };
 
+        let java_filter = if self.enabled_file_types.contains(&FileType::Java) {
+            Some(self.file_types.java.to_java_filter()?)
+        } else {
+            None
+        };
+
         Ok(IndexingFilter::new(
             self.enabled_file_types.clone(),
             rust_filter,
             go_filter,
+            java_filter,
         ))
     }
 }
@@ -83,6 +90,10 @@ pub struct FileTypeConfig {
     /// Go-specific indexing controls
     #[serde(default)]
     pub go: GoConfig,
+
+    /// Java-specific indexing controls
+    #[serde(default)]
+    pub java: JavaConfig,
 }
 
 /// Configuration for indexing Rust source files
@@ -189,6 +200,44 @@ impl Default for GoConfig {
     }
 }
 
+/// Configuration for indexing Java source files
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct JavaConfig {
+    /// Visibility levels to index
+    #[serde(default = "default_visibility")]
+    pub visibility: Vec<Visibility>,
+
+    /// Item types to index
+    #[serde(default = "default_java_items")]
+    pub items: Vec<JavaItemType>,
+
+    /// Minimum doc comment length in lines
+    #[serde(default)]
+    pub min_doc_lines: usize,
+}
+
+impl JavaConfig {
+    /// Convert to a JavaFilter for use during indexing
+    fn to_java_filter(&self) -> Result<JavaFilter, CrumblyConfigError> {
+        Ok(JavaFilter::new(
+            self.visibility.clone(),
+            self.items.clone(),
+            DocLineCount::new(self.min_doc_lines),
+        ))
+    }
+}
+
+impl Default for JavaConfig {
+    fn default() -> Self {
+        Self {
+            visibility: default_visibility(),
+            items: default_java_items(),
+            min_doc_lines: 0,
+        }
+    }
+}
+
 fn default_file_types() -> Vec<FileType> {
     vec![FileType::Markdown, FileType::Rust]
 }
@@ -210,6 +259,19 @@ fn default_go_items() -> Vec<GoItemType> {
         GoItemType::Type,
         GoItemType::Const,
         GoItemType::Var,
+    ]
+}
+
+fn default_java_items() -> Vec<JavaItemType> {
+    vec![
+        JavaItemType::Class,
+        JavaItemType::Interface,
+        JavaItemType::Enum,
+        JavaItemType::Record,
+        JavaItemType::Method,
+        JavaItemType::Field,
+        JavaItemType::Constructor,
+        JavaItemType::Annotation,
     ]
 }
 
