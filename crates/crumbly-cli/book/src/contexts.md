@@ -4,16 +4,16 @@ A context is a named scope for indexing and searching.
 When you build an index, you specify which directory to index as a context.
 When you search, results come from that context.
 
-## Why Contexts?
+## Content-Addressable Storage
 
-You might work on multiple projects, or want separate indexes for different parts of a large monorepo.
-Contexts let you keep these separate without maintaining multiple databases.
+Crumbly uses content-addressable storage internally.
+This means identical content is stored only once, regardless of how many contexts contain it.
 
-Each context tracks:
+This design shines when you work with git worktrees.
+Many developers have found that AI agents work well with worktrees—each task gets its own working directory without branch switching overhead.
+When you add a worktree as a new context, crumbly indexes it almost instantly because most of the content already exists in the index from other contexts.
 
-- Which files have been indexed
-- The chunks extracted from those files
-- File modification times (for incremental updates)
+Only the files that differ between worktrees need new embeddings computed.
 
 ## Creating a Context
 
@@ -25,6 +25,26 @@ crumbly build --context ./my-project
 
 The context name is derived from the path.
 Running this command again updates the existing context, re-indexing only files that changed.
+
+## Worktree Workflow
+
+A typical workflow with worktrees:
+
+```bash
+# Main branch already indexed
+crumbly build --context ./main
+
+# Create a worktree for a feature
+git worktree add ../feature-x -b feature-x
+
+# Index it — fast, since most content is shared
+crumbly build --context ../feature-x
+
+# Search within your feature branch
+crumbly search --context ../feature-x "authentication"
+```
+
+The second build completes quickly because crumbly recognizes that most chunks already exist.
 
 ## Searching a Context
 
@@ -40,19 +60,6 @@ Or specify explicitly:
 ```bash
 crumbly search --context ./my-project "authentication"
 ```
-
-## Multiple Contexts
-
-You can have as many contexts as you need:
-
-```bash
-crumbly build --context ./project-a
-crumbly build --context ./project-b
-crumbly build --context ./monorepo/services
-```
-
-Each maintains its own set of indexed files.
-The underlying storage is shared—if two contexts contain identical content, the embeddings are stored only once.
 
 ## Listing Contexts
 
