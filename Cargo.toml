@@ -50,6 +50,7 @@ quote = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 tree-sitter = "0.24"
 tree-sitter-go = "0.23"
+tree-sitter-java = "0.23"
 
 # File system and paths
 globset = "0.4"

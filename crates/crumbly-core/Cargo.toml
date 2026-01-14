@@ -35,6 +35,7 @@ tokenizers.workspace = true
 toml.workspace = true
 tree-sitter.workspace = true
 tree-sitter-go.workspace = true
+tree-sitter-java.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

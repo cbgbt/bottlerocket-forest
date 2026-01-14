@@ -40,7 +40,9 @@ pub mod source;
 
 pub use cacher::{CacheError, CacheResult, ChunkCacher};
 pub use config::{CrumblyConfig, CrumblyConfigError, load_crumbly_config};
-pub use filter::{GoFilter, GoItemType, IndexingFilter, JavaFilter, JavaItemType, RustFilter, RustItemType};
+pub use filter::{
+    GoFilter, GoItemType, IndexingFilter, JavaFilter, JavaItemType, RustFilter, RustItemType,
+};
 pub use indexer::{BatchConfig, IndexResult, IndexStrategy, Indexer, IndexingError};
 pub use progress::{ProgressReporter, SilentReporter};
 pub use provider::{IndexDataError, IndexDataProvider};
