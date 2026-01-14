@@ -14,9 +14,12 @@ impl Plugin for ExecPlugin {
     }
 
     fn create_hook(&self, config: &HookConfig) -> Result<Box<dyn Hook>, PluginError> {
-        let path = config.path.clone().ok_or_else(|| PluginError::InvalidConfig {
-            message: "exec hook requires 'path' field".to_string(),
-        })?;
+        let path = config
+            .path
+            .clone()
+            .ok_or_else(|| PluginError::InvalidConfig {
+                message: "exec hook requires 'path' field".to_string(),
+            })?;
         let args = config.args.clone().unwrap_or_default();
         let triggers: Vec<Trigger> = config
             .triggers

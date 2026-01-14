@@ -13,9 +13,12 @@ impl Plugin for CrumblyPlugin {
     }
 
     fn create_hook(&self, config: &HookConfig) -> Result<Box<dyn Hook>, PluginError> {
-        let command = config.command.clone().ok_or_else(|| PluginError::InvalidConfig {
-            message: "crumbly hook requires 'command' field".to_string(),
-        })?;
+        let command = config
+            .command
+            .clone()
+            .ok_or_else(|| PluginError::InvalidConfig {
+                message: "crumbly hook requires 'command' field".to_string(),
+            })?;
         let triggers: Vec<Trigger> = config
             .triggers
             .iter()

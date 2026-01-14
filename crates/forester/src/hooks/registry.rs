@@ -33,7 +33,11 @@ impl HookRegistry {
 
     /// Runs all hooks for the given trigger.
     pub fn run_hooks(&self, trigger: Trigger, ctx: &HookContext) -> Result<(), RunHooksError> {
-        for hook in self.hooks.iter().filter(|h| h.triggers().contains(&trigger)) {
+        for hook in self
+            .hooks
+            .iter()
+            .filter(|h| h.triggers().contains(&trigger))
+        {
             hook.execute(ctx).map_err(|e| RunHooksError::HookFailed {
                 message: e.to_string(),
             })?;
