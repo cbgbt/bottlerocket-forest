@@ -36,11 +36,10 @@ If it doesn't exist, use `propose-feature-design` skill first.
 
 ### 2. Create Planning Directory and Copy Template
 
-Implementation plans go in `./planning/` (gitignored scratch space), not `./docs/features/`.
+Implementation plans go in `./docs/features/NNNN-feature-name/` alongside the design and test plan.
 
 ```bash
-mkdir -p ./planning/NNNN-feature-name
-cp ./docs/features/0000-templates/implementation-plan.md ./planning/NNNN-feature-name/
+cp ./docs/features/0000-templates/implementation-plan.md ./docs/features/NNNN-feature-name/
 ```
 
 ### 3. Study the Design Document
@@ -301,13 +300,13 @@ Verify the implementation plan:
 
 ```bash
 # Check file exists
-ls ./planning/NNNN-feature-name/implementation-plan.md
+ls ./docs/features/NNNN-feature-name/implementation-plan.md
 
 # Verify it has the checklist
-grep -E "^\- \[ \]" ./planning/NNNN-feature-name/implementation-plan.md
+grep -E "^\- \[ \]" ./docs/features/NNNN-feature-name/implementation-plan.md
 
 # Count commits planned
-grep -c "^#### Commit" ./planning/NNNN-feature-name/implementation-plan.md
+grep -c "^#### Commit" ./docs/features/NNNN-feature-name/implementation-plan.md
 ```
 
 Review the plan for:
