@@ -29,7 +29,7 @@ Uses a TDD pipeline with phase isolation, worktree parallelization, and efficien
 1. **Validate via exit codes, not output** - If `cargo check` passes, the code compiles. Don't read it.
 2. **Trust subagents** - They report success/failure. Only investigate failures.
 3. **Batch independent work** - Spawn parallel commits in parallel.
-4. **Pass context forward** - Use context_files and context_data so subagents don't re-read.
+4. **Pass context forward** - Refer to relevant context files so subagents don't re-discover unless they must.
 5. **Read only on failure** - When something breaks, then investigate.
 
 ## Procedure
@@ -72,8 +72,10 @@ git worktree add /tmp/commit-N -b impl-commit-N HEAD
 
 Create module structure, types, and function stubs.
 
+**Style guide:** `docs/style/rust-design.md`
+
 **Input to subagent:**
-- context_files: style guides, relevant existing modules
+- context_files: `docs/style/rust-design.md`, relevant existing modules
 - context_data: commit details (files, types, signatures from plan)
 
 **Success criteria:** `cargo check` exits 0
@@ -84,8 +86,10 @@ Create module structure, types, and function stubs.
 
 Write tests against the stubs (TDD red phase).
 
+**Style guide:** `docs/style/rust-test.md`
+
 **Input to subagent:**
-- context_files: style guides, test plan section for this commit
+- context_files: `docs/style/rust-test.md`, test plan section for this commit
 - context_data: commit details, test names from plan, requirements being tested
 
 **Success criteria:** `cargo test` compiles (exits 0 or with test failures, not compile errors)
@@ -96,8 +100,10 @@ Write tests against the stubs (TDD red phase).
 
 Make tests pass (TDD green phase).
 
+**Style guide:** `docs/style/rust-impl.md`
+
 **Input to subagent:**
-- context_files: style guides
+- context_files: `docs/style/rust-impl.md`
 - context_data: commit details, constraints from plan
 
 **Constraints:**
@@ -183,10 +189,15 @@ For commits that can run in parallel:
 ## Context Handoff Reference
 
 ### What to pass via context_files:
-- `docs/style/rust-design.md` - Module design patterns
-- `docs/style/rust-code.md` - Code style guide
-- `docs/features/NNNN/test-plan.md` - Test specifications
-- Relevant existing source files the subagent needs to understand
+
+| Phase | Style Guide | Other Files |
+|-------|-------------|-------------|
+| Designer | `docs/style/rust-design.md` | Existing modules being extended |
+| Tester | `docs/style/rust-test.md` | Test plan section for this commit |
+| Implementor | `docs/style/rust-impl.md` | (none - work in worktree) |
+| Verifier | (none) | Implementation plan, design doc |
+
+Plus: relevant existing source files the subagent needs to understand
 
 ### What to pass via context_data:
 - Commit number and message
