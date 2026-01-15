@@ -8,7 +8,7 @@ check-fmt:
 
 .PHONY: clippy
 clippy:
-	cargo clippy --workspace --locked --quiet -- -D warnings --no-deps
+	python3 scripts/clippy_wrapper.py
 
 .PHONY: test
 test:
