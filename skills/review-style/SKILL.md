@@ -83,11 +83,26 @@ If you notice patterns across violations, call them out:
 THEMES: Several violations stem from inconsistent error handling approach
 ```
 
+## Minimal Change Bias Check
+
+The implementing agent is biased to make the smallest change possible to achieve its goal.
+After identifying violations, consider:
+
+> Do the violations point to any potential refactoring that would make the code more maintainable?
+> Did the implementor resist a better structural solution in favor of a quick fix?
+
+If yes, note this in a REFACTORING section:
+```
+REFACTORING: <description of structural improvement the implementor avoided>
+```
+
+This is not a violation—it's a flag for the orchestrator to consider.
+
 ## What This Skill Does NOT Do
 
-- Suggest improvements
-- Provide constructive feedback
+- Suggest improvements unrelated to violations
+- Provide general constructive feedback
 - Review scope/correctness (use review-scope for that)
 - Flag style preferences not in guides
 
-This is a binary gate: ACCEPT or VIOLATIONS. Nothing else.
+This is a binary gate: ACCEPT or VIOLATIONS. Refactoring notes are optional flags, not blockers.

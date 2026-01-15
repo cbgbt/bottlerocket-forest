@@ -175,3 +175,145 @@ a b c d:
 - No twoliter/buildsys dependencies
 - Easy to run in CI
 - Proves the core mechanism works before integration
+
+
+## Twoliter Integration Tests
+
+### Requirements Coverage (Additions)
+
+| Req ID | Test Type | Test Name | Description |
+|--------|-----------|-----------|-------------|
+| JSP-14 | integration | test_twoliter_creates_jobserver | Twoliter creates jobserver before cargo make |
+| JSP-15 | integration | test_twoliter_sets_makeflags | MAKEFLAGS set with jobserver FIFO path |
+| JSP-16 | integration | test_twoliter_jobserver_cleanup | Jobserver cleaned up after build completes |
+| JSP-17 | integration | test_server_detects_external_jobserver | Server connects to external jobserver from MAKEFLAGS |
+| JSP-18 | integration | test_server_proxies_acquire | Server proxies acquire to external jobserver |
+| JSP-19 | integration | test_server_proxies_release | Server proxies release to external jobserver |
+| JSP-20 | integration | test_buildsys_inherits_jobserver | Buildsys uses inherited jobserver socket |
+| JSP-21 | unit | test_buildsys_standalone_fallback | Buildsys creates own server when no MAKEFLAGS |
+
+### Test: test_twoliter_creates_jobserver
+
+**Type:** Integration
+
+**Purpose:** Verify twoliter creates a jobserver before invoking cargo make.
+
+**Setup:**
+1. Create minimal twoliter project
+2. Mock cargo make to capture environment
+
+**Procedure:**
+1. Run twoliter build command
+2. Capture environment passed to cargo make
+3. Verify MAKEFLAGS contains jobserver-auth
+
+**Assertions:**
+- MAKEFLAGS environment variable is set
+- MAKEFLAGS contains `--jobserver-auth=fifo:/tmp/twoliter-jobserver-*`
+- FIFO file exists at specified path
+
+**Requirements covered:** JSP-14, JSP-15
+
+---
+
+### Test: test_server_proxy_mode
+
+**Type:** Integration
+
+**Purpose:** Verify jobsys server proxies tokens from external jobserver.
+
+**Setup:**
+1. Create a jobserver using `jobserver` crate (simulating twoliter)
+2. Set MAKEFLAGS with the jobserver FIFO
+3. Start jobsys server (should detect and connect to external jobserver)
+
+**Procedure:**
+1. Connect jobsys client to server
+2. Acquire token via client
+3. Verify token was acquired from external jobserver (external pool decremented)
+4. Release token via client
+5. Verify token returned to external jobserver (external pool incremented)
+
+**Assertions:**
+- Server detects external jobserver from MAKEFLAGS
+- Token acquisition proxies to external jobserver
+- Token release proxies to external jobserver
+- No standalone token pool created
+
+**Requirements covered:** JSP-17, JSP-18, JSP-19
+
+---
+
+### Test: test_end_to_end_parallelism_coordination
+
+**Type:** Integration (requires Docker)
+
+**Purpose:** Verify complete token flow from twoliter through Docker to rpmbuild.
+
+**Setup:**
+1. Create jobserver with 4 tokens (simulating twoliter)
+2. Start jobsys server in proxy mode
+3. Build test Docker image
+
+**Procedure:**
+1. Run 4 parallel Docker containers, each running:
+   - jobsys client
+   - `make -j4` with 4 parallel targets (each sleeps 0.5s)
+2. Measure total execution time
+3. Verify parallelism is limited to 4 total across all containers
+
+**Assertions:**
+- With 4 tokens and 4 containers each wanting 4 jobs:
+  - Should NOT complete in 0.5s (would mean 16 parallel)
+  - Should NOT take 8s (would mean serial)
+  - Should take ~2s (4 tokens shared across 16 jobs = 4 batches)
+- All containers complete successfully
+- All tokens returned to pool
+
+**Requirements covered:** JSP-14 through JSP-19, end-to-end validation
+
+---
+
+### Test: test_buildsys_jobserver_inheritance
+
+**Type:** Unit
+
+**Purpose:** Verify buildsys correctly parses and uses inherited jobserver.
+
+**Setup:**
+1. Set MAKEFLAGS with jobserver-auth info
+2. Initialize CommonBuildArgs
+
+**Procedure:**
+1. Create CommonBuildArgs with MAKEFLAGS set
+2. Check jobserver_socket field
+3. Verify no new jobsys server would be spawned
+
+**Assertions:**
+- jobserver_socket parsed from MAKEFLAGS
+- spawn_jobsys_server flag is false
+- No warning logged about uncoordinated builds
+
+**Requirements covered:** JSP-20
+
+---
+
+### Test: test_buildsys_standalone_warning
+
+**Type:** Unit
+
+**Purpose:** Verify buildsys logs warning when no jobserver inherited.
+
+**Setup:**
+1. Ensure MAKEFLAGS is not set or doesn't contain jobserver info
+
+**Procedure:**
+1. Create CommonBuildArgs without MAKEFLAGS
+2. Capture log output
+
+**Assertions:**
+- Warning logged about builds not coordinated
+- Standalone jobsys server would be spawned
+- jobserver_socket is newly generated (not from MAKEFLAGS)
+
+**Requirements covered:** JSP-21
