@@ -84,9 +84,17 @@ pub(in crate::knowledge::facade) fn rebuild(
 ) -> Result<IndexResult, IndexError> {
     use crate::knowledge::facade::types::index_error::*;
 
-    if index.db_path.exists() {
+    let preserved_contexts = if index.db_path.exists() {
+        let old_repo = SqliteChunkRepository::open(&index.db_path, &index.config).ok();
+        let contexts = old_repo
+            .as_ref()
+            .and_then(|r| r.context_repository().list_contexts().ok())
+            .unwrap_or_default();
         std::fs::remove_file(&index.db_path).context(IndexDeletionFailedSnafu)?;
-    }
+        contexts
+    } else {
+        Vec::new()
+    };
 
     let mut repository = SqliteChunkRepository::open(&index.db_path, &index.config)
         .context(DatabaseAccessFailedSnafu)?;
@@ -101,19 +109,28 @@ pub(in crate::knowledge::facade) fn rebuild(
         .set_metadata(&metadata)
         .context(DatabaseAccessFailedSnafu)?;
 
-    #[expect(clippy::expect_used)]
-    let default_context = Context::builder()
-        .context_id(ContextId::from_path(".").expect("'.' is valid context id"))
-        .build();
-    repository
-        .context_repository()
-        .insert_context(&default_context)
-        .context(ContextRegistrationFailedSnafu)?;
+    let ctx_repo = repository.context_repository();
+    let preserved_ids: std::collections::HashSet<_> =
+        preserved_contexts.iter().map(|c| &c.context_id).collect();
 
-    if context_id.as_str() != "." {
+    for ctx in &preserved_contexts {
+        ctx_repo
+            .insert_context(ctx)
+            .context(ContextRegistrationFailedSnafu)?;
+    }
+
+    #[expect(clippy::expect_used)]
+    let default_id = ContextId::from_path(".").expect("'.' is valid context id");
+    if !preserved_ids.contains(&default_id) {
+        let default_context = Context::builder().context_id(default_id).build();
+        ctx_repo
+            .insert_context(&default_context)
+            .context(ContextRegistrationFailedSnafu)?;
+    }
+
+    if context_id.as_str() != "." && !preserved_ids.contains(&context_id) {
         let context = Context::builder().context_id(context_id.clone()).build();
-        repository
-            .context_repository()
+        ctx_repo
             .insert_context(&context)
             .context(ContextRegistrationFailedSnafu)?;
     }
