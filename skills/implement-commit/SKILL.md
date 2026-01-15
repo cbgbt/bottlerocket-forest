@@ -115,19 +115,55 @@ Make tests pass (TDD green phase).
 
 **Subagent task:** Implement the logic to make all tests pass without modifying tests or public API.
 
-#### Phase 4: Verifier
+#### Phase 4: Reviewers (Parallel)
 
-Independent scope and correctness check.
+Two independent reviews run in parallel using dedicated skills.
 
-**Input to subagent:**
-- context_files: implementation plan, design doc
-- context_data: commit details, what was implemented
+**Spawn both reviewers via spawn_batch:**
 
-**Subagent task:** Review the changes and respond with:
-- `ACCEPT` - Changes match commit scope and constraints
-- `REJECT: <reason>` - Changes violate scope or constraints
+```python
+results = spawn_batch([
+    {
+        "prompt": """USING SKILL "review-scope"
+        
+        Review changes for scope compliance.""",
+        "context_files": [
+            "skills/review-scope/SKILL.md",
+            "docs/features/NNNN-feature-name/implementation-plan.md",
+            "docs/features/NNNN-feature-name/design.md"
+        ],
+        "context_data": {
+            "commit_details": "<commit message and scope>",
+            "requirements": ["REQ-001", "REQ-002"],
+            "constraints": ["CC-001"],
+            "allowed_files": ["src/foo.rs", "src/bar.rs"]
+        },
+        "cwd": "/tmp/commit-N",
+        "allow_tools": True
+    },
+    {
+        "prompt": """USING SKILL "review-style"
+        
+        Review changes for style compliance.""",
+        "context_files": [
+            "skills/review-style/SKILL.md",
+            "docs/style/rust-design.md",
+            "docs/style/rust-impl.md",
+            "docs/style/rust-test.md"
+        ],
+        "context_data": {
+            "phase": "impl",
+            "changed_files": ["src/foo.rs", "src/bar.rs"]
+        },
+        "cwd": "/tmp/commit-N",
+        "allow_tools": True
+    }
+])
+```
 
-**On REJECT:** Return to Phase 3 (Implementor) with rejection reason. Max 2 cycles.
+**Success criteria:** Both reviewers respond with `ACCEPT`
+
+**On any REJECT:** Collect all violations from both reviewers, return to Phase 3 (Implementor) with combined violation list. Max 2 cycles.
 
 #### Phase 5: Close
 
