@@ -28,28 +28,14 @@ This is a pass/fail gate, not a feedback session.
 - `phase`: Which phase (design/impl/test) - determines primary style guide
 - `changed_files`: List of files to review
 
-## Style Guide Summary
+## Style Guides (Authoritative Sources)
 
-### rust-design.md (Design Phase)
-- Error types: snafu with `#[snafu(module)]`, error-per-operation
-- Builders: bon with `#[non_exhaustive]`, per-field `#[builder(into)]`
-- Newtypes: nutype for validation
-- Module organization: domain-specific, not grab-bags
-- Documentation: doc comments on public items, no `# Errors` sections
+The style guides in `docs/style/` are the ONLY source of truth:
+- `docs/style/rust-design.md` - Design phase rules
+- `docs/style/rust-impl.md` - Implementation phase rules
+- `docs/style/rust-test.md` - Test phase rules
 
-### rust-impl.md (Implementation Phase)
-- Snafu selectors: import inside functions, not module level
-- Validation: use `snafu::ensure!`, not if/return
-- Imports: all at top, group from same module
-- No panics: never `unwrap()`/`expect()` in production
-- Logging: tracing with `#[instrument]`
-
-### rust-test.md (Test Phase)
-- Structure: Given/When/Then comments required
-- Location: unit tests in same file, `#[cfg(test)] mod test`
-- Parameterized: use test_case for multiple inputs
-- Assertions: prefer `assert!(matches!())` for patterns
-- No useless tests: don't test third-party libraries
+Read the applicable guide(s) and apply your judgment. Do not rely on summaries.
 
 ## Procedure
 
@@ -76,39 +62,25 @@ ACCEPT
 **If any check fails, list violations:**
 ```
 VIOLATIONS:
-- [STYLE-001] <file>:<line> - <rule violated>: <description>
-- [STYLE-002] <file>:<line> - <rule violated>: <description>
+- <file>:<line> - <description in your own words>
+- <file>:<line> - <description>
+
+[Optional] THEMES: <pattern worth calling out>
 ```
-
-## Violation Categories
-
-| Code | Category | Description |
-|------|----------|-------------|
-| STYLE-001 | Error handling | Snafu usage violations |
-| STYLE-002 | Builder pattern | Bon usage violations |
-| STYLE-003 | Import organization | Import placement/grouping |
-| STYLE-004 | Documentation | Missing/incorrect doc comments |
-| STYLE-005 | Test structure | Missing Given/When/Then, wrong location |
-| STYLE-006 | Panic in production | unwrap()/expect() in non-test code |
-| STYLE-007 | Naming | Incorrect naming conventions |
-| STYLE-008 | Module organization | Wrong file structure |
 
 ## Violation Format
 
-Each violation must include:
-- Code (STYLE-NNN)
-- Location (file:line)
-- Rule being violated
-- Concrete description
+Describe violations naturally with location and clear explanation:
 
-**Good violation:**
 ```
-- [STYLE-001] src/config.rs:23 - snafu selectors at module level: `use config_error::*` should be inside function
+- src/config.rs:23 - snafu selectors imported at module level; should be inside function
+- src/parser.rs:45 - missing Given/When/Then comments in test
 ```
 
-**Bad violation:**
+If you notice patterns across violations, call them out:
+
 ```
-- The imports look wrong
+THEMES: Several violations stem from inconsistent error handling approach
 ```
 
 ## What This Skill Does NOT Do

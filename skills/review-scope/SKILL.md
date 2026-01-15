@@ -57,35 +57,25 @@ ACCEPT
 **If any check fails, list violations:**
 ```
 VIOLATIONS:
-- [SCOPE-001] <file>:<line> - <violation description>
-- [SCOPE-002] <file> - <violation description>
+- <file>:<line> - <description in your own words>
+- <file> - <description>
+
+[Optional] THEMES: <pattern worth calling out>
 ```
-
-## Violation Categories
-
-| Code | Category | Description |
-|------|----------|-------------|
-| SCOPE-001 | Out of scope file | Modified file not in allowed set |
-| SCOPE-002 | Missing requirement | Required behavior not implemented |
-| SCOPE-003 | Scope creep | Changes beyond stated requirements |
-| SCOPE-004 | Constraint violation | Violates explicit constraint |
-| SCOPE-005 | API change | Public API modified when not allowed |
 
 ## Violation Format
 
-Each violation must include:
-- Code (SCOPE-NNN)
-- Location (file, line if applicable)
-- Concrete description of what's wrong
+Describe violations naturally with location and clear explanation:
 
-**Good violation:**
 ```
-- [SCOPE-003] src/parser.rs:45 - Added logging infrastructure; not in commit scope
+- src/parser.rs:45 - Added logging infrastructure not in commit scope
+- src/config.rs - Modified file outside allowed set
 ```
 
-**Bad violation:**
+If you notice patterns across violations, call them out:
+
 ```
-- The code does extra stuff
+THEMES: Multiple changes extend beyond the stated requirements into error handling refactoring
 ```
 
 ## What This Skill Does NOT Do
