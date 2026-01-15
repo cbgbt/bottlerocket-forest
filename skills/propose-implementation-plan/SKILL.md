@@ -185,15 +185,29 @@ Phase 3: Integration
   Commit 6: Add integration tests
 ```
 
-### 8. Write the Commit Checklist
+### 8. Write the Commit Checklist and Dependency Graph
 
-Create the high-level checklist at the top of the document.
-Keep descriptions to one line—details go in the commit sections.
+Create the high-level checklist at the top of the document, followed immediately by the dependency graph and parallelization notes.
+This lets orchestrators read just the top to understand what can run in parallel.
 
 ```markdown
+## Commit Checklist
+
 - [ ] **Commit 1**: Add Context and ContextId types
 - [ ] **Commit 2**: Add ContextRepository trait
 - [ ] **Commit 3**: Implement SqliteContextRepository
+
+## Dependency Graph
+
+```
+1 ─┬─► 2 ─► 3
+   └─► 4 (parallel with 2)
+```
+
+## Parallelization Notes
+
+- Commits 2 and 4 can be developed in parallel (both depend only on 1)
+- Commit 3 requires Commit 2 to be complete
 ```
 
 ### 9. Write Detailed Commit Descriptions
@@ -214,17 +228,11 @@ For each commit, document:
 
 **Dependencies**: Which prior commits must be complete.
 
-### 10. Identify Parallelization Opportunities
+### 10. Review Parallelization Notes
 
-Note which commits have no dependencies on each other.
-These can be implemented simultaneously by different people or in any order.
-
-```markdown
-## Parallelization Notes
-
-- Commits 3 and 4 can be developed in parallel (both depend only on 1-2)
-- Phase 2 requires all of Phase 1 to be complete
-```
+The dependency graph and parallelization notes were placed at the top (step 8).
+Review them for accuracy now that all commits are documented.
+Ensure the graph correctly shows which commits can run in parallel.
 
 ### 11. Document Open Questions
 
