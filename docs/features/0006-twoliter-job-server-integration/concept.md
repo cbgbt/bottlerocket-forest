@@ -1,5 +1,5 @@
 ---
-feature: 0006-jobserver-proxy
+feature: 0006-twoliter-job-server-integration
 status: proposed
 ---
 
