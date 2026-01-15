@@ -125,15 +125,11 @@ pub fn check_schema_version(conn: &Connection) -> Result<()> {
         return Ok(());
     }
 
-    match (stored, SCHEMA_VERSION) {
-        (2, 3) => migrate_v2_to_v3(conn),
-        (3, 4) => migrate_v3_to_v4(conn),
-        _ => SchemaMismatchSnafu {
-            stored,
-            expected: SCHEMA_VERSION,
-        }
-        .fail(),
+    SchemaMismatchSnafu {
+        stored,
+        expected: SCHEMA_VERSION,
     }
+    .fail()
 }
 
 /// Initializes database schema including tables and indexes
@@ -157,7 +153,7 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     let create_vec_chunks = format!(
         "CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
             chunk_hash TEXT PRIMARY KEY,
-            embedding FLOAT[{}]
+            embedding FLOAT[{}] distance_metric=cosine
         )",
         config.embedding_dim
     );
@@ -169,61 +165,10 @@ pub fn create_tables(conn: &Connection, config: &EmbeddingModelConfig) -> Result
     Ok(())
 }
 
-/// Migrates from schema v2 to v3
-///
-/// v3 adds 'go_doc' to the context_type CHECK constraint in chunks table.
-fn migrate_v2_to_v3(conn: &Connection) -> Result<()> {
-    use schema_error::*;
-
-    conn.execute("BEGIN TRANSACTION", [])
-        .context(SqlExecutionSnafu)?;
-
-    let result = (|| -> Result<()> {
-        conn.execute(
-            r#"CREATE TABLE chunks_new (
-    chunk_hash BLOB PRIMARY KEY,
-    file_hash BLOB NOT NULL,
-    repo_name TEXT NOT NULL,
-    context_type TEXT NOT NULL CHECK(context_type IN ('markdown', 'rust_doc', 'go_doc')),
-    context_data TEXT NOT NULL,
-    content TEXT NOT NULL,
-    token_count INTEGER NOT NULL,
-    last_modified INTEGER NOT NULL
-)"#,
-            [],
-        )
-        .context(SqlExecutionSnafu)?;
-        conn.execute("INSERT INTO chunks_new SELECT * FROM chunks", [])
-            .context(SqlExecutionSnafu)?;
-        conn.execute("DROP TABLE chunks", [])
-            .context(SqlExecutionSnafu)?;
-        conn.execute("ALTER TABLE chunks_new RENAME TO chunks", [])
-            .context(SqlExecutionSnafu)?;
-        conn.execute(CREATE_INDEX_FILE_HASH, [])
-            .context(SqlExecutionSnafu)?;
-        conn.execute(CREATE_INDEX_REPO, [])
-            .context(SqlExecutionSnafu)?;
-        conn.execute(CREATE_INDEX_CONTEXT_TYPE, [])
-            .context(SqlExecutionSnafu)?;
-        set_schema_version(conn, 3)?;
-        Ok(())
-    })();
-
-    match result {
-        Ok(_) => {
-            conn.execute("COMMIT", []).context(SqlExecutionSnafu)?;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = conn.execute("ROLLBACK", []);
-            Err(e)
-        }
-    }
-}
-
 /// Migrates from schema v3 to v4
 ///
 /// v4 removes the CHECK constraint from context_type, allowing any string value.
+#[cfg(test)]
 fn migrate_v3_to_v4(conn: &Connection) -> Result<()> {
     use schema_error::*;
 
@@ -529,5 +474,25 @@ mod test {
 
         // Then it should succeed (no CHECK constraint)
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_vec_chunks_uses_cosine_distance() {
+        let conn = setup_connection();
+        create_tables(&conn, &EmbeddingModelConfig::default()).unwrap();
+
+        let sql: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_chunks'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert!(
+            sql.contains("distance_metric=cosine"),
+            "Expected vec_chunks DDL to contain distance_metric=cosine, got: {}",
+            sql
+        );
     }
 }

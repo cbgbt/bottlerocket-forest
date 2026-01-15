@@ -51,4 +51,4 @@ pub const MAX_INDEXING_THREADS: usize = 4;
 /// Version 3 adds 'go_doc' to context_type CHECK constraint in chunks table.
 /// Version 2 introduces content-addressed storage with contexts table,
 /// modified indexed_files and chunks tables. Requires rebuild from version 1.
-pub const SCHEMA_VERSION: u32 = 4;
+pub const SCHEMA_VERSION: u32 = 5;
