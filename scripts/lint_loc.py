@@ -12,21 +12,10 @@ OVERRIDES = {
     "crates/crumbly-core/src/knowledge/search/semantic.rs": 575,
 }
 CRATES = ["crates/brdev", "crates/crumbly-cli", "crates/crumbly-core", "crates/forester"]
-GUIDANCE_FILE = Path(__file__).parent / "lint-guidance.md"
 
 def is_test_file(path):
     s = str(path)
     return "/tests/" in s or s.endswith("tests.rs") or s.endswith("_test.rs")
-
-def extract_section(content: str, section: str) -> str:
-    start = f"<!-- SECTION: {section} -->"
-    end = f"<!-- END SECTION: {section} -->"
-    try:
-        s = content.index(start) + len(start)
-        e = content.index(end)
-        return content[s:e].strip()
-    except ValueError:
-        return ""
 
 def main():
     violations = []
@@ -42,15 +31,8 @@ def main():
         print("LOC limit exceeded:\n")
         for path, lines, limit in violations:
             print(f"  {path}: {lines} lines (limit: {limit})")
-        content = GUIDANCE_FILE.read_text()
-        preamble = extract_section(content, "preamble")
-        loc = extract_section(content, "loc")
-        print(f"\n{'='*60}\n")
-        if preamble:
-            print(preamble)
-            print()
-        if loc:
-            print(loc)
+        print()
+        print("⚡ REFACTOR_PHOENIX: See docs/lint-steering/loc.md")
         sys.exit(1)
     print("All modules are within LOC limits")
 
