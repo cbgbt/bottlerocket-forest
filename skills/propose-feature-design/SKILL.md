@@ -77,7 +77,31 @@ Describe the overall structure:
 
 Use simple diagrams with ASCII art if helpful.
 
-### 7. Define Domain Model
+### 7. Explain Solution Mechanics
+
+This section bridges the "why" (concept) to the "what" (architecture).
+For each core challenge identified in the concept, explain how the design addresses it.
+
+**For each challenge, answer:**
+- What is the fundamental problem? (from concept.md)
+- Which architectural element addresses it?
+- Why does this approach work?
+- What would fail if we did it differently?
+
+**Format as a table or structured list:**
+
+| Challenge | Architectural Element | Why It Works |
+|-----------|----------------------|--------------|
+| Challenge from concept | Component/pattern that addresses it | Explanation of the mechanism |
+
+**Prompts to help authors:**
+- "If someone asks 'how does this solve X?', can you point to a specific component?"
+- "Would a new engineer understand why this design was chosen over alternatives?"
+- "Does each major component have a clear reason for existing tied to a problem?"
+
+This section should make reviewers confident the design actually solves the stated problems, not just describes a plausible code structure.
+
+### 8. Define Domain Model
 
 Specify the core types and operations:
 
@@ -93,7 +117,7 @@ Specify the core types and operations:
 - Key behaviors
 - Invariants (what must always be true)
 
-### 8. Define Module Structure
+### 9. Define Module Structure
 
 Show how code should be organized:
 - Directory structure
@@ -124,14 +148,14 @@ impl KnowledgeIndex {
 // facade/search.rs: impl KnowledgeIndex { fn search() ... }
 ```
 
-### 9. Document Design Patterns
+### 10. Document Design Patterns
 
 Describe relevant patterns and why they apply:
 - Which patterns to use
 - How they fit the problem
 - Implementation guidance
 
-### 10. Document Design Decisions
+### 11. Document Design Decisions
 
 For significant choices between alternatives, add entries to the Design Decisions section:
 - What was decided
@@ -141,7 +165,7 @@ For significant choices between alternatives, add entries to the Design Decision
 
 This creates a record that helps implementors understand the reasoning.
 
-### 11. Add Implementation Guidance
+### 12. Add Implementation Guidance
 
 Key considerations for implementors:
 - Reference Critical Constraints by ID
@@ -149,7 +173,7 @@ Key considerations for implementors:
 - Testing approach
 - Edge cases to handle
 
-### 12. Keep Code Minimal
+### 13. Keep Code Minimal
 
 Remember:
 - Use minimal illustrative code
@@ -178,6 +202,8 @@ head -50 ./docs/features/NNNN-feature-name/design.md
 **Missing architecture**: Ensure the overall structure is clear before diving into details.
 
 **Not referencing requirements**: Link design decisions back to specific requirement IDs.
+
+**Missing solution mechanics**: If the design describes structure but not why it solves the problem, add the Solution Mechanics section mapping challenges to architectural elements.
 
 ## Next Steps
 
