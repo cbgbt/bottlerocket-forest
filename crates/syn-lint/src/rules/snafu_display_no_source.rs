@@ -29,7 +29,9 @@ impl Rule for SnafuDisplayNoSource {
                             "variant `{}::{}` has {{source}} in snafu display message",
                             e.ident, v.ident
                         ),
-                        doc_url: Some("🪸 CORAL_THEOREM: docs/style/rust-design.md#error-design-with-snafu"),
+                        doc_url: Some(
+                            "🪸 CORAL_THEOREM: docs/style/rust-design.md#error-design-with-snafu",
+                        ),
                     })
                 })
             })

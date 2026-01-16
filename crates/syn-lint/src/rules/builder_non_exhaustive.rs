@@ -27,7 +27,9 @@ impl Rule for BuilderNonExhaustive {
                             "struct `{}` derives Builder but lacks #[non_exhaustive]",
                             s.ident
                         ),
-                        doc_url: Some("🔷 PRISM_MEADOW: docs/style/rust-design.md#builders-with-bon"),
+                        doc_url: Some(
+                            "🔷 PRISM_MEADOW: docs/style/rust-design.md#builders-with-bon",
+                        ),
                     })
                 }
                 _ => None,

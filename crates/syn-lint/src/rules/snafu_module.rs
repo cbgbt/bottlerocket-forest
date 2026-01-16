@@ -25,7 +25,9 @@ impl Rule for SnafuModule {
                             "enum `{}` derives Snafu but lacks #[snafu(module)]",
                             e.ident
                         ),
-                        doc_url: Some("🪸 CORAL_THEOREM: docs/style/rust-design.md#error-design-with-snafu"),
+                        doc_url: Some(
+                            "🪸 CORAL_THEOREM: docs/style/rust-design.md#error-design-with-snafu",
+                        ),
                     })
                 }
                 _ => None,

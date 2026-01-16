@@ -23,7 +23,7 @@ These are non-negotiable project conventions:
 | Logging | `tracing` | With `#[instrument]` |
 | Config format | `toml` | Prefer over JSON/YAML |
 
-## Error Design with Snafu
+## Error Design with Snafu (🪸 CORAL_THEOREM)
 
 ### Error-Per-Operation Pattern
 
@@ -189,7 +189,7 @@ let normalized = path.clean();
 
 Never reimplement path canonicalization manually.
 
-### Builders with Bon
+### Builders with Bon (🔷 PRISM_MEADOW)
 
 Composite structs (2+ fields) MUST use builders, not constructors:
 
@@ -271,7 +271,7 @@ When designing APIs:
 - No parameter/return documentation in docstrings
 - Avoid vague terms: "robust", "efficient", "handles", "manages"
 
-## Serialization
+## Serialization (🪐 VELVET_ORBIT)
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
