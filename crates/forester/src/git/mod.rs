@@ -1,9 +1,7 @@
 //! Git abstraction layer for forester.
 //!
-//! Provides operations for bare repositories and worktrees.
+//! Provides operations for bare repositories and clones.
 
 mod bare;
-mod worktree;
 
-pub use bare::{BareRepository, CloneBareError};
-pub use worktree::{CreateWorktreeError, RemoveWorktreeError};
+pub use bare::{BareRepository, CheckoutError, CloneBareError, CloneToError};

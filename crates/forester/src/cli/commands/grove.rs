@@ -85,7 +85,7 @@ fn remove(args: GroveRemoveArgs) -> miette::Result<()> {
 
     let grove_name = GroveName::try_new(args.name).map_err(|e| miette::miette!("{}", e))?;
 
-    let op = GroveRemoveOperation::new(&forest_root, &config, &hooks, &emitter, false);
+    let op = GroveRemoveOperation::new(&forest_root, &hooks, &emitter, false);
     op.execute(&grove_name, args.force)
         .map_err(|e| miette::miette!("{}", e))?;
 

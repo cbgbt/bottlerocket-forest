@@ -4,15 +4,13 @@ use std::path::{Path, PathBuf};
 
 use snafu::{ResultExt, Snafu};
 
-use crate::domain::{ForestConfig, ForestRoot, GroveName};
+use crate::domain::{ForestRoot, GroveName};
 use crate::events::{EventEmitter, ForesterEvent};
-use crate::git::BareRepository;
 use crate::hooks::{HookContext, HookRegistry, Trigger};
 
-/// Removes a grove and its worktrees.
+/// Removes a grove and its cloned repositories.
 pub struct GroveRemoveOperation<'a> {
     forest_root: &'a ForestRoot,
-    config: &'a ForestConfig,
     hooks: &'a HookRegistry,
     emitter: &'a dyn EventEmitter,
     verbose: bool,
@@ -22,14 +20,12 @@ impl<'a> GroveRemoveOperation<'a> {
     /// Creates a new grove removal operation.
     pub fn new(
         forest_root: &'a ForestRoot,
-        config: &'a ForestConfig,
         hooks: &'a HookRegistry,
         emitter: &'a dyn EventEmitter,
         verbose: bool,
     ) -> Self {
         Self {
             forest_root,
-            config,
             hooks,
             emitter,
             verbose,
@@ -37,7 +33,7 @@ impl<'a> GroveRemoveOperation<'a> {
     }
 
     /// Executes the grove removal.
-    pub fn execute(&self, name: &GroveName, force: bool) -> Result<(), GroveRemoveError> {
+    pub fn execute(&self, name: &GroveName, _force: bool) -> Result<(), GroveRemoveError> {
         use grove_remove_error::*;
 
         let grove_path = self.forest_root.groves_dir().join(name.to_string());
@@ -51,16 +47,6 @@ impl<'a> GroveRemoveOperation<'a> {
         self.emitter.emit(&ForesterEvent::GroveRemoving {
             name: name.to_string(),
         });
-
-        for member in &self.config.forest.member {
-            let bare_path = self
-                .forest_root
-                .bare_dir()
-                .join(format!("{}.git", member.name));
-            let member_path = grove_path.join(&member.path);
-            let bare = BareRepository::new(&bare_path, &member.name);
-            let _ = bare.remove_worktree(&member_path, force);
-        }
 
         std::fs::remove_dir_all(&grove_path).context(RemoveDirSnafu { path: &grove_path })?;
 

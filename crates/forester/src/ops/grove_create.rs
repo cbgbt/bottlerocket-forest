@@ -9,7 +9,7 @@ use crate::events::{EventEmitter, ForesterEvent};
 use crate::git::BareRepository;
 use crate::hooks::{HookContext, HookRegistry, Trigger};
 
-/// Creates a grove with worktrees for all members.
+/// Creates a grove with cloned repositories for all members.
 pub struct GroveCreateOperation<'a> {
     forest_root: &'a ForestRoot,
     config: &'a ForestConfig,
@@ -63,7 +63,7 @@ impl<'a> GroveCreateOperation<'a> {
         })?;
 
         for member in &self.config.forest.member {
-            self.create_member_worktree(member, &grove_path, name, branch)?;
+            self.create_member_clone(member, &grove_path, name, branch)?;
         }
 
         self.create_symlinks(&grove_path, self.forest_root.path())?;
@@ -79,7 +79,7 @@ impl<'a> GroveCreateOperation<'a> {
         Ok(grove_root)
     }
 
-    fn create_member_worktree(
+    fn create_member_clone(
         &self,
         member: &crate::domain::Member,
         grove_path: &Path,
@@ -101,25 +101,31 @@ impl<'a> GroveCreateOperation<'a> {
         }
 
         let bare = BareRepository::new(&bare_path, &member.name);
+        bare.clone_to(&member_path, !self.verbose)
+            .context(CloneSnafu {
+                member: &member.name,
+            })?;
+
         let target_branch = branch.unwrap_or_else(|| member.branch());
         let use_new_branch = grove_name.to_string() != "develop" && branch.is_none();
 
         if use_new_branch {
             let new_branch = format!("{}/{}", grove_name, member.name);
-            bare.create_worktree_new_branch(
+            BareRepository::checkout_new_branch(
                 &member_path,
                 &new_branch,
-                member.branch(),
+                &format!("origin/{}", member.branch()),
                 !self.verbose,
             )
-            .context(WorktreeSnafu {
+            .context(CheckoutSnafu {
                 member: &member.name,
             })?;
         } else {
-            bare.create_worktree(&member_path, target_branch, !self.verbose)
-                .context(WorktreeSnafu {
+            BareRepository::checkout_branch(&member_path, target_branch, !self.verbose).context(
+                CheckoutSnafu {
                     member: &member.name,
-                })?;
+                },
+            )?;
         }
 
         self.emitter.emit(&ForesterEvent::GroveWorktreeCreated {
@@ -191,13 +197,22 @@ pub enum GroveCreateError {
         source: std::io::Error,
     },
 
-    /// Failed to create a worktree.
-    #[snafu(display("Failed to create worktree for '{member}'"))]
-    Worktree {
+    /// Failed to clone a member repository.
+    #[snafu(display("Failed to clone repository for '{member}'"))]
+    Clone {
         /// Member name.
         member: String,
-        /// Underlying worktree error.
-        source: crate::git::CreateWorktreeError,
+        /// Underlying clone error.
+        source: crate::git::CloneToError,
+    },
+
+    /// Failed to checkout branch.
+    #[snafu(display("Failed to checkout branch for '{member}'"))]
+    Checkout {
+        /// Member name.
+        member: String,
+        /// Underlying checkout error.
+        source: crate::git::CheckoutError,
     },
 
     /// Failed to create a symlink.
