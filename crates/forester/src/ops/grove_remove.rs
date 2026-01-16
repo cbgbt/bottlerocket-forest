@@ -77,7 +77,7 @@ impl<'a> GroveRemoveOperation<'a> {
 
     fn hook_context(&self, name: &GroveName, path: &Path) -> HookContext {
         HookContext::builder()
-            .forest_root(self.forest_root.path())
+            .forest_root(self.forest_root.clone())
             .trigger(Trigger::PostGroveRemove)
             .grove_name(name.to_string())
             .grove_path(path.to_path_buf())

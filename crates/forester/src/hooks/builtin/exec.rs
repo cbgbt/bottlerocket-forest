@@ -47,13 +47,13 @@ impl Hook for ExecHook {
 
     fn execute(&self, ctx: &HookContext) -> Result<(), HookError> {
         let script_path = if self.path.is_relative() {
-            ctx.forest_root.join(&self.path)
+            ctx.forest_root.path().join(&self.path)
         } else {
             self.path.clone()
         };
 
         let mut cmd = Command::new(&script_path);
-        cmd.args(&self.args).current_dir(&ctx.forest_root);
+        cmd.args(&self.args).current_dir(ctx.forest_root.path());
 
         for (k, v) in ctx.env_vars() {
             cmd.env(k, v);

@@ -62,20 +62,19 @@ impl Hook for CrumblyHook {
 
         match self.command.as_str() {
             "cache-bare" => {
-                let bare_dir = ctx.forest_root.join(".forest/bare");
                 cmd.args(["cache", "bare-git"])
-                    .arg(&bare_dir)
-                    .current_dir(&ctx.forest_root);
+                    .arg(ctx.forest_root.bare_dir())
+                    .current_dir(ctx.forest_root.path());
             }
             "update-context" => {
                 let context_arg = ctx
                     .grove_path
                     .as_ref()
-                    .and_then(|p| p.strip_prefix(&ctx.forest_root).ok())
+                    .and_then(|p| p.strip_prefix(ctx.forest_root.path()).ok())
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| ".".to_string());
                 cmd.args(["update", "--context", &context_arg])
-                    .current_dir(&ctx.forest_root);
+                    .current_dir(ctx.forest_root.path());
             }
             other => {
                 return Err(HookError::Execution {

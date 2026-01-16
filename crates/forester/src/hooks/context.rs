@@ -1,6 +1,7 @@
 //! Hook execution context.
 
 use super::Trigger;
+use crate::domain::ForestRoot;
 use bon::Builder;
 use std::path::PathBuf;
 
@@ -9,8 +10,7 @@ use std::path::PathBuf;
 #[non_exhaustive]
 pub struct HookContext {
     /// Root directory of the forest.
-    #[builder(into)]
-    pub forest_root: PathBuf,
+    pub forest_root: ForestRoot,
     /// Current trigger.
     pub trigger: Trigger,
     /// Name of the grove being operated on.
@@ -28,7 +28,7 @@ impl HookContext {
     /// Returns environment variables for hook execution.
     pub fn env_vars(&self) -> Vec<(&'static str, String)> {
         let mut vars = vec![
-            ("FOREST_ROOT", self.forest_root.display().to_string()),
+            ("FOREST_ROOT", self.forest_root.path().display().to_string()),
             ("TRIGGER", self.trigger.to_string()),
         ];
         if let Some(name) = &self.grove_name {

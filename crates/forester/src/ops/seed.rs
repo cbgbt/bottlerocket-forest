@@ -86,7 +86,7 @@ impl<'a> SeedOperation<'a> {
 
     fn hook_context(&self) -> HookContext {
         HookContext::builder()
-            .forest_root(self.forest_root.path())
+            .forest_root(self.forest_root.clone())
             .trigger(Trigger::PostSeed)
             .verbose(self.verbose)
             .build()
