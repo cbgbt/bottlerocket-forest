@@ -68,10 +68,10 @@ cargo install forester
 
 Usage:
 ```bash
-forester seed                        # Clone all member repos and set up forest
-forester worktree create feature-x   # Create worktree for all member repos
-forester worktree list               # List existing worktrees
-forester worktree remove feature-x   # Remove a worktree
+forester seed                      # Clone all member repos and set up forest
+forester grove create feature-x    # Create grove for all member repos
+forester grove list                # List existing groves
+forester grove remove feature-x    # Remove a grove
 ```
 
 Forester is a standalone open-source tool that can be applied to any codebase. See `crates/forester/README.md` for complete documentation.
