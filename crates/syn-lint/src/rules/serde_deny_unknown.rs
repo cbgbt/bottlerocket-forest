@@ -27,7 +27,7 @@ impl Rule for SerdeDenyUnknown {
                             "struct `{}` derives Deserialize but lacks #[serde(deny_unknown_fields)]",
                             s.ident
                         ),
-                        doc_url: Some("docs/style/rust-design.md#serialization"),
+                        doc_url: Some("🪐 VELVET_ORBIT: docs/style/rust-design.md#serialization"),
                     })
                 }
                 _ => None,

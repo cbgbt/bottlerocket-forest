@@ -27,7 +27,7 @@ impl Rule for SerdeRenameAllKebab {
                             "struct `{}` derives Serialize/Deserialize but lacks #[serde(rename_all = \"kebab-case\")]",
                             s.ident
                         ),
-                        doc_url: Some("docs/style/rust-design.md#serialization"),
+                        doc_url: Some("🪐 VELVET_ORBIT: docs/style/rust-design.md#serialization"),
                     })
                 }
                 _ => None,

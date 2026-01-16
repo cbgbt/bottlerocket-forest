@@ -27,7 +27,7 @@ impl Rule for NoThiserror {
                         file: path.display().to_string(),
                         line: attrs.1.span().start().line,
                         message: format!("`{}` derives Error (thiserror)", attrs.1),
-                        doc_url: Some("docs/style/rust-design.md#project-crate-choices"),
+                        doc_url: Some("🪸 CORAL_THEOREM: docs/style/rust-design.md#error-design-with-snafu"),
                     })
                 } else {
                     None
