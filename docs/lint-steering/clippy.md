@@ -1,51 +1,23 @@
-# ⚡ REFACTOR_PHOENIX — Clippy
+# ⚡ PETAL_DRIFT — Clippy
 
-This lint guards against minimal-change bias.
+This lint exists to combat minimal change bias.
 
-## The Trap
+Clippy warnings often indicate deeper design issues, not just style violations.
+Address the underlying design issue, not just the symptom.
 
-When clippy warns about complexity, the tempting fix is:
-- Add `#[allow(...)]` to silence it
-- Extract a helper that's only called once
-- Suppress with a minor restructure
+## Consider These Refactoring Patterns
 
-This hides complexity without reducing it.
+1. COMPLEXITY WARNINGS (cognitive_complexity, too_many_arguments)
+   These signal functions doing too much.
+   Should this function instead compose smaller abstractions?
+   Can we extract behavior into methods?
+   Weigh the cost of abstraction with the cost of the separation between components.
 
-## Instead, Ask
+2. TYPE WARNINGS (type_complexity)
+   Complex types suggest missing abstractions. Introduce newtypes or
+   domain-specific types to clarify intent.
 
-1. What are the distinct phases of this function?
-2. Is this function doing multiple jobs?
-3. Does this type represent a missing abstraction?
+3. CLONE/COPY WARNINGS
+   Excessive cloning may indicate ownership design issues. Consider
+   borrowing patterns or restructuring data flow.
 
-## Patterns
-
-### Complexity Warnings (cognitive_complexity, too_many_arguments)
-
-These signal functions doing too much.
-
-- Should this function compose smaller abstractions?
-- Can we extract behavior into methods on a type?
-- Weigh the cost of abstraction against the cost of separation.
-
-### Type Warnings (type_complexity)
-
-Complex types suggest missing abstractions.
-
-Introduce newtypes or domain-specific types to clarify intent:
-
-```rust
-// Before: HashMap<String, Vec<(PathBuf, usize, String)>>
-// After:
-struct SearchResults(HashMap<String, Vec<Match>>);
-struct Match { path: PathBuf, line: usize, content: String }
-```
-
-### Clone/Copy Warnings
-
-Excessive cloning may indicate ownership design issues.
-
-Consider borrowing patterns or restructuring data flow.
-
-## The Test
-
-After refactoring, the function's logic should be readable top-to-bottom without mental stack management.

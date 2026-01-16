@@ -32,7 +32,7 @@ def main():
         for path, lines, limit in violations:
             print(f"  {path}: {lines} lines (limit: {limit})")
         print()
-        print("⚡ REFACTOR_PHOENIX: See docs/lint-steering/loc.md")
+        print("⚡ ARBOR_BLOOM: See docs/lint-steering/loc.md")
         sys.exit(1)
     print("All modules are within LOC limits")
 
