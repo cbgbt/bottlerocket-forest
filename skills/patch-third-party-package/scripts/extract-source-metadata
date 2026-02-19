@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+check_required_tool() {
+  if ! command -v "$1" &> /dev/null; then
+    echo "Error: $1 is not installed" >&2
+    exit 1
+  fi
+}
+
+usage() {
+  cat <<EOF
+Usage: $0 PACKAGE_NAME
+
+Extract source URLs and checksums from a Bottlerocket package's Cargo.toml.
+
+Arguments:
+  PACKAGE_NAME    Name of the package (e.g., glibc, coreutils)
+
+Output:
+  Prints source URLs and sha512 checksums in the format:
+    URL: <url>
+    SHA512: <checksum>
+
+Example:
+  $0 glibc
+EOF
+  exit 1
+}
+
+if [[ $# -ne 1 ]]; then
+  usage
+fi
+
+check_required_tool jq
+check_required_tool toml2json
+
+PACKAGE_NAME="$1"
+
+# Find package directory
+PACKAGE_DIR=$(find kits/*/packages -type d -name "${PACKAGE_NAME}" 2>/dev/null | head -n1)
+
+if [[ -z "${PACKAGE_DIR}" ]]; then
+  echo "Error: Package '${PACKAGE_NAME}' not found in kits/*/packages/" >&2
+  exit 1
+fi
+
+CARGO_TOML="${PACKAGE_DIR}/Cargo.toml"
+
+if [[ ! -f "${CARGO_TOML}" ]]; then
+  echo "Error: Cargo.toml not found at ${CARGO_TOML}" >&2
+  exit 1
+fi
+
+# Parse external-files entries using toml2json and jq
+toml2json < "${CARGO_TOML}" | jq -r '
+  .package.metadata."build-package"."external-files"[]? |
+  "URL: \(.url)\nSHA512: \(.sha512)\n"
+'
