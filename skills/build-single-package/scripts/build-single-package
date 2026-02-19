@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PACKAGE=""
+ARCH=""
+
+usage() {
+  echo "Usage: $0 -p <package-name> [-a <arch>]" >&2
+  echo "  -p    Package name (required)" >&2
+  echo "  -a    Target architecture (optional, defaults to host arch)" >&2
+  exit 1
+}
+
+while getopts "p:a:h" opt; do
+  case ${opt} in
+    p) PACKAGE="${OPTARG}" ;;
+    a) ARCH="${OPTARG}" ;;
+    h) usage ;;
+    *) usage ;;
+  esac
+done
+
+if [[ -z "${PACKAGE}" ]]; then
+  echo "Error: Package name required" >&2
+  usage
+fi
+
+# Detect host architecture if not provided
+if [[ -z "${ARCH}" ]]; then
+  ARCH=$(uname -m)
+fi
+
+echo "Building package: ${PACKAGE} for architecture: ${ARCH}"
+PACKAGE="${PACKAGE}" BUILDSYS_ARCH="${ARCH}" make twoliter build-package
+
+echo "Build completed successfully"
