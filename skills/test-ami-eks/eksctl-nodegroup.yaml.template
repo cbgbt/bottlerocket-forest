@@ -1,0 +1,22 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: ${CLUSTER_NAME}
+  region: ${REGION}
+nodeGroups:
+  - name: ${NODEGROUP_NAME}
+    instanceType: ${INSTANCE_TYPE}
+    desiredCapacity: ${DESIRED_CAPACITY}
+    ami: ${AMI_ID}
+    amiFamily: Bottlerocket
+    iam:
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+    bottlerocket:
+      settings:
+        host-containers:
+          admin:
+            enabled: true
