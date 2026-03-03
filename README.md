@@ -63,7 +63,7 @@ Generic forest management tool.
 
 Install via:
 ```bash
-cargo install forester
+cargo install --path ./crates/forester
 ```
 
 Usage:
